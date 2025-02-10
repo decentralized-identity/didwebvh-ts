@@ -2,7 +2,7 @@
   "name": "didwebvh-ts",
   "module": "dist/esm/index.js",
   "type": "module",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "dist/cjs/index.cjs",
   "browser": "dist/browser/index.js",
   "types": "dist/types/index.d.ts",
