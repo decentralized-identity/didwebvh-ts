@@ -6,6 +6,16 @@
 
 The `didwebvh-ts` implementation of the [`did:webvh`]('https://identity.foundation/didwebvh/') specification aims to be compatible with the `did:webvh` v0.5 specification.
 
+## Examples
+
+The `examples` directory contains sample code demonstrating how to use the injectable signer and verifier functionality in the `didwebvh-ts` library. These examples show how to:
+
+- Implement custom cryptographic operations
+- Integrate with external key management systems (KMS)
+- Use hardware security modules (HSM)
+- Create your own signing and verification logic
+
+The examples directory is set up as a standalone package that can be run directly. See the [examples README](./examples/README.md) for instructions on how to run the examples.
 
 ## Prerequisites
 

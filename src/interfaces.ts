@@ -1,3 +1,26 @@
+export interface SigningInput {
+  document: any;
+  proof: any;
+}
+
+export interface SigningOutput {
+  proofValue: string;
+}
+
+export interface Signer {
+  sign(input: SigningInput): Promise<SigningOutput>;
+  getVerificationMethodId(): string;
+}
+
+export interface Verifier {
+  verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean>;
+}
+
+export interface SignerOptions {
+  verificationMethod: VerificationMethod;
+  useStaticId?: boolean;
+}
+
 export interface DIDResolutionMeta {
   versionId: string;
   created: string;
@@ -26,6 +49,27 @@ export interface DIDDoc {
   service?: ServiceEndpoint[];
 }
 
+export interface VerificationMethod {
+  id?: string;
+  type: string;
+  controller?: string;
+  publicKeyMultibase?: string;
+  secretKeyMultibase?: string;
+  purpose?: 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation';
+  publicKeyJWK?: any;
+  use?: string;
+}
+
+export interface WitnessEntry {
+  id: string;  // did:key DID
+  weight: number;
+}
+
+export interface WitnessParameter {
+  threshold: number;
+  witnesses: WitnessEntry[];
+}
+
 export interface DataIntegrityProof {
   id?: string;
   type: string;
@@ -34,21 +78,6 @@ export interface DataIntegrityProof {
   created: string;
   proofValue: string;
   proofPurpose: string;
-}
-
-interface WitnessParameter {
-  threshold: number;
-  witnesses: WitnessEntry[];
-}
-
-interface WitnessEntry {
-  id: string;  // did:key DID
-  weight: number;
-}
-
-interface WitnessProofFileEntry {
-  versionId: string;
-  proof: DataIntegrityProof[];
 }
 
 export interface DIDLogEntry {
@@ -75,63 +104,62 @@ export interface ServiceEndpoint {
   serviceEndpoint?: string | string[] | any;
 }
 
-export interface VerificationMethod {
-  id?: string;
-  type: 'Multikey';
-  purpose?: 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation';
-  controller?: string;
-  publicKeyJWK?: any;
-  publicKeyMultibase?: string;
-  secretKeyMultibase?: string;
-  use?: string;
-}
-
 export interface CreateDIDInterface {
   domain: string;
+  signer: Signer;
   updateKeys: string[];
-  signer: (doc: any) => Promise<{proof: any}>;
+  verificationMethods: VerificationMethod[];
   controller?: string;
-  context?: string | string[];
-  verificationMethods?: VerificationMethod[];
-  created?: Date;
-  nextKeyHashes?: string[];
+  context?: string | string[] | object | object[];
+  alsoKnownAs?: string[];
   portable?: boolean;
+  nextKeyHashes?: string[];
   witness?: WitnessParameter | null;
+  created?: string;
+  verifier?: Verifier;
+  authentication?: string[];
+  assertionMethod?: string[];
+  keyAgreement?: string[];
 }
 
 export interface SignDIDDocInterface {
   document: any;
   proof: any;
-  verificationMethod: VerificationMethod
+  verificationMethod: VerificationMethod;
 }
 
 export interface UpdateDIDInterface {
   log: DIDLog;
-  signer: (doc: any) => Promise<{proof: any}>;
+  signer: Signer;
   updateKeys?: string[];
-  context?: string[];
-  controller?: string[];
   verificationMethods?: VerificationMethod[];
-  services?: ServiceEndpoint[];
+  controller?: string;
+  context?: string | string[] | object | object[];
   alsoKnownAs?: string[];
-  domain?: string;
-  updated?: Date | string;
-  deactivated?: boolean;
+  portable?: boolean;
   nextKeyHashes?: string[];
-  witness?: WitnessParameter | undefined | null;
-  witnessProofs?: WitnessProofFileEntry[];
+  witness?: WitnessParameter | null;
+  verifier?: Verifier;
+  authentication?: string[];
+  assertionMethod?: string[];
+  keyAgreement?: string[];
 }
 
 export interface DeactivateDIDInterface {
   log: DIDLog;
-  signer: (doc: any) => Promise<{proof: any}>;
-  updateKeys?: string[];
+  signer: Signer;
+  verifier?: Verifier;
 }
 
-interface ResolutionOptions {
+export interface ResolutionOptions {
   versionNumber?: number;
   versionId?: string;
   versionTime?: Date;
   verificationMethod?: string;
-  witnessProofs?: WitnessProofFileEntry[];
+  verifier?: Verifier;
 }
+
+export interface WitnessProofFileEntry {
+  versionId: string;
+  proof: DataIntegrityProof[];
+} 

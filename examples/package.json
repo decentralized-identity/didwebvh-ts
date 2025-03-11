@@ -1,0 +1,17 @@
+{
+  "name": "didwebvh-ts-examples",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "custom": "bun run custom-signer.ts",
+    "hsm": "bun run hsm-signer.ts"
+  },
+  "dependencies": {
+    "didwebvh-ts": "file:..",
+    "multiformats": "^13.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.5"
+  }
+} 

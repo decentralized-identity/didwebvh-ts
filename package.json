@@ -22,19 +22,18 @@
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@stablelib/ed25519": "^2.0.2",
     "@types/bun": "^1.1.14",
     "bun-bagel": "^1.1.0",
     "bun-types": "latest",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
     "semantic-release": "^22.0.0"
   },
   "peerDependencies": {
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@noble/curves": "^1.6.0",
-    "@noble/ed25519": "^2.1.0",
     "bs58": "^6.0.0",
     "elysia": "^0.8.17",
     "json-canonicalize": "^1.0.6",

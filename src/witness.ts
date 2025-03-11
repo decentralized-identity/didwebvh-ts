@@ -1,13 +1,10 @@
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
-import type { DataIntegrityProof, DIDLogEntry, WitnessEntry, WitnessParameter, WitnessProofFileEntry } from './interfaces';
-import * as ed from '@noble/ed25519';
+import type { DataIntegrityProof, DIDLogEntry, WitnessEntry, WitnessParameter, WitnessProofFileEntry, Verifier } from './interfaces';
 import { base58btc } from "multiformats/bases/base58";
 import { resolveVM } from "./utils";
-import { bufferToString, concatBuffers } from './utils/buffer';
-import { config } from './config';
+import { concatBuffers } from './utils/buffer';
 import { fetchWitnessProofs } from './utils';
-
 
 export function validateWitnessParameter(witness: WitnessParameter): void {
   if (!witness.threshold || witness.threshold < 1) {
@@ -47,8 +44,13 @@ export function calculateWitnessWeight(proofs: DataIntegrityProof[], witnesses: 
 export async function verifyWitnessProofs(
   logEntry: DIDLogEntry,
   witnessProofs: WitnessProofFileEntry[],
-  currentWitness: WitnessParameter
+  currentWitness: WitnessParameter,
+  verifier?: Verifier
 ): Promise<void> {
+  if (!verifier) {
+    throw new Error('Verifier implementation is required');
+  }
+
   let totalWeight = 0;
   const processedWitnesses = new Set<string>();
 
@@ -84,14 +86,11 @@ export async function verifyWitnessProofs(
         const input = concatBuffers(proofHash, dataHash);
 
         const signature = base58btc.decode(proofValue);
-        const signatureHex = bufferToString(signature, 'hex');
-        const inputHex = bufferToString(input, 'hex');
-        const publicKeyHex = bufferToString(publicKey.slice(2), 'hex');
 
-        const verified = await ed.verifyAsync(
-          signatureHex,
-          inputHex,
-          publicKeyHex
+        const verified = await verifier.verify(
+          signature,
+          input,
+          publicKey.slice(2)
         );
 
         if (!verified) {
