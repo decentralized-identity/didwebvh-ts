@@ -1,6 +1,6 @@
 # `didwebvh-ts`
 
-`didwebvh-ts` provides developers with a comprehensive library and resolver for working with Decentralized Identifiers (DIDs) following the `did:webvh` method specification. This Typescript-based toolkit is designed to facilitate the integration and management of DIDs within web applications, enabling secure identity verification and authentication processes. It includes functions for creating, resolving, updating and deactivating DIDs by managing DID documents. The package is built to ensure compatibility with the latest web development standards, offering a straightforward API that makes it easy to implement DID-based features in a variety of projects.
+`didwebvh-ts` provides developers with a comprehensive library for working with Decentralized Identifiers (DIDs) following the `did:webvh` method specification. This Typescript-based toolkit is designed to facilitate the integration and management of DIDs within web applications, enabling secure identity verification and authentication processes. It includes functions for creating, resolving, updating and deactivating DIDs by managing DID documents. The package is built to ensure compatibility with the latest web development standards, offering a straightforward API that makes it easy to implement DID-based features in a variety of projects.
 
 ## Summary
 
@@ -8,14 +8,11 @@ The `didwebvh-ts` implementation of the [`did:webvh`]('https://identity.foundati
 
 ## Examples
 
-The `examples` directory contains sample code demonstrating how to use the injectable signer and verifier functionality in the `didwebvh-ts` library. These examples show how to:
+The `examples` directory contains sample code demonstrating how to use the library:
 
-- Implement custom cryptographic operations
-- Integrate with external key management systems (KMS)
-- Use hardware security modules (HSM)
-- Create your own signing and verification logic
+- **Crypto Examples**: The `examples/crypto` directory shows how to use the injectable signer and verifier functionality in the `didwebvh-ts` library. These examples demonstrate how to implement custom cryptographic operations, integrate with external key management systems (KMS), use hardware security modules (HSM), and create your own signing and verification logic. See the [crypto examples README](./examples/crypto/README.md) for more information.
 
-The examples directory is set up as a standalone package that can be run directly. See the [examples README](./examples/README.md) for instructions on how to run the examples.
+- **Resolver Examples**: The `examples/resolvers` directory contains examples of how to implement a DID resolver using the `didwebvh-ts` library with different web frameworks (Elysia, Express). See the [resolver examples README](./examples/resolvers/README.md) for more information.
 
 ## Prerequisites
 
@@ -35,158 +32,115 @@ bun install
 
 The following commands are defined in the `package.json` file:
 
-1. `dev`: Run the resolver in development mode with debugging enabled.
+1. `dev`: Run the Elysia resolver example in development mode with debugging enabled.
    ```bash
    bun run dev
    ```
-   This command runs: `bun --watch --inspect-wait ./src/resolver.ts`
+   This command runs: `bun --watch --inspect-wait ./examples/resolvers/elysia/resolver.ts`
 
-2. `server`: Run the resolver in watch mode for development.
+2. `server`: Run the Elysia resolver example in watch mode for development.
    ```bash
    bun run server
    ```
-   This command runs: `bun --watch ./src/resolver.ts`
+   This command runs: `bun --watch ./examples/resolvers/elysia/resolver.ts`
 
 3. `test`: Run all tests.
    ```bash
    bun run test
    ```
-   This command runs: `bun test`
 
 4. `test:watch`: Run tests in watch mode.
    ```bash
    bun run test:watch
    ```
-   This command runs: `bun test --watch`
 
-5. `test:bail`: Run tests in watch mode, stopping on the first failure with verbose output.
+5. `test:bail`: Run tests in watch mode with bail and verbose options.
    ```bash
    bun run test:bail
    ```
-   This command runs: `bun test --watch --bail --verbose`
 
-6. `test:log`: Run tests and save the output to a log file.
+6. `test:log`: Run tests and save logs to a file.
    ```bash
    bun run test:log
    ```
-   This command runs: `mkdir -p ./test/logs && LOG_RESOLVES=true bun test &> ./test/logs/test-run.txt`
 
 7. `cli`: Run the CLI tool.
    ```bash
-   bun run cli [command] [options]
+   bun run cli
    ```
-   This command runs: `bun run src/cli.ts --`
 
-## CLI Usage Guide
+8. `build`: Build the package.
+   ```bash
+   bun run build
+   ```
 
-> ⚠️ **Warning**: The CLI is experimental beta software - use at your own risk!
+9. `build:clean`: Clean the build directory.
+   ```bash
+   bun run build:clean
+   ```
 
-### Basic Syntax
-```bash
-bun run cli [command] [options]
-```
+## Creating a DID Resolver
 
-### Available Commands
+The `didwebvh-ts` library provides the core functionality for resolving DIDs, but it does not include a built-in HTTP resolver. You can create your own resolver using your preferred web framework by following these steps:
 
-#### 1. Create a DID
-Create a new DID with various configuration options:
+1. Import the `resolveDID` function from the `didwebvh-ts` library:
+   ```typescript
+   import { resolveDID } from 'didwebvh-ts';
+   ```
 
-```bash
-bun run cli create \
-  --domain example.com \
-  --output ./did.jsonl \
-```
+2. Create endpoints for resolving DIDs:
+   ```typescript
+   // Example using Express
+   app.get('/resolve/:id', async (req, res) => {
+     try {
+       const result = await resolveDID(req.params.id);
+       res.json(result);
+     } catch (error) {
+       res.status(400).json({
+         error: 'Resolution failed',
+         details: error.message
+       });
+     }
+   });
+   ```
 
-**Key Options:**
-- `--domain`: (Required) Host domain for the DID
-- `--output`: Save location for DID log
-- `--portable`: Enable domain portability
-- `--witness`: Add witness DIDs (repeatable)
-- `--witness-threshold`: Set minimum witness count
-- `--next-key-hash`: Add pre-rotation key hashes
+3. Implement file retrieval logic for DID documents and associated resources.
 
-#### 2. Resolve a DID
-View the current state of a DID:
+For complete examples, see the [resolver examples](./examples/resolvers/) directory.
 
-```bash
-# From DID identifier
-bun run cli resolve --did did:webvh:123456:example.com
+## API Reference
 
-# From local log file
-bun run cli resolve --log ./did.jsonl
-```
+### Core Functions
 
-#### 3. Update a DID
-Modify an existing DID's properties:
+- `resolveDID(did: string, options?: ResolutionOptions): Promise<{did: string, doc: any, meta: DIDResolutionMeta, controlled: boolean}>`
+  Resolves a DID to its DID document.
 
-```bash
-bun run cli update \
-  --log ./did.jsonl \
-  --output ./updated.jsonl \
-  --add-vm keyAgreement \
-  --service LinkedDomains,https://example.com \
-  --also-known-as did:web:example.com
-```
+- `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
+  Creates a new DID.
 
-**Update Options:**
-- `--log`: (Required) Current DID log path
-- `--output`: Updated log save location
-- `--add-vm`: Add verification methods:
-  - authentication
-  - assertionMethod
-  - keyAgreement
-  - capabilityInvocation
-  - capabilityDelegation
-- `--service`: Add services (format: type,endpoint)
-- `--also-known-as`: Add alternative identifiers
-- `--witness`: Update witness list
-- `--witness-threshold`: Update witness requirements
+- `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
+  Updates an existing DID.
 
-#### 4. Deactivate a DID
-Permanently deactivate a DID:
+- `deactivateDID(options: DeactivateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
+  Deactivates an existing DID.
 
-```bash
-bun run cli deactivate \
-  --log ./did.jsonl \
-  --output ./deactivated.jsonl
-```
+### Cryptography Functions
 
-## Contributing
+- `createDocumentSigner(options: SignerOptions): Signer`
+  Creates a signer for signing DID documents.
 
-### Commit Message Format
+- `prepareDataForSigning(data: any): Uint8Array`
+  Prepares data for signing.
 
-This project uses [Semantic Release](https://github.com/semantic-release/semantic-release) for automated version management and package publishing. Commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+- `createProof(options: SigningInput): Promise<SigningOutput>`
+  Creates a proof for a DID document.
 
-Format: `<type>(<scope>): <description>` where scope is optional.
+- `createSigner(options: SignerOptions): Signer`
+  Creates a signer for signing data.
 
-#### Types:
-- `feat`: A new feature (triggers a minor version bump)
-- `fix`: A bug fix (triggers a patch version bump)
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, missing semi-colons, etc)
-- `refactor`: Code changes that neither fix a bug nor add a feature
-- `perf`: Performance improvements
-- `test`: Adding or updating tests
-- `chore`: Changes to build process or auxiliary tools
+- `AbstractSigner`
+  An abstract class for implementing custom signers.
 
-#### Examples:
+## License
 
-```
-feat(resolver): add support for new DID method
-fix: handle null response from endpoint
-docs: update installation instructions
-chore: update dependencies
-```
-
-Breaking changes must include `BREAKING CHANGE:` in the commit message body or footer, or append a `!` after the type/scope.
-
-Example:
-```
-feat(api)!: remove deprecated endpoints
-```
-or
-```
-feat(api): remove deprecated endpoints
-
-BREAKING CHANGE: The following endpoints have been removed...
-```
+This project is licensed under the [MIT License](LICENSE).

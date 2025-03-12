@@ -1,0 +1,5 @@
+### Health check
+GET http://localhost:8000/health
+
+### Resolve the DID directly
+GET http://localhost:8000/resolve/did:webvh:QmPEQVM1JPTyrvEgBcDXwjK4TeyLGSX1PxjgyeAisdWM1p:gist.githubusercontent.com:brianorwhatever:9c4633d18eb644f7a47f93a802691626:raw

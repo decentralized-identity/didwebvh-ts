@@ -1,8 +1,25 @@
 import { Elysia } from 'elysia'
-import { config } from './config';
-import { resolveDID } from './method';
-import { DIDDoc } from './interfaces';
-import { getActiveDIDs } from './utils';
+import { resolveDID } from 'didwebvh-ts';
+import type { DIDDoc, Verifier } from '../../../src/interfaces';
+
+// Define a simple verifier implementation
+class DefaultVerifier implements Verifier {
+  async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
+    // This is a placeholder implementation that logs verification attempts
+    // In a production environment, you would use a proper cryptographic library
+    console.log('Verifying signature with DefaultVerifier');
+    console.log(`Signature: ${Buffer.from(signature).toString('hex').substring(0, 20)}...`);
+    console.log(`Message: ${Buffer.from(message).toString('hex').substring(0, 20)}...`);
+    console.log(`Public Key: ${Buffer.from(publicKey).toString('hex').substring(0, 20)}...`);
+    
+    // For demonstration purposes, always return true
+    // In a real implementation, you would actually verify the signature
+    return true;
+  }
+}
+
+// Create an instance of the default verifier
+const defaultVerifier = new DefaultVerifier();
 
 const WELL_KNOWN_ALLOW_LIST = ['did.jsonl'];
 
@@ -85,12 +102,17 @@ const app = new Elysia()
           versionNumber: query.versionNumber ? parseInt(query.versionNumber as string) : undefined,
           versionId: query.versionId as string,
           versionTime: query.versionTime ? new Date(query.versionTime as string) : undefined,
-          verificationMethod: query.verificationMethod as string
+          verificationMethod: query.verificationMethod as string,
+          // Pass the default verifier to the resolveDID function
+          verifier: defaultVerifier
         };
+        
+        console.log(`Resolving DID ${didPart} with default verifier`);
         return await resolveDID(didPart, options);
       }
       
-      const {did, doc, controlled} = await resolveDID(didPart);
+      // For path-based resolution, also use the default verifier
+      const {did, doc, controlled} = await resolveDID(didPart, { verifier: defaultVerifier });
       
       const didParts = did.split(':');
       const domain = didParts[didParts.length - 1];
@@ -133,19 +155,14 @@ const app = new Elysia()
     });
   })
 
-const port = config.getEnvValue('PORT') || 8000;
+// Get port from environment or use default
+const port = process.env.PORT ? parseInt(process.env.PORT) : 8000;
 
 // Log active DIDs when server starts
 app.onStart(async () => {
-  console.log('\n=== Active DIDs ===');
-  const activeDIDs = await getActiveDIDs();
-  
-  if (activeDIDs.length === 0) {
-    console.log('No active DIDs found');
-  } else {
-    activeDIDs.forEach(did => console.log(did));
-  }
-  console.log('=================\n');
+  console.log('\n=== Using Default Verifier ===');
+  console.log('All DID resolutions will use the default verifier implementation');
+  console.log('==============================\n');
 });
 
 console.log(`🔍 Resolver is running at http://localhost:${port}`);

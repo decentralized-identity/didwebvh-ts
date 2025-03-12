@@ -1,0 +1,16 @@
+{
+  "name": "didwebvh-elysia-resolver",
+  "module": "resolver.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run resolver.ts",
+    "dev": "bun --watch resolver.ts"
+  },
+  "dependencies": {
+    "didwebvh-ts": "../../..",
+    "elysia": "^0.8.17"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+} 

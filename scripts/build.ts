@@ -11,7 +11,7 @@ const baseExternals = [
 
 // CJS-specific externals (exclude ESM-only packages)
 const cjsExternals = baseExternals.filter(dep => 
-  !['@noble/ed25519', 'nanoid', 'multiformats'].includes(dep)
+  !['@noble/ed25519', 'multiformats'].includes(dep)
 );
 
 // Library builds

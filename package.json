@@ -10,8 +10,8 @@
     "dist/**/*"
   ],
   "scripts": {
-    "dev": "bun --watch --inspect-wait ./src/resolver.ts",
-    "server": "bun --watch ./src/resolver.ts",
+    "dev": "bun --watch --inspect-wait ./examples/resolvers/elysia/resolver.ts",
+    "server": "bun --watch ./examples/resolvers/elysia/resolver.ts",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:bail": "bun test --watch --bail --verbose",
@@ -28,17 +28,13 @@
     "@types/bun": "^1.1.14",
     "bun-bagel": "^1.1.0",
     "bun-types": "latest",
+    "elysia": "^0.8.17",
     "semantic-release": "^22.0.0"
-  },
-  "peerDependencies": {
-    "typescript": "^5.4.5"
   },
   "dependencies": {
     "bs58": "^6.0.0",
-    "elysia": "^0.8.17",
     "json-canonicalize": "^1.0.6",
-    "multiformats": "^13.3.1",
-    "nanoid": "^5.0.8"
+    "multiformats": "^13.3.1"
   },
   "bin": {
     "didwebvh": "./dist/cli/didwebvh.js"

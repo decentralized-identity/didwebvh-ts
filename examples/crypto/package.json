@@ -7,7 +7,7 @@
     "hsm": "bun run hsm-signer.ts"
   },
   "dependencies": {
-    "didwebvh-ts": "file:..",
+    "didwebvh-ts": "../..",
     "multiformats": "^13.3.1"
   },
   "devDependencies": {

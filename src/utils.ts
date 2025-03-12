@@ -2,12 +2,10 @@ import fs from 'node:fs';
 import bs58 from 'bs58'
 import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
-import { nanoid } from 'nanoid';
 import { sha256 } from 'multiformats/hashes/sha2'
 import { resolveDIDFromLog } from './method';
-import type { CreateDIDInterface, DataIntegrityProof, DIDDoc, DIDLog, VerificationMethod, WitnessProofFileEntry } from './interfaces';
+import type { CreateDIDInterface, DIDDoc, DIDLog, VerificationMethod, WitnessProofFileEntry } from './interfaces';
 import { createBuffer, bufferToString } from './utils/buffer';
-import { join } from 'path';
 
 export const readLogFromDisk = (path: string): DIDLog => {
   return readLogFromString(fs.readFileSync(path, 'utf8'));
@@ -19,16 +17,13 @@ export const readLogFromString = (str: string): DIDLog => {
 
 export const writeLogToDisk = (path: string, log: DIDLog) => {
   try {
-    // Ensure directory exists
     const dir = path.substring(0, path.lastIndexOf('/'));
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    // Write first entry
     fs.writeFileSync(path, JSON.stringify(log[0]) + '\n');
     
-    // Append remaining entries
     for (let i = 1; i < log.length; i++) {
       fs.appendFileSync(path, JSON.stringify(log[i]) + '\n');
     }
@@ -50,7 +45,6 @@ export const writeVerificationMethodToEnv = (verificationMethod: VerificationMet
   };
 
   try {
-    // Read existing .env content
     let envContent = '';
     let existingData: any[] = [];
     
@@ -238,8 +232,19 @@ export const createDIDDoc = async (options: CreateDIDInterface): Promise<{doc: D
   return {doc};
 }
 
+// Helper function to generate a random string (replacement for nanoid)
+export const generateRandomId = (length: number = 8): string => {
+  const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const charactersLength = characters.length;
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
+};
+
 export const createVMID = (vm: VerificationMethod, did: string | null) => {
-  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || nanoid(8)}`
+  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || generateRandomId(8)}`
 }
 
 export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefined, did: string | null = null) => {

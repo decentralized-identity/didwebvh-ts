@@ -53,7 +53,7 @@ export interface VerificationMethod {
   id?: string;
   type: string;
   controller?: string;
-  publicKeyMultibase?: string;
+  publicKeyMultibase: string;
   secretKeyMultibase?: string;
   purpose?: 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation';
   publicKeyJWK?: any;

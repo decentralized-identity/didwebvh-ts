@@ -8,7 +8,7 @@ import {
   createDocumentSigner, 
   prepareDataForSigning
 } from 'didwebvh-ts';
-import type { Signer, SigningInput, SigningOutput } from 'didwebvh-ts';
+import type { Signer, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts';
 import { base58btc } from 'multiformats/bases/base58';
 
 /**
@@ -20,7 +20,7 @@ import { base58btc } from 'multiformats/bases/base58';
  * 2. Use key references or identifiers instead
  * 3. Have their own method of managing verification method IDs
  */
-class HSMSigner implements Signer {
+class HSMSigner implements Signer, Verifier {
   private keyId: string;
   private verificationMethodId: string;
 
@@ -62,6 +62,33 @@ class HSMSigner implements Signer {
   }
 
   /**
+   * Verify a signature
+   * @param signature - The signature to verify
+   * @param message - The message that was signed
+   * @param publicKey - The public key to verify against
+   * @returns Whether the signature is valid
+   */
+  async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
+    // In a real implementation, you would:
+    // 1. Call your HSM/KMS API to verify the signature
+    // 2. Return true if the signature is valid, false otherwise
+
+    // This is a mock implementation for demonstration purposes
+    console.log('Verifying signature with HSMSigner');
+    console.log(`Signature: ${Buffer.from(signature).toString('hex').substring(0, 20)}...`);
+    console.log(`Message: ${Buffer.from(message).toString('hex').substring(0, 20)}...`);
+    console.log(`Public Key: ${Buffer.from(publicKey).toString('hex').substring(0, 20)}...`);
+    
+    // For demonstration purposes, always return true
+    // In a real implementation, you would actually verify the signature using your HSM/KMS
+    return await this.mockHsmVerificationCall(
+      Buffer.from(signature).toString('hex'),
+      Buffer.from(message).toString('hex'),
+      Buffer.from(publicKey).toString('hex')
+    );
+  }
+
+  /**
    * Mock HSM/KMS signing call
    * In a real implementation, this would be a call to your HSM/KMS API
    * @param dataHex - The data to sign as a hex string
@@ -77,6 +104,32 @@ class HSMSigner implements Signer {
     // Return a mock signature
     // In a real implementation, this would be the actual signature from your HSM/KMS
     return '0102030405060708090a0b0c0d0e0f';
+  }
+
+  /**
+   * Mock HSM/KMS verification call
+   * In a real implementation, this would be a call to your HSM/KMS API
+   * @param signatureHex - The signature as a hex string
+   * @param messageHex - The message as a hex string
+   * @param publicKeyHex - The public key as a hex string
+   * @returns Whether the signature is valid
+   */
+  private async mockHsmVerificationCall(
+    signatureHex: string,
+    messageHex: string,
+    publicKeyHex: string
+  ): Promise<boolean> {
+    // This is a mock implementation for demonstration purposes
+    console.log(`[HSM] Verifying signature: ${signatureHex.substring(0, 20)}...`);
+    console.log(`[HSM] Message: ${messageHex.substring(0, 20)}...`);
+    console.log(`[HSM] Public Key: ${publicKeyHex.substring(0, 20)}...`);
+    
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Return a mock verification result
+    // In a real implementation, this would be the actual verification result from your HSM/KMS
+    return true;
   }
 
   /**
@@ -110,6 +163,14 @@ async function exampleUsage() {
     
     const signedDocument = await documentSigner(document);
     console.log('Signed document:', signedDocument);
+
+    // Verify a signature (mock example)
+    const mockSignature = new Uint8Array([1, 2, 3, 4, 5]);
+    const mockMessage = new Uint8Array([6, 7, 8, 9, 10]);
+    const mockPublicKey = new Uint8Array([0xed, 0x01, 11, 12, 13, 14, 15]);
+    
+    const isValid = await signer.verify(mockSignature, mockMessage, mockPublicKey);
+    console.log('Signature valid:', isValid);
   } catch (error) {
     console.error('Error:', error);
   }
