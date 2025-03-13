@@ -1,9 +1,4 @@
-import { base58btc } from "multiformats/bases/base58";
-import { canonicalize } from "json-canonicalize";
-import { createHash } from "./crypto";
-import { concatBuffers } from "./buffer";
 import type { DataIntegrityProof, WitnessProofFileEntry } from "../interfaces";
-import { config } from '../config';
 
 export async function createWitnessProof(
   signer: (doc: any) => Promise<{proof: any}>,

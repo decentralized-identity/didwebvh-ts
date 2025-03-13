@@ -1,8 +1,0 @@
-
-<input type="text" id="did-input" value="e9q26uqq5hg20yydmzq63fkcx7a"></input>
-<script>
-window.document.getElementById('did-input').addEventListener('change', async (e) => {
-  const resp = await fetch(`http://localhost:8083/${e.target.value}/did.jsonl`)
-  console.log(resp.data)
-})
-</script>

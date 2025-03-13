@@ -1,12 +1,10 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { base58btc } from "multiformats/bases/base58";
 import { AbstractSigner, createDocumentSigner } from "../src/cryptography";
 import { SigningInput, SigningOutput, SignerOptions, Verifier } from "../src/interfaces";
-import { canonicalize } from "json-canonicalize";
-import { createHash } from "../src/utils/crypto";
-import { concatBuffers } from "../src/utils/buffer";
 import { documentStateIsValid } from "../src/assertions";
 import { verifyWitnessProofs } from "../src/witness";
+import { MultibaseEncoding } from "../src/utils/multiformats";
+import { multibaseEncode } from "../src/utils/multiformats";
 
 // Set environment variables for tests
 process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
@@ -22,7 +20,7 @@ class MockCryptoImplementation extends AbstractSigner implements Verifier {
   }
 
   async sign(input: SigningInput): Promise<SigningOutput> {
-    return { proofValue: base58btc.encode(this.mockSignature) };
+    return { proofValue: multibaseEncode(this.mockSignature, MultibaseEncoding.BASE58_BTC) };
   }
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
@@ -167,9 +165,9 @@ describe("Injectable Cryptography Tests", () => {
       }]
     };
 
-    await expect(
+    expect(
       verifyWitnessProofs(logEntry, witnessProofs, witness, failingMockImplementation)
-    ).rejects.toThrow("Invalid witness proof signature");
+    ).rejects.toThrow("Invalid witness proof: Invalid witness proof signature");
   });
 
   test("Require verifier implementation", async () => {

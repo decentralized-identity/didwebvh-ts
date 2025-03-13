@@ -1,11 +1,11 @@
 import fs from 'node:fs';
-import bs58 from 'bs58'
 import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
-import { sha256 } from 'multiformats/hashes/sha2'
 import { resolveDIDFromLog } from './method';
 import type { CreateDIDInterface, DIDDoc, DIDLog, VerificationMethod, WitnessProofFileEntry } from './interfaces';
 import { createBuffer, bufferToString } from './utils/buffer';
+import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from './utils/multiformats';
+import { createHash } from './utils/crypto';
 
 export const readLogFromDisk = (path: string): DIDLog => {
   return readLogFromString(fs.readFileSync(path, 'utf8'));
@@ -162,13 +162,15 @@ export const createSCID = async (logEntryHash: string): Promise<string> => {
 
 export const deriveHash = async (input: any): Promise<string> => {
   const data = canonicalize(input);
-  const hash = await sha256.digest(new TextEncoder().encode(data));
-  return bs58.encode(hash.bytes)
+  const hash = await createHash(data);
+  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
+  return encodeBase58Btc(multihash);
 }
 
 export const deriveNextKeyHash = async (input: string): Promise<string> => {
-  const hash = await sha256.digest(new TextEncoder().encode(input));
-  return bs58.encode(hash.bytes);
+  const hash = await createHash(input);
+  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
+  return encodeBase58Btc(multihash);
 }
 
 export const createDIDDoc = async (options: CreateDIDInterface): Promise<{doc: DIDDoc}> => {

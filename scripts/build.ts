@@ -5,14 +5,8 @@ import { mkdir } from "node:fs/promises";
 
 // Base externals list
 const baseExternals = [
-  ...Object.keys(pkg.dependencies || {}),
-  ...Object.keys(pkg.peerDependencies || {})
+  ...Object.keys(pkg.dependencies || {})
 ];
-
-// CJS-specific externals (exclude ESM-only packages)
-const cjsExternals = baseExternals.filter(dep => 
-  !['@noble/ed25519', 'multiformats'].includes(dep)
-);
 
 // Library builds
 const browserConfig: BuildConfig = {
@@ -58,7 +52,7 @@ const cjsConfig: BuildConfig = {
   entrypoints: ["./src/index.ts"],
   minify: false,
   sourcemap: "external",
-  external: cjsExternals,
+  external: baseExternals,
   target: "node",
   format: "cjs",
   outdir: "./dist/cjs",
@@ -115,8 +109,7 @@ function createDistPackageJson() {
         "types": "./types/index.d.ts"
       }
     },
-    dependencies: pkg.dependencies,
-    peerDependencies: pkg.peerDependencies,
+    dependencies: pkg.dependencies
   };
 
   // Only add optional fields if they exist in the source package.json

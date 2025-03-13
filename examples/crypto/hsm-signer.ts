@@ -9,7 +9,6 @@ import {
   prepareDataForSigning
 } from 'didwebvh-ts';
 import type { Signer, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts';
-import { base58btc } from 'multiformats/bases/base58';
 
 /**
  * Example of a Hardware Security Module (HSM) or Key Management Service (KMS) signer
@@ -58,7 +57,7 @@ class HSMSigner implements Signer, Verifier {
     const signature = Buffer.from(signatureHex, 'hex');
     
     // Return the signature as a base58btc-encoded string
-    return { proofValue: base58btc.encode(new Uint8Array(signature)) };
+    return { proofValue: `z1${signatureHex}` };
   }
 
   /**

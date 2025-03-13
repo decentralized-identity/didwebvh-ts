@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 
 import { createDID, updateDID, deactivateDID, resolveDIDFromLog } from './method';
-import { createSigner } from './cryptography';
 import { fetchLogFromIdentifier, readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './utils';
 import { dirname } from 'path';
 import fs from 'fs';
 import { DIDLog, ServiceEndpoint, VerificationMethod } from './interfaces';
-import { config } from './config';
 import { createBuffer } from './utils/buffer';
 import { bufferToString } from './utils/buffer';
 import crypto from 'crypto';
-import { base58btc } from 'multiformats/bases/base58';
 import { Signer, SigningInput, SigningOutput } from './interfaces';
+import { multibaseEncode } from './utils/multiformats';
+import { MultibaseEncoding } from './utils/multiformats';
 
 const usage = `
 Usage: bun run cli [command] [options]
@@ -60,8 +59,8 @@ async function generateVerificationMethod(purpose: "authentication" | "assertion
   
   return {
     type: 'Multikey',
-    publicKeyMultibase: base58btc.encode(publicKeyBytes),
-    secretKeyMultibase: base58btc.encode(secretKeyBytes),
+    publicKeyMultibase: multibaseEncode(publicKeyBytes, MultibaseEncoding.BASE58_BTC),
+    secretKeyMultibase: multibaseEncode(secretKeyBytes, MultibaseEncoding.BASE58_BTC),
     purpose
   };
 }
@@ -82,7 +81,7 @@ class CustomCryptoImplementation implements Signer {
     // This is a simplified implementation for testing
     // In a real implementation, you would use the private key to sign the data
     return {
-      proofValue: base58btc.encode(new Uint8Array(64)) // Return a dummy signature
+      proofValue: multibaseEncode(new Uint8Array(64), MultibaseEncoding.BASE58_BTC) // Return a dummy signature
     };
   }
 }

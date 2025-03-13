@@ -1,7 +1,6 @@
 import express, { type Request, type Response } from 'express';
 import { resolveDID } from 'didwebvh-ts';
 import type { DIDDoc, Verifier } from '../../../src/interfaces';
-import { base58btc } from 'multiformats/bases/base58';
 
 // Define a simple verifier implementation
 class DefaultVerifier implements Verifier {

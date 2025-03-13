@@ -8,7 +8,9 @@
 import { 
   createDocumentSigner, 
   prepareDataForSigning,
-  AbstractSigner
+  AbstractSigner,
+  multibaseEncode,
+  MultibaseEncoding
 } from 'didwebvh-ts';
 import type { 
   SigningInput, 
@@ -17,7 +19,6 @@ import type {
   SignerOptions, 
   Verifier 
 } from 'didwebvh-ts';
-import { base58btc } from 'multiformats/bases/base58';
 
 /**
  * Example of a combined signer and verifier implementation
@@ -55,8 +56,8 @@ class CombinedSignerVerifier extends AbstractSigner implements Verifier {
     console.log('Signing data with CombinedSignerVerifier');
     const mockSignature = new Uint8Array([1, 2, 3, 4, 5]);
     
-    // Return the signature as a base58btc-encoded string
-    return { proofValue: base58btc.encode(mockSignature) };
+    // Return a fake signature as a base58btc-encoded string
+    return { proofValue: multibaseEncode(mockSignature, MultibaseEncoding.BASE58_BTC) };
   }
 
   /**
@@ -102,8 +103,8 @@ async function generateVerificationMethod(): Promise<VerificationMethod> {
     id: '',
     type: 'Multikey',
     controller: '',
-    publicKeyMultibase: base58btc.encode(mockPublicKey),
-    secretKeyMultibase: base58btc.encode(mockPrivateKey)
+    publicKeyMultibase: multibaseEncode(mockPublicKey, MultibaseEncoding.BASE58_BTC),
+    secretKeyMultibase: multibaseEncode(mockPrivateKey, MultibaseEncoding.BASE58_BTC)
   };
 }
 
@@ -144,6 +145,3 @@ async function exampleUsage() {
 
 // Export the implementation for use in other files
 export { CombinedSignerVerifier, generateVerificationMethod };
-
-// Uncomment to run the example
-// exampleUsage(); 

@@ -32,9 +32,7 @@
     "semantic-release": "^22.0.0"
   },
   "dependencies": {
-    "bs58": "^6.0.0",
-    "json-canonicalize": "^1.0.6",
-    "multiformats": "^13.3.1"
+    "json-canonicalize": "^1.0.6"
   },
   "bin": {
     "didwebvh": "./dist/cli/didwebvh.js"

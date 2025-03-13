@@ -1,10 +1,10 @@
 import { deriveHash } from '../src/utils';
 import type { DIDLogEntry, DIDLog } from '../src/interfaces';
-import { base58btc } from "multiformats/bases/base58";
 import { AbstractSigner, createDocumentSigner } from "../src/cryptography";
 import { SigningInput, SigningOutput, SignerOptions, Verifier, VerificationMethod, Signer } from "../src/interfaces";
 import * as crypto from '@stablelib/ed25519'; // Using stablelib for test implementation
 import { prepareDataForSigning } from '../src/cryptography';
+import { multibaseDecode, multibaseEncode, MultibaseEncoding } from '../src/utils/multiformats';
 
 export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
   return entries.map((entry, index) => {
@@ -31,16 +31,16 @@ export class TestCryptoImplementation extends AbstractSigner implements Verifier
       const keyPair = crypto.generateKeyPair();
       this.keyPair = keyPair;
     } else {
-      const secretKey = base58btc.decode(options.verificationMethod.secretKeyMultibase).slice(2);
-      const publicKey = base58btc.decode(options.verificationMethod.publicKeyMultibase!).slice(2);
+      const secretKey = multibaseDecode(options.verificationMethod.secretKeyMultibase).bytes;
+      const publicKey = multibaseDecode(options.verificationMethod.publicKeyMultibase!).bytes;
       this.keyPair = { publicKey, secretKey };
     }
   }
 
   async sign(input: SigningInput): Promise<SigningOutput> {
     const dataToSign = await prepareDataForSigning(input.document, input.proof);
-    const signature = crypto.sign(this.keyPair.secretKey, dataToSign);
-    return { proofValue: base58btc.encode(signature) };
+    const signature = crypto.sign(this.keyPair.secretKey.slice(2), dataToSign);
+    return { proofValue: multibaseEncode(signature, MultibaseEncoding.BASE58_BTC) };
   }
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
@@ -63,15 +63,12 @@ export class MockFailingImplementation extends TestCryptoImplementation {
 // Helper to generate verification method for tests
 export async function generateTestVerificationMethod(purpose: "authentication" | "assertionMethod" | "keyAgreement" | "capabilityInvocation" | "capabilityDelegation" = 'authentication'): Promise<VerificationMethod> {
   const keyPair = crypto.generateKeyPair();
-  
-  // Add the ed25519 multikey header (0xed01)
-  const publicKeyBytes = new Uint8Array([0xed, 0x01, ...keyPair.publicKey]);
-  const secretKeyBytes = new Uint8Array([0xed, 0x01, ...keyPair.secretKey]);
-  
+  const secretKey = multibaseEncode(new Uint8Array([0x80, 0x26, ...keyPair.secretKey]), MultibaseEncoding.BASE58_BTC);
+  const publicKey = multibaseEncode(new Uint8Array([0xed, 0x01, ...keyPair.publicKey]), MultibaseEncoding.BASE58_BTC);
   return {
     type: 'Multikey',
-    publicKeyMultibase: base58btc.encode(publicKeyBytes),
-    secretKeyMultibase: base58btc.encode(secretKeyBytes),
+    publicKeyMultibase: publicKey,
+    secretKeyMultibase: secretKey,
     purpose
   };
 }

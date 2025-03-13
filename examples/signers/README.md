@@ -1,4 +1,4 @@
-# Injectable Signer and Verifier Examples
+# Injectable Signer Examples
 
 This directory contains examples of how to use the injectable signer and verifier functionality in the `didwebvh-ts` library.
 
@@ -23,38 +23,33 @@ This directory is set up as a standalone package that depends on the main `didwe
    
    # Run the HSM signer example
    bun run hsm
-   
-   # Run the combined signer and verifier example
-   bun run combined
    ```
 
 ## Overview
 
 The `didwebvh-ts` library now supports injectable cryptographic operations, allowing you to:
 
-1. Use your own cryptographic libraries for signing and verification
+1. Use your own cryptographic libraries
 2. Integrate with external key management systems (KMS)
 3. Use hardware security modules (HSM)
 4. Implement custom signing and verification logic
-
-All examples now include both signing and verification functionality, demonstrating how to implement the `Signer` and `Verifier` interfaces.
 
 ## Important Note
 
 The `didwebvh-ts` library no longer includes any specific cryptographic implementation. You must provide your own cryptographic implementation by either:
 
-1. **Extending the `AbstractSigner` class and implementing the `Verifier` interface** (Recommended for most cases)
+1. **Extending the `AbstractSigner` class** (Recommended for most cases)
    - When you have direct access to key material
    - When using standard cryptographic libraries
    - When following the standard verification method pattern
    - When you want built-in verification method ID handling
-   - Example: Implementing Ed25519 signing and verification with your preferred crypto library
+   - Example: Implementing Ed25519 signing with your preferred crypto library
 
-2. **Implementing the `Signer` and `Verifier` interfaces directly**
+2. **Implementing the `Signer` interface directly**
    - When integrating with HSMs or KMS systems
    - When key material is managed externally
    - When using custom verification method ID schemes
-   - When you need complete control over the signing and verification process
+   - When you need complete control over the signing process
    - Example: AWS KMS, Azure Key Vault, or other external signing services
 
 ## Examples
@@ -62,7 +57,7 @@ The `didwebvh-ts` library no longer includes any specific cryptographic implemen
 ### 1. Custom Ed25519 Implementation
 
 ```typescript
-import { AbstractSigner, prepareDataForSigning, Verifier, multibaseEncode, MultibaseEncoding } from 'didwebvh-ts';
+import { AbstractSigner, prepareDataForSigning, Verifier, multibaseEncode, MultibaseEncooding } from 'didwebvh-ts';
 import type { SigningInput, SigningOutput, SignerOptions } from 'didwebvh-ts';
 import * as crypto from '@stablelib/ed25519'; // Example using stablelib
 
@@ -98,7 +93,7 @@ class Ed25519Implementation extends AbstractSigner implements Verifier {
 ### 2. AWS KMS Implementation
 
 ```typescript
-import { type Signer, type Verifier, type SigningInput, type SigningOutput, prepareDataForSigning, MultibaseEncoding, multibaseEncode } from 'didwebvh-ts';
+import { type Signer, type Verifier, type SigningInput, type SigningOutput, prepareDataForSigning, multibaseEncode, MultibaseEncoding } from 'didwebvh-ts';
 import { KMS } from 'aws-sdk';
 
 class AWSKMSImplementation implements Signer, Verifier {
@@ -184,19 +179,11 @@ const document = {
 };
 
 const signedDocument = await documentSigner(document);
-
-// Verify a signature
-const mockSignature = new Uint8Array([1, 2, 3, 4, 5]);
-const mockMessage = new Uint8Array([6, 7, 8, 9, 10]);
-const mockPublicKey = new Uint8Array([0xed, 0x01, 11, 12, 13, 14, 15]);
-
-const isValid = await implementation.verify(mockSignature, mockMessage, mockPublicKey);
-console.log('Signature valid:', isValid);
 ```
 
 ## Utility Functions
 
-The library provides several utility functions to help with implementing custom signers and verifiers:
+The library provides several utility functions to help with implementing custom signers:
 
 - `prepareDataForSigning`: Prepares data for signing by hashing and concatenating the document and proof
 - `createProof`: Creates a proof object for a document 

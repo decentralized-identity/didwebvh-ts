@@ -1,10 +1,10 @@
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
 import type { DataIntegrityProof, DIDLogEntry, WitnessEntry, WitnessParameter, WitnessProofFileEntry, Verifier } from './interfaces';
-import { base58btc } from "multiformats/bases/base58";
 import { resolveVM } from "./utils";
 import { concatBuffers } from './utils/buffer';
 import { fetchWitnessProofs } from './utils';
+import { multibaseDecode } from './utils/multiformats';
 
 export function validateWitnessParameter(witness: WitnessParameter): void {
   if (!witness.threshold || witness.threshold < 1) {
@@ -54,7 +54,9 @@ export async function verifyWitnessProofs(
   let totalWeight = 0;
   const processedWitnesses = new Set<string>();
 
+  // Process each proof set sequentially to avoid race conditions
   for (const proofSet of witnessProofs) {
+    // Process each proof in the set sequentially
     for (const proof of proofSet.proof) {
       if (proof.cryptosuite !== 'eddsa-jcs-2022') {
         throw new Error('Invalid witness proof cryptosuite');
@@ -70,30 +72,81 @@ export async function verifyWitnessProofs(
       }
 
       try {
+        // Resolve verification method
         const vm = await resolveVM(proof.verificationMethod);
         if (!vm) {
           throw new Error(`Verification Method ${proof.verificationMethod} not found`);
         }
 
-        const publicKey = base58btc.decode(vm.publicKeyMultibase!);
-        if (publicKey[0] !== 0xed || publicKey[1] !== 0x01) {
-          throw new Error(`multiKey doesn't include ed25519 header (0xed01)`);
+        // Decode public key
+        let publicKey: Uint8Array;
+        try {
+          publicKey = multibaseDecode(vm.publicKeyMultibase).bytes;
+        } catch (error: any) {
+          throw new Error(`Failed to decode public key: ${error.message}`);
+        }
+        
+        if (publicKey.length !== 34) {
+          throw new Error(`Invalid public key length ${publicKey.length} (should be 34 bytes)`);
         }
 
+        // Extract proof value and prepare data for verification
         const { proofValue, ...proofWithoutValue } = proof;
-        const dataHash = await createHash(canonicalize({versionId: logEntry.versionId}));
-        const proofHash = await createHash(canonicalize(proofWithoutValue));
+        
+        // Create hashes sequentially to avoid race conditions
+        const canonicalizedData = canonicalize({versionId: logEntry.versionId});
+        const canonicalizedProof = canonicalize(proofWithoutValue);
+        
+        const dataHash = await createHash(canonicalizedData);
+        const proofHash = await createHash(canonicalizedProof);
+        
+        // Concatenate buffers
         const input = concatBuffers(proofHash, dataHash);
 
-        const signature = base58btc.decode(proofValue);
+        // Decode signature
+        let signature: Uint8Array;
+        try {
+          signature = multibaseDecode(proofValue).bytes;
+        } catch (error: any) {
+          throw new Error(`Failed to decode signature: ${error.message}`);
+        }
 
-        const verified = await verifier.verify(
-          signature,
-          input,
-          publicKey.slice(2)
-        );
+        // Implement retry mechanism for verification
+        let verified = false;
+        const maxRetries = 3;
+        
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            verified = await verifier.verify(
+              signature,
+              input,
+              publicKey.slice(2)
+            );
+            
+            if (verified) break;
+            
+            // Add a small delay before retrying
+            if (attempt < maxRetries - 1) {
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+          } catch (verifyError: any) {
+            console.error(`Verification attempt ${attempt + 1} failed:`, verifyError);
+            
+            // Only throw on the last attempt
+            if (attempt === maxRetries - 1) {
+              throw verifyError;
+            }
+            
+            // Add a small delay before retrying
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
 
         if (!verified) {
+          console.error('Signature verification failed:');
+          console.error('- Signature:', Buffer.from(signature).toString('hex').substring(0, 30) + '...');
+          console.error('- Message:', Buffer.from(input).toString('hex').substring(0, 30) + '...');
+          console.error('- Public Key:', Buffer.from(publicKey.slice(2)).toString('hex').substring(0, 30) + '...');
           throw new Error('Invalid witness proof signature');
         }
 

@@ -218,7 +218,7 @@ describe("did:webvh normative witness tests", async () => {
             type: "DataIntegrityProof",
             cryptosuite: "eddsa-jcs-2022",
             verificationMethod: `did:key:${witness1.publicKeyMultibase}#${witness1.publicKeyMultibase}`,
-            proofValue: "invalid-proof-value" // Invalid proof value
+            proofValue: "invalid-proof-value"
           }
         ]
       }

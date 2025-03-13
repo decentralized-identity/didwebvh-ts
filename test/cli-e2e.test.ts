@@ -32,7 +32,7 @@ describe("CLI End-to-End Tests", () => {
 
   test("Create DID using CLI", async () => {
     // Run the CLI create command
-    const proc = await $`bun run cli create --domain example.com --output ${TEST_LOG_FILE} --portable`.quiet();
+    const proc = await $`bun run cli create --domain example.com --output ${TEST_LOG_FILE} --portable`;
 
     expect(proc.exitCode).toBe(0);
     

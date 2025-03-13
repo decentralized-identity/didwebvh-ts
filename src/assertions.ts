@@ -1,11 +1,11 @@
-import { base58btc } from "multiformats/bases/base58";
 import { createSCID, deriveNextKeyHash, resolveVM } from "./utils";
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
 import { config } from './config';
-import { bufferToString, concatBuffers } from './utils/buffer';
+import { concatBuffers } from './utils/buffer';
 import { WitnessParameter, Verifier } from './interfaces';
 import { validateWitnessParameter } from './witness';
+import { multibaseDecode } from "./utils/multiformats";
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
   if (config.getEnvValue('IGNORE_ASSERTION_KEY_IS_AUTHORIZED') === 'true') return true;
@@ -92,13 +92,13 @@ export const documentStateIsValid = async (
       throw new Error(`Verification Method ${proof.verificationMethod} not found`);
     }
 
-    const publicKey = base58btc.decode(vm.publicKeyMultibase!);
+    const publicKey = multibaseDecode(vm.publicKeyMultibase).bytes;
     if (publicKey[0] !== 0xed || publicKey[1] !== 0x01) {
       throw new Error(`multiKey doesn't include ed25519 header (0xed01)`);
     }
 
     const {proofValue, ...restProof} = proof;
-    const signature = base58btc.decode(proofValue);
+    const signature = multibaseDecode(proofValue).bytes;
     const dataHash = await createHash(canonicalize(rest));
     const proofHash = await createHash(canonicalize(restProof));
     const input = concatBuffers(proofHash, dataHash);
