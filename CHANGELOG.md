@@ -1,3 +1,10 @@
+## [2.5.5](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.4...v2.5.5) (2025-10-08)
+
+
+### Bug Fixes
+
+* allow verification methods without publicKeyMultibase ([ebe9822](https://github.com/decentralized-identity/didwebvh-ts/commit/ebe9822c0dd40dc8fbd7b56213c7a4734f75658c))
+
 ## [2.5.4](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.3...v2.5.4) (2025-09-02)
 
 
