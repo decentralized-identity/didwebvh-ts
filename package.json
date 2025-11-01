@@ -3,6 +3,11 @@
   "module": "dist/esm/index.js",
   "type": "module",
   "version": "2.5.5",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/decentralized-identity/didwebvh-ts.git"
+  },
   "react-native": "dist/cjs/index.cjs",
   "main": "dist/cjs/index.cjs",
   "browser": "dist/browser/index.js",
