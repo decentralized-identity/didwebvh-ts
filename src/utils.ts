@@ -197,10 +197,7 @@ export const getBaseUrl = (id: string) => {
   const [hostPart, ...pathParts] = remainder.split('/');
   let [host, port] = decodeURIComponent(hostPart).split(':');
 
-  host = host
-    .split('.')
-    .map(label => toASCII(label.normalize('NFC')))
-    .join('.');
+  host = toASCII(host.normalize("NFC"));
 
   const normalizedHost = port ? `${host}:${port}` : host;
   const path = pathParts.join('/');
