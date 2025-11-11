@@ -30,6 +30,24 @@ curl -fsSL https://bun.sh/install | bash
 bun install
 ```
 
+## Local development setup
+
+When running the examples from the source checkout, Bun needs to resolve the `didwebvh-ts` package name to your local code. Run the following once per clone:
+
+```bash
+bun run build        # generate the dist/ artifacts
+bun link             # register the local package globally
+bun link didwebvh-ts # create a symlinked dependency in node_modules
+```
+
+After linking, you can start the resolver example:
+
+```bash
+bun run server
+```
+
+If you ever need to refresh the build (for example after local code changes), rerun `bun run build`. The `bun link` commands only need to be repeated if you remove the symlink or clone the repo again.
+
 ## Available Commands
 
 The following commands are defined in the `package.json` file:
