@@ -1,3 +1,10 @@
+## [2.5.6](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.5...v2.5.6) (2025-11-12)
+
+
+### Bug Fixes
+
+* correct host normalization in toASCII for numeric domains like 2060.io ([b226c69](https://github.com/decentralized-identity/didwebvh-ts/commit/b226c69da1d77391b4f4c7d51144f47bab64f326))
+
 ## [2.5.5](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.4...v2.5.5) (2025-10-08)
 
 
