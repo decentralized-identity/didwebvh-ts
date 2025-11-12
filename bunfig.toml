@@ -1,0 +1,4 @@
+[alias]
+"didwebvh-ts" = "./dist/esm/index.js"
+"didwebvh-ts/types" = "./dist/types/index.d.ts"
+
