@@ -1,3 +1,10 @@
+## [2.5.7](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.6...v2.5.7) (2026-01-23)
+
+
+### Bug Fixes
+
+* updated dependencies for security vulnerabilities ([2c0ac78](https://github.com/decentralized-identity/didwebvh-ts/commit/2c0ac787e75a29382788f903286bdc0fc7f13fb1))
+
 ## [2.5.6](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.5...v2.5.6) (2025-11-12)
 
 
