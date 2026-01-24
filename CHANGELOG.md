@@ -1,3 +1,10 @@
+# [2.6.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.7...v2.6.0) (2026-01-24)
+
+
+### Features
+
+* bump version ([e1c4a29](https://github.com/decentralized-identity/didwebvh-ts/commit/e1c4a29a4b4fe6fc6530f3f4987f0cab92079396))
+
 ## [2.5.7](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.6...v2.5.7) (2026-01-23)
 
 
