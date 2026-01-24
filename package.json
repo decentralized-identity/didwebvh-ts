@@ -2,7 +2,7 @@
   "name": "didwebvh-ts",
   "module": "dist/esm/index.js",
   "type": "module",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

@@ -1,3 +1,10 @@
+# [2.7.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.6.0...v2.7.0) (2026-01-24)
+
+
+### Features
+
+* add id token perm to publish action ([07d801d](https://github.com/decentralized-identity/didwebvh-ts/commit/07d801deceae05b88e236e1bdd9f333cce98c86d))
+
 # [2.6.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.7...v2.6.0) (2026-01-24)
 
 
