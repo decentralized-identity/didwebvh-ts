@@ -1,3 +1,12 @@
+## [2.7.1](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.0...v2.7.1) (2026-01-24)
+
+
+### Bug Fixes
+
+* remove npm token ([c9fb8a3](https://github.com/decentralized-identity/didwebvh-ts/commit/c9fb8a3280466f31ccb31a66cd25562a823dd7ad))
+* update node version in action ([49e07b0](https://github.com/decentralized-identity/didwebvh-ts/commit/49e07b01a4b87047900d2ab30aff7189660ee506))
+* updated semantic release ([1802ea5](https://github.com/decentralized-identity/didwebvh-ts/commit/1802ea526f75f7c08b0b2fc861a2743cf0080b4c))
+
 # [2.7.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.6.0...v2.7.0) (2026-01-24)
 
 
