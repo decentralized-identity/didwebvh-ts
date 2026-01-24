@@ -39,7 +39,7 @@
     "bun-bagel": "^1.1.0",
     "bun-types": "latest",
     "elysia": "^1.2.0",
-    "semantic-release": "^22.0.0"
+    "semantic-release": "^25.0.2"
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
