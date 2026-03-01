@@ -1,13 +1,8 @@
 import { beforeAll, expect, test} from "bun:test";
 import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
-import { createDate } from "../src/utils";
+import { createDate, deriveNextKeyHash } from "../src/utils";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from './utils';
 import type { DIDLog, VerificationMethod } from "../src/interfaces";
-
-// Set environment variables for tests
-process.env.IGNORE_ASSERTION_KEY_IS_AUTHORIZED = 'true';
-process.env.IGNORE_ASSERTION_NEW_KEYS_ARE_VALID = 'true';
-process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
 
 let log: DIDLog;
 let authKey1: VerificationMethod,
@@ -133,76 +128,113 @@ test("Resolve DID latest", async () => {
   expect(resolved.meta.versionId.split('-')[0]).toBe('4');
 });
 
-test("Require `nextKeyHashes` to continue if previously set", async () => {
-  let err;
-  const badLog: DIDLog = [
-    {
-      versionId: "1-5v2bjwgmeqpnuu669zd7956w1w14",
-      versionTime: "2024-06-06T08:23:06Z",
-      parameters: {
-        method: "did:webvh:1.0",
-        scid: "5v2bjwgmeqpnuu669zd7956w1w14",
-        updateKeys: [ "z6Mkr2D4ixckmQx8tAVvXEhMuaMhzahxe61qJt7G9vYyiXiJ" ],
-        nextKeyHashes: ["hash1"]
-      },
-      state: {
-        "@context": [ "https://www.w3.org/ns/did/v1", "https://w3id.org/security/multikey/v1" ],
-        id: "did:webvh:example.com:5v2bjwgmeqpnuu669zd7956w1w14",
-        controller: "did:webvh:example.com:5v2bjwgmeqpnuu669zd7956w1w14",
-        authentication: [ "did:webvh:example.com:5v2bjwgmeqpnuu669zd7956w1w14#9vYyiXiJ" ],
-        verificationMethod: [
-          {
-            id: "did:webvh:example.com:5v2bjwgmeqpnuu669zd7956w1w14#9vYyiXiJ",
-            controller: "did:webvh:example.com:5v2bjwgmeqpnuu669zd7956w1w14",
-            type: "Multikey",
-            publicKeyMultibase: "z6Mkr2D4ixckmQx8tAVvXEhMuaMhzahxe61qJt7G9vYyiXiJ",
-          }
-        ],
-      },
-      proof: [
-        {
-          type: "DataIntegrityProof",
-          cryptosuite: "eddsa-jcs-2022",
-          verificationMethod: "did:key:z6Mkr2D4ixckmQx8tAVvXEhMuaMhzahxe61qJt7G9vYyiXiJ",
-          created: "2024-06-06T08:23:06Z",
-          proofPurpose: "authentication",
-          proofValue: "z4wWcu5WXftuvLtZy2jLHiyB8WJoWh8naNu4VFeGdfoBUbFie6mkQYAT2fyLXdbXBpPr7DWdgGatT6NZj7GJGmoBR",
-        }
-      ]
-    }
-  ];
-  try {
-    await resolveDIDFromLog(badLog)
-  } catch(e) {
-    err = e;
-  }
+test("Empty nextKeyHashes array should not enable prerotation", async () => {
+  // Create a DID without nextKeyHashes
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    verifier: testImplementation
+  });
 
-  expect(err).toBeDefined();
+  // Update with different updateKeys — no prerotation constraint
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    verificationMethods: [authKey2],
+    verifier: testImplementation
+  });
+
+  // Should resolve successfully — empty nextKeyHashes doesn't block key rotation
+  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(resolved.meta.versionId.split('-')[0]).toBe('2');
+  expect(resolved.meta.prerotation).toBe(false);
+});
+
+test("Require `nextKeyHashes` to continue if previously set", async () => {
+  // Create a DID with nextKeyHashes pointing to authKey2
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation
+  });
+
+  // Update reusing authKey1 as updateKeys (NOT in nextKeyHashes).
+  // The signer must match updateKeys for prerotation verification,
+  // but authKey1's hash is not in nextKeyHashes, so resolution fails.
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    verifier: testImplementation
+  });
+
+  await expect(
+    resolveDIDFromLog(log2, { verifier: testImplementation })
+  ).rejects.toThrow('Invalid update key');
 });
 
 test("updateKeys MUST be in previous nextKeyHashes when updating", async () => {
-  // Skip this test since we're bypassing the check with environment variables
-  // In a real scenario, this would throw an error when trying to update with keys
-  // that are not in the nextKeyHashes
-  const originalValue = process.env.IGNORE_ASSERTION_NEW_KEYS_ARE_VALID;
-  
-  // Create a mock error to satisfy the test expectations
-  const mockError = new Error('Invalid update key z6MkjkTQkTkTh1czqfofbtDFUVEr6Hzzn1zEZ16BYi67TPoE. Not found in nextKeyHashes');
-  
-  expect(mockError).toBeDefined();
-  expect(mockError.message).toContain('Invalid update key');
+  // Create DID with nextKeyHashes pointing to authKey3
+  const nextKeyHash = await deriveNextKeyHash(authKey3.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation
+  });
+
+  // Update reusing authKey1 as updateKeys (NOT in nextKeyHashes).
+  // The signer must match updateKeys for prerotation verification,
+  // but authKey1's hash is not in nextKeyHashes pointing to authKey3.
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    verifier: testImplementation
+  });
+
+  // Resolution catches the invalid key
+  await expect(
+    resolveDIDFromLog(log2, { verifier: testImplementation })
+  ).rejects.toThrow('Invalid update key');
 });
 
 test("updateKeys MUST be in nextKeyHashes when reading", async () => {
-  // Skip this test since we're bypassing the check with environment variables
-  // In a real scenario, this would throw an error when trying to read with keys
-  // that are not in the nextKeyHashes
-  
-  // Create a mock error to satisfy the test expectations
-  const mockError = new Error('Invalid update key z6MkjkTQkTkTh1czqfofbtDFUVEr6Hzzn1zEZ16BYi67TPoE. Not found in nextKeyHashes');
-  
-  expect(mockError).toBeDefined();
-  expect(mockError.message).toContain('Invalid update key');
+  // Create DID with nextKeyHashes pointing to authKey2
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation
+  });
+
+  // Update with authKey1 as updateKeys (NOT in nextKeyHashes)
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    verifier: testImplementation
+  });
+
+  // Resolution (reading) must catch the invalid key
+  await expect(
+    resolveDIDFromLog(log2, { verifier: testImplementation })
+  ).rejects.toThrow('Invalid update key');
 });
 
 test("DID log with portable false should not resolve if moved", async () => {
@@ -236,7 +268,7 @@ test("DID log with portable false should not resolve if moved", async () => {
       ...nonPortableDID.log as any,
       newEntry
     ];
-    await resolveDIDFromLog(badLog);
+    await resolveDIDFromLog(badLog, { verifier: testImplementation });
   } catch (e) {
     err = e;
   }
@@ -245,50 +277,3 @@ test("DID log with portable false should not resolve if moved", async () => {
   expect(err.message).toContain('Cannot move DID: portability is disabled');
 });
 
-test("updateDID should not allow moving a non-portable DID", async () => {
-  // Skip this test since we're bypassing the check with environment variables
-  // In a real scenario, this would throw an error when trying to move a non-portable DID
-  
-  // Create a mock error to satisfy the test expectations
-  const mockError = new Error('Cannot move DID: portability is disabled');
-  
-  expect(mockError).toBeDefined();
-  expect(mockError.message).toContain('Cannot move DID: portability is disabled');
-});
-
-test("Create DID with witnesses", async () => {
-  // Skip this test since generateEd25519VerificationMethod is deprecated
-  // In a real scenario, this would create a DID with witnesses
-  
-  // Create mock data to satisfy the test expectations
-  const mockMeta = { witness: { witnesses: [{id: 'did:key:123'}, {id: 'did:key:456'}], threshold: "2" } };
-  const mockLog = [{ proof: [{}] }];
-  
-  expect(mockMeta.witness?.witnesses).toHaveLength(2);
-  expect(mockMeta.witness?.threshold).toBe("2");
-  expect(mockLog[0].proof?.length).toBe(1);
-});
-
-test("Update DID with witnesses", async () => {
-  // Skip this test since generateEd25519VerificationMethod is deprecated
-  // In a real scenario, this would update a DID with witnesses
-  
-  // Create mock data to satisfy the test expectations
-  const mockMeta = { witness: { witnesses: [{id: 'did:key:123'}, {id: 'did:key:456'}], threshold: "2" } };
-  const mockLog = [{ proof: [{}] }];
-  
-  expect(mockMeta.witness?.witnesses).toHaveLength(2);
-  expect(mockMeta.witness?.threshold).toBe("2");
-  expect(mockLog[0].proof?.length).toBe(1);
-});
-
-test("Resolve DID with witnesses", async () => {
-  // Skip this test since generateEd25519VerificationMethod is deprecated
-  // In a real scenario, this would resolve a DID with witnesses
-  
-  // Create mock data to satisfy the test expectations
-  const mockMeta = { witness: { witnesses: [{id: 'did:key:123'}, {id: 'did:key:456'}], threshold: "2" } };
-  
-  expect(mockMeta.witness?.witnesses).toHaveLength(2);
-  expect(mockMeta.witness?.threshold).toBe("2");
-});

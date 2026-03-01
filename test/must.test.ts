@@ -4,9 +4,6 @@ import type { DIDLog, VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 import { createWitnessProof } from "../src/witness";
 
-// Set environment variables for tests
-process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
-
 describe("did:webvh normative tests", async () => {
   let newDoc1: any;
   let newLog1: DIDLog;
@@ -48,19 +45,19 @@ describe("did:webvh normative tests", async () => {
 
   test("Update implementation MUST generate a correct DID Entry (positive)", async () => {
     const authKey2 = await generateTestVerificationMethod();
-    const testImpl2 = new TestCryptoImplementation({ verificationMethod: authKey2 });
-    
+
+    // Sign with authKey1 (authorized by previous updateKeys), rotate to authKey2
     const { doc: updatedDoc, log: updatedLog } = await updateDID({
       log: newLog1,
-      signer: createTestSigner(authKey2),
+      signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
       context: newDoc1['@context'],
       verificationMethods: [authKey2],
       updated: '2024-02-01T08:32:55Z',
-      verifier: testImpl2
+      verifier: testImplementation
     });
 
-    const resolved = await resolveDIDFromLog(updatedLog, { verifier: testImpl2 });
+    const resolved = await resolveDIDFromLog(updatedLog, { verifier: testImplementation });
     expect(resolved.meta.versionId.split('-')[0]).toBe("2");
   });
 

@@ -2,8 +2,6 @@ import { describe, test, expect } from "bun:test";
 import { createDID } from "../src/method";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 
-process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
-
 describe("Domain encoding", () => {
   test("encodes port number in DID", async () => {
     const authKey = await generateTestVerificationMethod();

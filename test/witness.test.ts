@@ -4,9 +4,6 @@ import type { DIDLog, VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 import { createWitnessProof } from "../src/witness";
 
-// Set environment variables for tests
-process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
-
 describe("Witness Implementation Tests", async () => {
   let authKey: VerificationMethod;
   let witness1: VerificationMethod, witness2: VerificationMethod, witness3: VerificationMethod;

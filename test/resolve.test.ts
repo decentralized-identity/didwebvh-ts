@@ -3,9 +3,6 @@ import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
 import type { DIDLog, VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 
-// Set environment variables for tests
-process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
-
 describe("resolveDIDFromLog with verificationMethod", () => {
   let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
   let fullLog: DIDLog;

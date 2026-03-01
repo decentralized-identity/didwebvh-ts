@@ -6,9 +6,6 @@ import { verifyWitnessProofs } from "../src/witness";
 import { MultibaseEncoding } from "../src/utils/multiformats";
 import { multibaseEncode } from "../src/utils/multiformats";
 
-// Set environment variables for tests
-process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
-
 // Mock crypto implementation for testing
 class MockCryptoImplementation extends AbstractCrypto implements Verifier {
   private mockSignature = new Uint8Array([1, 2, 3, 4]);
@@ -107,10 +104,15 @@ describe("Injectable Cryptography Tests", () => {
       }
     };
 
-    // Create a mock error to satisfy the test expectations
-    const mockError = new Error("Proof 0 failed verification");
-    
-    expect(mockError.message).toContain("Proof 0 failed verification");
+    await expect(
+      documentStateIsValid(
+        signedDoc,
+        [failingMockImplementation.getVerificationMethodId()],
+        null,
+        true,
+        failingMockImplementation
+      )
+    ).rejects.toThrow("Proof 0 failed verification");
   });
 
   test("Verify witness proofs with successful implementation", async () => {
@@ -136,8 +138,8 @@ describe("Injectable Cryptography Tests", () => {
       }]
     };
 
-    // Mock successful verification
-    expect(true).toBe(true); // This will always pass
+    // Should not throw — mockImplementation.verify() returns true
+    await verifyWitnessProofs(logEntry, witnessProofs, witness, mockImplementation);
   });
 
   test("Verify witness proofs with failing implementation", async () => {
@@ -177,10 +179,9 @@ describe("Injectable Cryptography Tests", () => {
       }
     };
 
-    // Create a mock error to satisfy the test expectations
-    const mockError = new Error("Verifier implementation is required");
-    
-    expect(mockError.message).toContain("Verifier implementation is required");
+    await expect(
+      documentStateIsValid(signedDoc, [mockImplementation.getVerificationMethodId()], null, true)
+    ).rejects.toThrow("Verifier implementation is required");
   });
 
   test("Require verifier implementation for witness proofs", async () => {

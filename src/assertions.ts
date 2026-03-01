@@ -1,15 +1,12 @@
 import { createSCID, deriveNextKeyHash, resolveVM } from "./utils";
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
-import { config } from './config';
 import { concatBuffers } from './utils/buffer';
-import { WitnessParameter, Verifier, WitnessParameterResolution } from './interfaces';
+import { Verifier, WitnessParameterResolution } from './interfaces';
 import { validateWitnessParameter } from './witness';
 import { multibaseDecode } from "./utils/multiformats";
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
-  if (config.getEnvValue('IGNORE_ASSERTION_KEY_IS_AUTHORIZED') === 'true') return true;
-
   if (verificationMethod.startsWith('did:key:')) {
     const keyParts = verificationMethod.split('did:key:')[1].split('#');
     const key = keyParts[0];
@@ -29,8 +26,6 @@ const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): bool
 };
 
 const isWitnessAuthorized = (verificationMethod: string, witnesses: string[]): boolean => {
-  if (config.getEnvValue('IGNORE_WITNESS_IS_AUTHORIZED') === 'true') return true;
-
   if (verificationMethod.startsWith('did:webvh:')) {
     const didWithoutFragment = verificationMethod.split('#')[0];
     return witnesses.includes(didWithoutFragment);
@@ -45,10 +40,6 @@ export const documentStateIsValid = async (
   skipWitnessVerification?: boolean,
   verifier?: Verifier
 ) => {
-  if (config.getEnvValue('IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID') === 'true') {
-    return true;
-  }
-  
   if (!verifier) {
     throw new Error('Verifier implementation is required');
   }
@@ -90,7 +81,7 @@ export const documentStateIsValid = async (
     }
 
     const vm = await resolveVM(proof.verificationMethod);
-    if (!vm) {
+    if (!vm || !vm.publicKeyMultibase) {
       throw new Error(`Verification Method ${proof.verificationMethod} not found`);
     }
 
@@ -119,13 +110,10 @@ export const documentStateIsValid = async (
 }
 
 export const hashChainValid = (derivedHash: string, logEntryHash: string) => {
-  if (config.getEnvValue('IGNORE_ASSERTION_HASH_CHAIN_IS_VALID') === 'true') return true;
   return derivedHash === logEntryHash;
 }
 
 export const newKeysAreInNextKeys = async (updateKeys: string[], previousNextKeyHashes: string[]) => {
-  if (config.getEnvValue('IGNORE_ASSERTION_NEW_KEYS_ARE_VALID') === 'true') return true;
-
   if (previousNextKeyHashes.length > 0) {
     for (const key of updateKeys) {
       const keyHash = await deriveNextKeyHash(key);
@@ -139,6 +127,5 @@ export const newKeysAreInNextKeys = async (updateKeys: string[], previousNextKey
 }
 
 export const scidIsFromHash = async (scid: string, hash: string) => {
-  if (config.getEnvValue('IGNORE_ASSERTION_SCID_IS_FROM_HASH') === 'true') return true;
   return scid === await createSCID(hash);
 }

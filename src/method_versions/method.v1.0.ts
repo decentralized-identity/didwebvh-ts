@@ -91,6 +91,10 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
     throw new Error("Cannot specify both verificationMethod and version number/id");
   }
   const resolutionLog = log.map(l => deepClone(l));
+  const protocol = resolutionLog[0]?.parameters?.method;
+  if (protocol !== PROTOCOL) {
+    throw new Error(`'${protocol}' protocol unknown.`);
+  }
   let did = '';
   let doc: any = null;
   let resolvedDoc: any = null;
@@ -138,6 +142,9 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
       newDoc = state;
       host = newDoc.id.split(':').at(-1);
       meta.scid = parameters.scid;
+      if (options.scid && options.scid !== meta.scid) {
+        throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${meta.scid}'`);
+      }
       meta.portable = parameters.portable ?? meta.portable;
       meta.updateKeys = parameters.updateKeys;
       meta.nextKeyHashes = parameters.nextKeyHashes || [];
@@ -177,21 +184,25 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
       } else if (newHost !== host) {
         host = newHost;
       }
-      
+
+      // Hash chain — ALWAYS runs (cheap), even in fast-resolve
+      const { proof: _proof, ...entryWithoutProof } = resolutionLog[i];
+      const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: PLACEHOLDER });
+      if (!hashChainValid(recomputedHash, entryHash)) {
+        throw new Error(`Hash chain broken at '${meta.versionId}'`);
+      }
+
       if (shouldVerifyEntry(i)) {
+        // Signature verification — expensive, skipped for middle entries in fast-resolve
         const keys = meta.prerotation ? parameters.updateKeys : meta.updateKeys;
         const verified = await documentStateIsValid(resolutionLog[i], keys, meta.witness, false, options.verifier);
         if (!verified) {
           throw new Error(`version ${meta.versionId} failed verification of the proof.`)
         }
 
-        if (!hashChainValid(`${i+1}-${entryHash}`, versionId)) {
-          throw new Error(`Hash chain broken at '${meta.versionId}'`);
-        }
-
         if (meta.prerotation) {
           await newKeysAreInNextKeys(
-            parameters.updateKeys ?? [], 
+            parameters.updateKeys ?? [],
             meta.nextKeyHashes ?? []
           );
         }
@@ -203,7 +214,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
       if (parameters.deactivated === true) {
         meta.deactivated = true;
       }
-      if (parameters.nextKeyHashes) {
+      if (parameters.nextKeyHashes && parameters.nextKeyHashes.length > 0) {
         meta.nextKeyHashes = parameters.nextKeyHashes;
         meta.prerotation = true;
       } else {
@@ -302,6 +313,15 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   } catch (e) {
     if (!resolvedDoc) {
       throw e;
+    }
+    if (resolvedMeta) {
+      const message = e instanceof Error ? e.message : String(e);
+      resolvedMeta.error = 'INVALID_DID_DOCUMENT';
+      resolvedMeta.problemDetails = {
+        type: 'https://w3id.org/security#INVALID_DID_DOCUMENT',
+        title: 'Verification of a later log entry failed.',
+        detail: message
+      };
     }
   }
 
