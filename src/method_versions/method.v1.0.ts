@@ -93,7 +93,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   const resolutionLog = log.map(l => deepClone(l));
   const protocol = resolutionLog[0]?.parameters?.method;
   if (protocol !== PROTOCOL) {
-    throw new Error(`'${protocol}' protocol unknown.`);
+    throw new Error(`'${protocol}' is not a supported method version.`);
   }
   let did = '';
   let doc: any = null;
