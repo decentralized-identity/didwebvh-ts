@@ -2,9 +2,6 @@ import { describe, test, expect } from "bun:test";
 import { createDID, updateDID } from "../src/method";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 
-// Set environment variables for tests
-process.env.IGNORE_ASSERTION_DOCUMENT_STATE_IS_VALID = 'true';
-
 describe("Happy Path Tests", () => {
   test("Create DID with single auth key", async () => {
     const authKey = await generateTestVerificationMethod();

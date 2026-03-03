@@ -352,7 +352,7 @@ export async function handleDeactivate(args: string[]) {
   try {
     // Read the current log to get the latest state
     const log = await readLogFromDisk(logFile);
-    const { did, meta } = await resolveDIDFromLog(log);
+    const { did, meta } = await resolveDIDFromLog(log, { verifier: createCustomCrypto() });
     
     // Get the verification method from environment
     const envContent = fs.readFileSync('.env', 'utf8');

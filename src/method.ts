@@ -34,25 +34,23 @@ export const createDID = async (options: CreateDIDInterface) => {
   return result;
 };
 
-export const resolveDID = async (did: string, options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[], scid?: string } = {}) => {
+export const resolveDID = async (did: string, options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}) => {
   const activeDIDs = await getActiveDIDs();
   const controlled = activeDIDs.includes(did);
-  let scid: string | undefined = undefined;
-  const didParts = did.split(":");
-  if (didParts.length > 2 && didParts[0] === "did" && didParts[1] === "webvh") {
-    scid = didParts[2];
-  }
+  // Extract the expected SCID from the DID string so the resolver can
+  // verify the log's SCID matches what the DID claims.
+  const didParts = did.split(':');
+  const scid = (didParts.length > 2 && didParts[0] === 'did' && didParts[1] === 'webvh')
+    ? didParts[2] : undefined;
   try {
     const log = await fetchLogFromIdentifier(did, controlled);
     const version = getWebvhVersionFromLog(log);
     const optsWithScid = { ...options, scid };
-    if (version === '0.5') {
-      const result = await v0_5.resolveDIDFromLog(log, optsWithScid);
-      maybeWriteTestLog(result.did, log);
-      return { ...result, controlled };
-    }
-    const result = await v1.resolveDIDFromLog(log, optsWithScid);
+    const result = version === '0.5'
+      ? await v0_5.resolveDIDFromLog(log, optsWithScid)
+      : await v1.resolveDIDFromLog(log, optsWithScid);
     maybeWriteTestLog(result.did, log);
+
     return { ...result, controlled };
   } catch (e: any) {
     let errorType = 'INVALID_DID';
