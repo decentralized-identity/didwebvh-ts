@@ -1,3 +1,10 @@
+## [2.7.2](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.1...v2.7.2) (2026-03-03)
+
+
+### Bug Fixes
+
+* resolver integrity and validation hardening ([a4b6b27](https://github.com/decentralized-identity/didwebvh-ts/commit/a4b6b277862258cafb7be17c0a7810c3123e792c))
+
 ## [2.7.1](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.0...v2.7.1) (2026-01-24)
 
 
