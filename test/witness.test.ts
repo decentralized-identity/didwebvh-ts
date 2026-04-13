@@ -221,18 +221,16 @@ describe("Witness Implementation Tests", async () => {
 
   const createWitnessSigner = (verificationMethod: VerificationMethod) => {
     const signer = createTestSigner(verificationMethod);
-    return async (data: any) => {
-      const signResult = await signer.sign({
-        document: data,
-        proof: {
-          type: "DataIntegrityProof",
-          cryptosuite: "eddsa-jcs-2022",
-          verificationMethod: signer.getVerificationMethodId(),
-          created: new Date().toISOString(),
-          proofPurpose: "authentication"
-        }
-      });
-      
+    return async (data: any, proofTemplate?: any) => {
+      const proof = {
+        type: "DataIntegrityProof",
+        cryptosuite: "eddsa-jcs-2022",
+        verificationMethod: signer.getVerificationMethodId(),
+        created: new Date().toISOString(),
+        proofPurpose: "authentication",
+        ...proofTemplate
+      };
+      const signResult = await signer.sign({ document: data, proof });
       return {
         proof: {
           verificationMethod: signer.getVerificationMethodId(),

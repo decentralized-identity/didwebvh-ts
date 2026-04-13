@@ -7,20 +7,20 @@ import { fetchWitnessProofs } from './utils';
 import { multibaseDecode } from './utils/multiformats';
 
 export async function createWitnessProof(
-  signer: (doc: any) => Promise<{proof: any}>,
+  signer: (doc: any, proofTemplate?: any) => Promise<{proof: any}>,
   versionId: string
 ): Promise<DataIntegrityProof> {
-  const proof = {
+  const proofTemplate = {
     type: "DataIntegrityProof",
     cryptosuite: "eddsa-jcs-2022",
     created: new Date().toISOString(),
     proofPurpose: "authentication"
   };
 
-  const signedData = await signer({versionId});
-  
+  const signedData = await signer({versionId}, proofTemplate);
+
   return {
-    ...proof,
+    ...proofTemplate,
     ...signedData.proof
   };
 }
@@ -95,7 +95,7 @@ export async function verifyWitnessProofs(
       try {
         // Resolve verification method
         const vm = await resolveVM(proof.verificationMethod);
-        if (!vm) {
+        if (!vm || !vm.publicKeyMultibase) {
           throw new Error(`Verification Method ${proof.verificationMethod} not found`);
         }
 
