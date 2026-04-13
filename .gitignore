@@ -10,3 +10,4 @@ did.json
 dist/
 *.tsbuildinfo
 benchmarks
+CLAUDE.local.md
