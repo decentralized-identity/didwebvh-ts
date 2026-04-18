@@ -159,6 +159,6 @@ describe("Not So Happy Path Tests", () => {
 
     await expect(
       resolveDIDFromLogV1(tamperedLog, { verifier: testImplementation })
-    ).rejects.toThrow("'did:webvh:0.5' protocol unknown.");
+    ).rejects.toThrow("'did:webvh:0.5' is not a supported method version.");
   });
 });
