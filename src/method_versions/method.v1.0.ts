@@ -187,7 +187,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
 
       // Hash chain — ALWAYS runs (cheap), even in fast-resolve
       const { proof: _proof, ...entryWithoutProof } = resolutionLog[i];
-      const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: PLACEHOLDER });
+      const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: resolutionLog[i - 1].versionId });
       if (!hashChainValid(recomputedHash, entryHash)) {
         throw new Error(`Hash chain broken at '${meta.versionId}'`);
       }
@@ -396,7 +396,7 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
   }
 
   const logEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: lastEntry.versionId,
     versionTime: createdDate,
     parameters: params,
     state: doc
@@ -408,8 +408,8 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
   let allProofs = [{ type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod', proofValue: signedProof.proofValue }];
   prelimEntry.proof = allProofs;
   const verified = await documentStateIsValid(
-    prelimEntry, 
-    lastMeta.updateKeys, 
+    prelimEntry,
+    lastMeta.updateKeys,
     lastMeta.witness,
     true, // skipWitnessVerification
     options.verifier
@@ -451,7 +451,7 @@ export const deactivateDID = async (options: DeactivateDIDInterface & { updateKe
     deactivated: true
   };
   const logEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: lastEntry.versionId,
     versionTime: createdDate,
     parameters: params,
     state: lastEntry.state
