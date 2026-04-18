@@ -1,3 +1,10 @@
+## [2.7.3](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.2...v2.7.3) (2026-04-18)
+
+
+### Bug Fixes
+
+* entry hash bug ([cf948fe](https://github.com/decentralized-identity/didwebvh-ts/commit/cf948fe8d8401b69a1ab0b0a974d80aa64bb0af6))
+
 ## [2.7.2](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.1...v2.7.2) (2026-03-03)
 
 
