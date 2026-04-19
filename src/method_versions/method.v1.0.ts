@@ -407,11 +407,12 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
   const signedProof = await options.signer.sign({ document: prelimEntry, proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' } });
   let allProofs = [{ type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod', proofValue: signedProof.proofValue }];
   prelimEntry.proof = allProofs;
+  const keysToVerify = lastMeta.prerotation ? params.updateKeys : lastMeta.updateKeys;
   const verified = await documentStateIsValid(
     prelimEntry,
-    lastMeta.updateKeys,
+    keysToVerify,
     lastMeta.witness,
-    true, // skipWitnessVerification
+    true,
     options.verifier
   );
   if (!verified) {
