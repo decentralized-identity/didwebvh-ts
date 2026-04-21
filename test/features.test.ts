@@ -237,6 +237,76 @@ test("updateKeys MUST be in nextKeyHashes when reading", async () => {
   ).rejects.toThrow('Invalid update key');
 });
 
+test("Prerotation: legitimate key rotation succeeds", async () => {
+  // Create DID with updateKeys=[authKey1] and pre-commit to authKey2
+  const key2Hash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    nextKeyHashes: [key2Hash],
+    verifier: testImplementation
+  });
+
+  // Rotate: sign with authKey2, publish authKey2 as the new updateKey.
+  // updateDID must verify the proof against the NEW updateKeys (authKey2),
+  // not the previous entry's keys (authKey1), when prerotation is active.
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey2),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    verificationMethods: [authKey2],
+    verifier: testImplementation
+  });
+
+  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(resolved.meta.versionId.split('-')[0]).toBe('2');
+  expect(resolved.meta.updateKeys).toEqual([authKey2.publicKeyMultibase!]);
+  expect(resolved.meta.prerotation).toBe(false);
+});
+
+test("Prerotation: chained legitimate rotations succeed", async () => {
+  // v1: updateKeys=[key1], commit to key2
+  const key2Hash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: [authKey1],
+    nextKeyHashes: [key2Hash],
+    verifier: testImplementation
+  });
+
+  // v2: rotate to key2, commit to key3
+  const key3Hash = await deriveNextKeyHash(authKey3.publicKeyMultibase!);
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey2),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    nextKeyHashes: [key3Hash],
+    verificationMethods: [authKey2],
+    verifier: testImplementation
+  });
+
+  // v3: rotate to key3, commit to key4
+  const key4Hash = await deriveNextKeyHash(authKey4.publicKeyMultibase!);
+  const { log: log3 } = await updateDID({
+    log: log2,
+    signer: createTestSigner(authKey3),
+    updateKeys: [authKey3.publicKeyMultibase!],
+    nextKeyHashes: [key4Hash],
+    verificationMethods: [authKey3],
+    verifier: testImplementation
+  });
+
+  const resolved = await resolveDIDFromLog(log3, { verifier: testImplementation });
+  expect(resolved.meta.versionId.split('-')[0]).toBe('3');
+  expect(resolved.meta.updateKeys).toEqual([authKey3.publicKeyMultibase!]);
+  expect(resolved.meta.nextKeyHashes).toEqual([key4Hash]);
+  expect(resolved.meta.prerotation).toBe(true);
+});
+
 test("DID log with portable false should not resolve if moved", async () => {
   let err: any;
   try {
