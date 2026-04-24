@@ -1,3 +1,10 @@
+## [2.7.4](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.3...v2.7.4) (2026-04-24)
+
+
+### Bug Fixes
+
+* default verification method controller to the DID ([f3ac134](https://github.com/decentralized-identity/didwebvh-ts/commit/f3ac134278871bf059c60f0be2c7da5889264a3c))
+
 ## [2.7.3](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.2...v2.7.3) (2026-04-18)
 
 
