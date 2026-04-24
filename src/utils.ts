@@ -1,11 +1,11 @@
 import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
-import { resolveDIDFromLog } from './method';
-import type { CreateDIDInterface, DIDDoc, DIDLog, VerificationMethod, WitnessProofFileEntry } from './interfaces';
 import { BASE_CONTEXT } from './constants';
-import { createBuffer, bufferToString } from './utils/buffer';
-import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from './utils/multiformats';
+import type { CreateDIDInterface, DIDDoc, DIDLog, VerificationMethod, WitnessProofFileEntry } from './interfaces';
+import { resolveDIDFromLog } from './method';
+import { bufferToString, createBuffer } from './utils/buffer';
 import { createHash } from './utils/crypto';
+import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from './utils/multiformats';
 
 // Environment detection - treat React Native like a browser, but Bun as Node-like
 const isNodeEnvironment = typeof process !== 'undefined'
@@ -399,7 +399,9 @@ export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefine
   // First collect all VMs
   const vms = verificationMethod.map(vm => ({
     ...vm,
-    id: vm.id ?? createVMID(vm, did)
+    id: vm.id ?? createVMID(vm, did),
+    // Default controller to the DID — required by W3C DID Core §5.2
+    controller: vm.controller ?? did,
   }));
   all.verificationMethod = vms;
 
