@@ -1,4 +1,4 @@
-import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getActiveDIDs, getBaseUrl, replaceValueInObject, deepClone } from "../utils";
+import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getActiveDIDs, getBaseUrl, replaceValueInObject, deepClone, parseCanonicalAddress } from "../utils";
 import { METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
 import type { CreateDIDInterface, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, DataIntegrityProof } from '../interfaces';
@@ -15,9 +15,18 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
   if (options.witness && options.witness.witnesses && options.witness.witnesses.length > 0) {
     validateWitnessParameter(options.witness);
   }
-  const encodedDomain = encodeURIComponent(options.domain);
-  const path = options.paths?.join(':');
-  const controller = `did:${METHOD}:${PLACEHOLDER}:${encodedDomain}${path ? `:${path}` : ''}`;
+
+  // Parse address input with strict validation
+  const addressInput = options.address || options.domain;
+  if (!addressInput) {
+    throw new Error('Either address or domain must be provided');
+  }
+
+  const parsed = parseCanonicalAddress(addressInput);
+  const didDomainComponent = parsed.didDomainComponent;
+  const allPaths = [...(parsed.paths || []), ...(options.paths || [])];
+  const path = allPaths.length > 0 ? allPaths.join(':') : undefined;
+  const controller = `did:${METHOD}:${PLACEHOLDER}:${didDomainComponent}${path ? `:${path}` : ''}`;
   const createdDate = createDate(options.created);
   
   // Safety guard: Strip secret keys from verification methods before creating DID document

@@ -7,6 +7,165 @@ import { bufferToString, createBuffer } from './utils/buffer';
 import { createHash } from './utils/crypto';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from './utils/multiformats';
 
+// Canonical address parser for strict parity with didwebvh-rs
+interface ParsedAddress {
+  canonicalHost: string;
+  canonicalPort?: number;
+  didDomainComponent: string;
+  paths?: string[];
+}
+
+function isIPAddress(host: string): boolean {
+  // Reject IPv4
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return true;
+  // Reject IPv6 (with or without brackets)
+  const bare = host.replace(/^\[|\]$/g, '');
+  if (/^[0-9a-f:]+$/i.test(bare)) return true;
+  return false;
+}
+
+function isDoubleEncoded(value: string): boolean {
+  // Detect %25 (which is percent-encoded %)
+  return value.includes('%25');
+}
+
+export function parseCanonicalAddress(input: string): ParsedAddress {
+  if (!input || typeof input !== 'string') {
+    throw new Error('Address input must be a non-empty string');
+  }
+
+  // Parse did:webvh form
+  if (input.startsWith('did:webvh:')) {
+    const parts = input.substring(10).split(':');
+    if (parts.length < 2) {
+      throw new Error('Invalid did:webvh identifier: must contain SCID (or {SCID} placeholder) and domain');
+    }
+
+    const scid = parts[0];
+    let domainPart = parts[1];
+    const pathParts = parts.slice(2);
+
+    // Detect double encoding
+    if (isDoubleEncoded(domainPart)) {
+      throw new Error('Domain is double-encoded (detected %25)');
+    }
+
+    // Extract port from domain if %3A-encoded
+    let host = domainPart;
+    let port: number | undefined;
+
+    if (domainPart.includes('%3A')) {
+      const [h, p] = domainPart.split('%3A');
+      host = h;
+      const portNum = parseInt(p, 10);
+      if (isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+        throw new Error(`Invalid port number: ${p}`);
+      }
+      port = portNum;
+    }
+
+    if (isIPAddress(host)) {
+      throw new Error('IP addresses are not allowed as hosts');
+    }
+
+    return {
+      canonicalHost: host,
+      canonicalPort: port,
+      didDomainComponent: domainPart,
+      paths: pathParts.length > 0 ? pathParts : undefined,
+    };
+  }
+
+  // Parse URL form: HTTPS everywhere, with localhost-only HTTP for local testing.
+  if (input.startsWith('https://') || input.startsWith('http://')) {
+    try {
+      const url = new URL(input);
+      if (url.protocol === 'http:' && url.hostname !== 'localhost') {
+        throw new Error('HTTP is only allowed for localhost; use HTTPS for non-local hosts');
+      }
+      const host = url.hostname;
+      const port = url.port ? parseInt(url.port, 10) : undefined;
+
+      if (isIPAddress(host)) {
+        throw new Error('IP addresses are not allowed as hosts');
+      }
+
+      let didDomainComponent = host;
+      if (port) {
+        didDomainComponent += `%3A${port}`;
+      }
+
+      const pathParts: string[] = [];
+      if (url.pathname && url.pathname !== '/') {
+        url.pathname
+          .split('/')
+          .filter(p => p.length > 0)
+          .forEach(p => pathParts.push(p));
+      }
+
+      return {
+        canonicalHost: host,
+        canonicalPort: port,
+        didDomainComponent,
+        paths: pathParts.length > 0 ? pathParts : undefined,
+      };
+    } catch (e: any) {
+      if (e.message && e.message.includes('not allowed')) throw e;
+      throw new Error(`Invalid URL: ${e.message}`);
+    }
+  }
+
+  // Parse domain string form (host or host:port)
+  // Detect double encoding
+  if (isDoubleEncoded(input)) {
+    throw new Error('Domain is double-encoded (detected %25)');
+  }
+
+  let host = input;
+  let port: number | undefined;
+
+  // Check if pre-encoded with %3A
+  if (input.includes('%3A')) {
+    const parts = input.split('%3A');
+    if (parts.length !== 2) {
+      throw new Error('Invalid pre-encoded port separator');
+    }
+    host = parts[0];
+    const portNum = parseInt(parts[1], 10);
+    if (isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+      throw new Error(`Invalid port number: ${parts[1]}`);
+    }
+    port = portNum;
+  } else if (input.includes(':')) {
+    // Raw host:port form
+    const parts = input.split(':');
+    if (parts.length !== 2) {
+      throw new Error('Invalid host:port format');
+    }
+    host = parts[0];
+    const portNum = parseInt(parts[1], 10);
+    if (isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+      throw new Error(`Invalid port number: ${parts[1]}`);
+    }
+    port = portNum;
+  }
+
+  if (isIPAddress(host)) {
+    throw new Error('IP addresses are not allowed as hosts');
+  }
+
+  let didDomainComponent = host;
+  if (port) {
+    didDomainComponent += `%3A${port}`;
+  }
+
+  return {
+    canonicalHost: host,
+    canonicalPort: port,
+    didDomainComponent,
+  };
+}
+
 // Environment detection - treat React Native like a browser, but Bun as Node-like
 const isNodeEnvironment = typeof process !== 'undefined'
   && typeof window === 'undefined'
