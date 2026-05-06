@@ -138,6 +138,8 @@ For complete examples, see the [examples](./examples/) directory.
 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
   Creates a new DID.
+  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`) or legacy `domain`.
+  Resolver URL mapping uses `http://localhost` for local testing and `https://` for non-local hosts.
 
 - `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
   Updates an existing DID.
@@ -165,4 +167,3 @@ For complete examples, see the [examples](./examples/) directory.
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
