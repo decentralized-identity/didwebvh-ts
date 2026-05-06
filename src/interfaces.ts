@@ -120,7 +120,8 @@ export interface ServiceEndpoint {
 }
 
 export interface CreateDIDInterface {
-  domain: string;
+  domain?: string;
+  address?: string;
   signer: Signer;
   updateKeys: string[];
   verificationMethods: VerificationMethod[];
