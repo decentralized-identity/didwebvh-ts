@@ -1,4 +1,4 @@
-import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getBaseUrl, replaceValueInObject, deepClone, parseCanonicalAddress } from "../utils";
+import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getBaseUrl, replaceValueInObject, deepClone, enrichAlsoKnownAs, parseCanonicalAddress, replaceCreateDidPlaceholders, validateCreateDidDocument } from "../utils";
 import {METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
 import type { CreateDIDInterface, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, WitnessParameterResolution } from '../interfaces';
@@ -16,7 +16,6 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
     validateWitnessParameter(options.witness);
   }
   
-  // Parse address input with strict validation
   const addressInput = options.address || options.domain;
   if (!addressInput) {
     throw new Error('Either address or domain must be provided');
@@ -39,7 +38,28 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
     return vm;
   });
   
-  let {doc} = await createDIDDoc({...options, controller, verificationMethods: safeVerificationMethods});
+  let doc: any;
+  if (options.didDocument) {
+    validateCreateDidDocument(options.didDocument);
+    doc = deepClone(options.didDocument);
+  } else {
+    if (!safeVerificationMethods || safeVerificationMethods.length === 0) {
+      throw new Error('verificationMethods must be provided when didDocument is not supplied');
+    }
+    const didDocResult = await createDIDDoc({
+      ...options,
+      domain: addressInput,
+      paths: allPaths,
+      controller,
+      verificationMethods: safeVerificationMethods
+    });
+    doc = didDocResult.doc;
+  }
+
+  doc = enrichAlsoKnownAs(doc, controller, {
+    alsoKnownAsWeb: options.alsoKnownAsWeb,
+    alsoKnownAsScid: options.alsoKnownAsScid,
+  });
   const params = {
     scid: PLACEHOLDER,
     updateKeys: options.updateKeys,
@@ -63,7 +83,12 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   params.scid = await createSCID(initialLogEntryHash);
   initialLogEntry.state = doc;
-  const prelimEntry = JSON.parse(JSON.stringify(initialLogEntry).replaceAll(PLACEHOLDER, params.scid));
+  const didWithScid = controller.replaceAll(PLACEHOLDER, params.scid);
+  const prelimEntry = replaceCreateDidPlaceholders(initialLogEntry, params.scid, didWithScid);
+  prelimEntry.state = enrichAlsoKnownAs(prelimEntry.state, didWithScid, {
+    alsoKnownAsWeb: options.alsoKnownAsWeb,
+    alsoKnownAsScid: options.alsoKnownAsScid,
+  });
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;
   const proof = await options.signer.sign({ document: prelimEntry, proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' } });
