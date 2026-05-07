@@ -232,6 +232,82 @@ const toASCII = (domain: string): string => {
   }
 };
 
+export const DID_PLACEHOLDER = '{DID}';
+
+export function validateCreateDidDocument(didDocument: DIDDoc): void {
+  if (!didDocument || typeof didDocument !== 'object') {
+    throw new Error('didDocument must be an object');
+  }
+  if (typeof didDocument.id !== 'string') {
+    throw new Error("didDocument 'id' field must be a string");
+  }
+  if (!didDocument.id.includes('{SCID}') && !didDocument.id.includes(DID_PLACEHOLDER)) {
+    throw new Error(
+      "didDocument.id must contain a '{SCID}' or '{DID}' placeholder"
+    );
+  }
+}
+
+export function replaceCreateDidPlaceholders<T>(input: T, scid: string, did: string): T {
+  const withScid = replaceValueInObject(input, '{SCID}', scid);
+  return replaceValueInObject(withScid, DID_PLACEHOLDER, did) as T;
+}
+
+export function convertWebvhIdToWebId(id: string): string {
+  const parts = id.split(':');
+  if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
+    throw new Error(`Invalid did:webvh id '${id}'`);
+  }
+  return `did:web:${parts.slice(3).join(':')}`;
+}
+
+export function convertWebvhIdToScidId(id: string): string {
+  if (!id.startsWith('did:webvh:')) {
+    throw new Error(`Invalid did:webvh id '${id}'`);
+  }
+  const rest = id.slice('did:webvh:'.length);
+  const firstColon = rest.indexOf(':');
+  if (firstColon === -1) {
+    throw new Error(`Invalid did:webvh id '${id}'`);
+  }
+  const scid = rest.slice(0, firstColon);
+  const pathPart = rest.slice(firstColon + 1).replace(/:/g, '/');
+  return `did:scid:vh:1:${scid}?src=${pathPart}`;
+}
+
+export function enrichAlsoKnownAs(
+  doc: DIDDoc,
+  did: string,
+  opts: { alsoKnownAsWeb?: boolean; alsoKnownAsScid?: boolean }
+): DIDDoc {
+  if (doc.alsoKnownAs !== undefined && !Array.isArray(doc.alsoKnownAs)) {
+    throw new Error('alsoKnownAs is not an array');
+  }
+
+  const aliases = Array.isArray(doc.alsoKnownAs) ? [...doc.alsoKnownAs] : [];
+  const addAlias = (alias: string) => {
+    if (!aliases.includes(alias)) {
+      aliases.push(alias);
+    }
+  };
+
+  if (opts.alsoKnownAsWeb) {
+    addAlias(convertWebvhIdToWebId(did));
+  }
+  if (opts.alsoKnownAsScid) {
+    addAlias(convertWebvhIdToScidId(did));
+  }
+
+  if (aliases.length === 0) {
+    return doc;
+  }
+
+  return {
+    ...doc,
+    alsoKnownAs: aliases,
+  };
+}
+
 export const readLogFromDisk = async (path: string): Promise<DIDLog> => {
   const fs = await getFS();
   return readLogFromString(fs.readFileSync(path, 'utf8'));
@@ -521,6 +597,10 @@ export const createDIDDoc = async (options: CreateDIDInterface): Promise<{doc: D
   
   if (options.alsoKnownAs) {
     doc.alsoKnownAs = options.alsoKnownAs;
+  }
+
+  if (options.services) {
+    doc.service = options.services;
   }
   
   return {doc};

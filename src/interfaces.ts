@@ -124,11 +124,15 @@ export interface CreateDIDInterface {
   address?: string;
   signer: Signer;
   updateKeys: string[];
-  verificationMethods: VerificationMethod[];
+  verificationMethods?: VerificationMethod[];
+  didDocument?: DIDDoc;
+  services?: ServiceEndpoint[];
   paths?: string[];
   controller?: string;
   context?: string | string[] | object | object[];
   alsoKnownAs?: string[];
+  alsoKnownAsWeb?: boolean;
+  alsoKnownAsScid?: boolean;
   portable?: boolean;
   nextKeyHashes?: string[];
   witness?: WitnessParameter | null;
