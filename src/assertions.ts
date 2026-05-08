@@ -76,7 +76,7 @@ export const documentStateIsValid = async (
     if (proof.proofPurpose !== 'authentication' && proof.proofPurpose !== 'assertionMethod') {
       throw new Error(`Unknown proof purpose ${proof.proofPurpose}`);
     }
-    if (proof.cryptosuite !== 'eddsa-jcs-2022') {
+    if (proof.cryptosuite !== 'eddsa-jcs-2022' && proof.cryptosuite !== 'ecdsa-jcs-2019') {
       throw new Error(`Unknown cryptosuite ${proof.cryptosuite}`);
     }
 
@@ -86,8 +86,15 @@ export const documentStateIsValid = async (
     }
 
     const publicKey = multibaseDecode(vm.publicKeyMultibase).bytes;
-    if (publicKey[0] !== 0xed || publicKey[1] !== 0x01) {
-      throw new Error(`multiKey doesn't include ed25519 header (0xed01)`);
+    // Multikey multicodec prefixes (varint-encoded):
+    //   Ed25519 (0xed)  → [0xed, 0x01]
+    //   P-256   (0x1200) → [0x80, 0x24]
+    // The Verifier hook is algorithm-agnostic — the consumer's `verify`
+    // implementation is responsible for picking the right primitive.
+    const isEd25519MultiKey = publicKey[0] === 0xed && publicKey[1] === 0x01;
+    const isP256MultiKey = publicKey[0] === 0x80 && publicKey[1] === 0x24;
+    if (!isEd25519MultiKey && !isP256MultiKey) {
+      throw new Error(`multiKey doesn't include ed25519 (0xed01) or p256 (0x8024) header`);
     }
 
     const {proofValue, ...restProof} = proof;

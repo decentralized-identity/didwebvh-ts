@@ -52,7 +52,7 @@ export function calculateWitnessWeight(proofs: DataIntegrityProof[], witnesses: 
   for (const proof of proofs) {
     const witness = witnesses.find(w => proof.verificationMethod.startsWith(w.id));
     if (witness) {
-      if (proof.cryptosuite !== 'eddsa-jcs-2022') {
+      if (proof.cryptosuite !== 'eddsa-jcs-2022' && proof.cryptosuite !== 'ecdsa-jcs-2019') {
         throw new Error('Invalid witness proof cryptosuite');
       }
       processed.add(witness.id);
@@ -79,7 +79,7 @@ export async function verifyWitnessProofs(
   for (const proofSet of witnessProofs) {
     // Process each proof in the set
     for (const proof of proofSet.proof) {
-      if (proof.cryptosuite !== 'eddsa-jcs-2022') {
+      if (proof.cryptosuite !== 'eddsa-jcs-2022' && proof.cryptosuite !== 'ecdsa-jcs-2019') {
         throw new Error('Invalid witness proof cryptosuite');
       }
 
@@ -107,8 +107,10 @@ export async function verifyWitnessProofs(
           throw new Error(`Failed to decode public key: ${error.message}`);
         }
         
-        if (publicKey.length !== 34) {
-          throw new Error(`Invalid public key length ${publicKey.length} (should be 34 bytes)`);
+        // 34 bytes = 2-byte multicodec prefix + 32-byte Ed25519 raw key
+        // 35 bytes = 2-byte multicodec prefix + 33-byte SEC1-compressed P-256 key
+        if (publicKey.length !== 34 && publicKey.length !== 35) {
+          throw new Error(`Invalid public key length ${publicKey.length} (should be 34 (Ed25519) or 35 (P-256) bytes)`);
         }
 
         // Extract proof value and prepare data for verification
