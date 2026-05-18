@@ -1,7 +1,7 @@
 import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
 import { BASE_CONTEXT } from './constants';
-import type { CreateDIDInterface, DIDDoc, DIDLog, VerificationMethod, WitnessProofFileEntry } from './interfaces';
+import type { CreateDIDInterface, DIDDoc, DIDLog, ServiceEndpoint, VerificationMethod, WitnessProofFileEntry } from './interfaces';
 import { resolveDIDFromLog } from './method';
 import { bufferToString, createBuffer } from './utils/buffer';
 import { createHash } from './utils/crypto';
@@ -261,24 +261,10 @@ export function convertWebvhIdToWebId(id: string): string {
   return `did:web:${parts.slice(3).join(':')}`;
 }
 
-export function convertWebvhIdToScidId(id: string): string {
-  if (!id.startsWith('did:webvh:')) {
-    throw new Error(`Invalid did:webvh id '${id}'`);
-  }
-  const rest = id.slice('did:webvh:'.length);
-  const firstColon = rest.indexOf(':');
-  if (firstColon === -1) {
-    throw new Error(`Invalid did:webvh id '${id}'`);
-  }
-  const scid = rest.slice(0, firstColon);
-  const pathPart = rest.slice(firstColon + 1).replace(/:/g, '/');
-  return `did:scid:vh:1:${scid}?src=${pathPart}`;
-}
-
 export function enrichAlsoKnownAs(
   doc: DIDDoc,
   did: string,
-  opts: { alsoKnownAsWeb?: boolean; alsoKnownAsScid?: boolean }
+  opts: { alsoKnownAsWeb?: boolean }
 ): DIDDoc {
   if (doc.alsoKnownAs !== undefined && !Array.isArray(doc.alsoKnownAs)) {
     throw new Error('alsoKnownAs is not an array');
@@ -294,9 +280,6 @@ export function enrichAlsoKnownAs(
   if (opts.alsoKnownAsWeb) {
     addAlias(convertWebvhIdToWebId(did));
   }
-  if (opts.alsoKnownAsScid) {
-    addAlias(convertWebvhIdToScidId(did));
-  }
 
   if (aliases.length === 0) {
     return doc;
@@ -305,6 +288,53 @@ export function enrichAlsoKnownAs(
   return {
     ...doc,
     alsoKnownAs: aliases,
+  };
+}
+
+export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc {
+  let webDoc = deepClone(didwebvhDoc);
+
+  const domainPath = didwebvhDid.replace(/^did:webvh:[^:]+:/, '');
+  const httpsBase = `https://${decodeURIComponent(domainPath.replace(/:/g, '/'))}/`;
+
+  const existingServiceIds = (webDoc.service ?? []).map((service: ServiceEndpoint) => service.id ?? '');
+  const implicitServices: ServiceEndpoint[] = [];
+
+  if (!existingServiceIds.some((id) => id.endsWith('#files'))) {
+    implicitServices.push({
+      id: '#files',
+      type: 'relativeRef',
+      serviceEndpoint: httpsBase,
+    });
+  }
+
+  if (!existingServiceIds.some((id) => id.endsWith('#whois'))) {
+    implicitServices.push({
+      '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+      id: '#whois',
+      type: 'LinkedVerifiablePresentation',
+      serviceEndpoint: `${httpsBase}whois.vp`,
+    });
+  }
+
+  if (implicitServices.length > 0) {
+    webDoc = { ...webDoc, service: [...(webDoc.service ?? []), ...implicitServices] };
+  }
+
+  const scidPrefix = didwebvhDid.replace(/^did:webvh:([^:]+):.*$/, 'did:webvh:$1:');
+  webDoc = replaceValueInObject(webDoc, scidPrefix, 'did:web:');
+
+  const webDid = webDoc.id as string;
+  const aliases = (Array.isArray(webDoc.alsoKnownAs) ? [...webDoc.alsoKnownAs] : [])
+    .filter((alias: string) => alias !== webDid);
+
+  if (!aliases.includes(didwebvhDid)) {
+    aliases.push(didwebvhDid);
+  }
+
+  return {
+    ...webDoc,
+    alsoKnownAs: [...new Set(aliases)],
   };
 }
 
