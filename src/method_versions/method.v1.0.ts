@@ -241,7 +241,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
     // Only add default services for entries we need to process
     if (shouldVerifyEntry(i) || i === resolutionLog.length - 1) {
       // Add default services if they don't exist
-      doc.service = doc.service || [];
+      doc.service = Array.isArray(doc.service) ? doc.service : [];
       const baseUrl = getBaseUrl(did);
 
       if (!doc.service.some((s: any) => s.id === '#files')) {
