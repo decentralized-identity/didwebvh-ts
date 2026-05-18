@@ -300,7 +300,7 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
   const existingServiceIds = (webDoc.service ?? []).map((service: ServiceEndpoint) => service.id ?? '');
   const implicitServices: ServiceEndpoint[] = [];
 
-  if (!existingServiceIds.some((id) => id.endsWith('#files'))) {
+  if (!existingServiceIds.some((id: string) => id.endsWith('#files'))) {
     implicitServices.push({
       id: '#files',
       type: 'relativeRef',
@@ -308,7 +308,7 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
     });
   }
 
-  if (!existingServiceIds.some((id) => id.endsWith('#whois'))) {
+  if (!existingServiceIds.some((id: string) => id.endsWith('#whois'))) {
     implicitServices.push({
       '@context': 'https://identity.foundation/linked-vp/contexts/v1',
       id: '#whois',
