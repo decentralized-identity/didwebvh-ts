@@ -237,7 +237,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
     did = doc.id;
 
     // Add default services if they don't exist
-    doc.service = doc.service || [];
+    doc.service = Array.isArray(doc.service) ? doc.service : [];
     const baseUrl = getBaseUrl(did);
 
     if (!doc.service.some((s: any) => s.id === '#files')) {
