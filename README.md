@@ -122,15 +122,18 @@ That will trigger the publish workflow, which will:
 - run `bun test` and `bun run build`
 - publish to npm
 
-### Repository secrets required
+### npm authentication
 
-- **`NPM_TOKEN_WEBVH_TS`**: an npm access token with permission to publish the package. Provided as an organization-level secret in the `decentralized-identity` org.
+Publishing uses [npm OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) — the workflow exchanges its GitHub Actions OIDC token for a short-lived npm publish token at publish time. No static `NPM_TOKEN` is required.
+
+For this to work, the `didwebvh-ts` package on npmjs.com must have a Trusted Publisher configured pointing at this repository and the `.github/workflows/publish.yml` workflow.
 
 ### Troubleshooting
 
 - **Tag rejected**: make sure it matches `vX.Y.Z` and is exactly one major/minor/patch bump over the latest `v*` tag.
 - **Permission rejected**: ensure the releasing user has write/maintain/admin permission on the GitHub repo.
-- **Publish failed auth**: ensure `NPM_TOKEN_WEBVH_TS` is configured (as a repo or org-level secret accessible to this repo).
+- **`EOTP` / OTP required at publish**: the npm token path is being used instead of OIDC. Make sure no `NODE_AUTH_TOKEN` is set on the publish step and that the workflow has `id-token: write` permission.
+- **OIDC exchange failed**: confirm the Trusted Publisher config on npmjs.com matches this repo's owner, name, and workflow file path (`.github/workflows/publish.yml`).
 
 ## Creating a DID Resolver
 

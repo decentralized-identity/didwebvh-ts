@@ -58,6 +58,4 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_WEBVH_TS }}
-        run: npm publish --provenance
+        run: npx -y npm@latest publish --provenance
