@@ -2,6 +2,7 @@ import { describe, expect, test, beforeAll } from "bun:test";
 import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
 import type { DIDLog, VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
+import { getBaseUrl, getFileUrl } from "../src/utils";
 
 describe("resolveDIDFromLog with verificationMethod", () => {
   let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
@@ -136,5 +137,25 @@ describe("resolveDIDFromLog with verificationMethod", () => {
     }
     expect(error).not.toBeNull();
     expect(error?.message).toBe("Cannot specify both verificationMethod and version number/id");
+  });
+});
+
+describe("Resolver URL derivation", () => {
+  test("Uses http for localhost DID host", () => {
+    const did = "did:webvh:scid:localhost%3A8000:test:path";
+    expect(getBaseUrl(did)).toBe("http://localhost:8000/test/path");
+    expect(getFileUrl(did)).toBe("http://localhost:8000/test/path/did.jsonl");
+  });
+
+  test("Uses https for non-localhost DID host", () => {
+    const did = "did:webvh:scid:example.com%3A8080:custom:path";
+    expect(getBaseUrl(did)).toBe("https://example.com:8080/custom/path");
+    expect(getFileUrl(did)).toBe("https://example.com:8080/custom/path/did.jsonl");
+  });
+
+  test("Uses .well-known did.jsonl when DID has no path", () => {
+    const did = "did:webvh:scid:example.com";
+    expect(getBaseUrl(did)).toBe("https://example.com");
+    expect(getFileUrl(did)).toBe("https://example.com/.well-known/did.jsonl");
   });
 });

@@ -32,7 +32,8 @@ Commands:
   generate-vm Generate a new verification method keypair
 
 Options:
-  --domain [domain]         Domain for the DID (required for create)
+  --address [address]       Address for the DID (host, host:port, http://localhost, https://url, or did:webvh form) (required for create)
+  --domain [domain]         DEPRECATED: Use --address instead. Domain for the DID (backwards compatibility).
   --log [file]              Path to the DID log file (required for resolve, update, deactivate)
   --output [file]           Path to save the updated DID log (optional for create, update, deactivate)
   --portable                Make the DID portable (optional for create)
@@ -51,7 +52,11 @@ Options:
   --witness-secret [secret] Witness secret key multibase (matches witness-did order)
 
 Examples:
-  bun run cli create --domain example.com --portable --witness did:example:witness1 --witness did:example:witness2
+  bun run cli create --address example.com --portable --witness did:example:witness1 --witness did:example:witness2
+  bun run cli create --address https://example.com --portable
+  bun run cli create --address "example.com:3000" --portable
+  bun run cli create --address "did:webvh:example.com:3000" --portable
+  bun run cli create --domain example.com --portable # DEPRECATED: use --address
   bun run cli resolve --did did:webvh:123456:example.com
   bun run cli resolve --log ./did.jsonl --witness-file ./did-witness.json
   bun run cli update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
@@ -116,10 +121,14 @@ function createCustomCrypto(verificationMethod?: VerificationMethod): Signer & V
 
 export async function handleCreate(args: string[]) {
   const options = parseOptions(args);
-  const domainInput = options['domain'] as string;
-  const parts = domainInput.split('/');
-  const domain = parts[0];
-  const paths = parts.length > 1 ? parts.slice(1) : undefined;
+  
+  // Support both --address (new) and --domain (deprecated) options
+  const addressInput = (options['address'] || options['domain']) as string;
+  
+  // Extract optional explicit paths (colon-delimited) from CLI args
+  // If provided, these override any paths parsed from address input
+  const explicitPaths = options['paths'] as string[] | undefined;
+  
   const output = options['output'] as string | undefined;
   const portable = options['portable'] !== undefined;
   const nextKeyHashes = options['next-key-hash'] as string[] | undefined;
@@ -127,8 +136,8 @@ export async function handleCreate(args: string[]) {
   const watchers = options['watcher'] as string[] | undefined;
   const witnessThreshold = options['witness-threshold'] ? parseInt(options['witness-threshold'] as string) : witnesses?.length ?? 0;
 
-  if (!domain) {
-    console.error('Domain is required for create command');
+  if (!addressInput) {
+    console.error('Address is required for create command (use --address or deprecated --domain)');
     process.exit(1);
   }
 
@@ -145,9 +154,10 @@ export async function handleCreate(args: string[]) {
       purpose: authKey.purpose
     };
     
+    // Use new address parameter for strict parsing and encoding
     const { did, doc, meta, log } = await createDID({
-      domain,
-      paths,
+      address: addressInput,
+      paths: explicitPaths,
       signer: crypto,
       verifier: crypto,
       updateKeys: [authKey.publicKeyMultibase!],
