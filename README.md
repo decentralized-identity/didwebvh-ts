@@ -124,13 +124,13 @@ That will trigger the publish workflow, which will:
 
 ### Repository secrets required
 
-- **`NPM_TOKEN`**: an npm access token with permission to publish the package.
+- **`NPM_TOKEN_WEBVH_TS`**: an npm access token with permission to publish the package. Provided as an organization-level secret in the `decentralized-identity` org.
 
 ### Troubleshooting
 
 - **Tag rejected**: make sure it matches `vX.Y.Z` and is exactly one major/minor/patch bump over the latest `v*` tag.
 - **Permission rejected**: ensure the releasing user has write/maintain/admin permission on the GitHub repo.
-- **Publish failed auth**: ensure `NPM_TOKEN` is configured in GitHub repository secrets.
+- **Publish failed auth**: ensure `NPM_TOKEN_WEBVH_TS` is configured (as a repo or org-level secret accessible to this repo).
 
 ## Creating a DID Resolver
 
