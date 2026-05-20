@@ -1,48 +1,124 @@
 name: NPM Package Publish
 
 on:
-  push:
-    branches:
-      - main
+  release:
+    types: [published]
+
+concurrency:
+  group: publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # Required for OIDC
-      contents: 'write'
-      packages: 'write'
-      actions: 'read'
+      id-token: write # for npm provenance
+      contents: read
     steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.VERSION_BUMPER_APPID }}
-          private-key: ${{ secrets.VERSION_BUMPER_SECRET }}
-
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: https://registry.npmjs.org
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
+      - name: Validate release tag + permissions
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "Tag: ${TAG_NAME}"
+          echo "Actor: ${ACTOR}"
+
+          if ! [[ "${TAG_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: Release tag must be vMAJOR.MINOR.PATCH (example: v2.7.5). Got: ${TAG_NAME}" >&2
+            exit 1
+          fi
+
+          permission="$(
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${REPO}/collaborators/${ACTOR}/permission" \
+            | node -e "let s=''; process.stdin.on('data',d=>s+=d); process.stdin.on('end',()=>{const j=JSON.parse(s); console.log(j.permission||'');});"
+          )"
+
+          case "${permission}" in
+            admin|maintain|write) ;;
+            *)
+              echo "ERROR: ${ACTOR} must have write/maintain/admin permission to publish. Detected: '${permission}'" >&2
+              exit 1
+              ;;
+          esac
+
+          git fetch --tags --force
+          latest_tag="$(git tag -l 'v*' --sort=-v:refname | head -n 1 || true)"
+          export LATEST_TAG="${latest_tag}"
+
+          node <<'NODE'
+          const tag = process.env.TAG_NAME;
+          const latest = process.env.LATEST_TAG || '';
+          const parse = (t) => {
+            const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(t);
+            if (!m) return null;
+            return { major: +m[1], minor: +m[2], patch: +m[3] };
+          };
+          const cmp = (a, b) => a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+          const next = parse(tag);
+          if (!next) throw new Error(`Invalid tag ${tag}`);
+          if (!latest) {
+            console.log('No prior v* tags found; allowing first release.');
+            process.exit(0);
+          }
+          const prev = parse(latest);
+          if (!prev) throw new Error(`Latest tag is not semver: ${latest}`);
+          if (cmp(next, prev) <= 0) throw new Error(`Tag ${tag} must be greater than latest ${latest}`);
+          const deltas = {
+            major: next.major - prev.major,
+            minor: next.minor - prev.minor,
+            patch: next.patch - prev.patch,
+          };
+          const isMajor = deltas.major === 1 && deltas.minor === -prev.minor && deltas.patch === -prev.patch;
+          const isMinor = deltas.major === 0 && deltas.minor === 1 && deltas.patch === -prev.patch;
+          const isPatch = deltas.major === 0 && deltas.minor === 0 && deltas.patch === 1;
+          if (!isMajor && !isMinor && !isPatch) {
+            throw new Error(`Tag ${tag} must be a single major/minor/patch bump from ${latest}`);
+          }
+          console.log(`Semver bump ok: ${latest} -> ${tag}`);
+          NODE
+
+      - name: Prepare version
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG_NAME#v}"
+          echo "Publishing version ${VERSION}"
+          npm version --no-git-tag-version "${VERSION}"
+
       - name: Install dependencies
         run: bun install
+
+      - name: Test
+        run: bun test
 
       - name: Build
         run: bun run build
 
-      - name: Semantic Release
+      - name: Publish to npm
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release 
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance
