@@ -15,6 +15,8 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   if (options.witness && options.witness.witnesses && options.witness.witnesses.length > 0) {
     validateWitnessParameter(options.witness);
   }
+
+  // Parse address input with strict validation
   const addressInput = options.address || options.domain;
   if (!addressInput) {
     throw new Error('Either address or domain must be provided');

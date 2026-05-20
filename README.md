@@ -100,6 +100,38 @@ The following commands are defined in the `package.json` file:
    bun run build:clean
    ```
 
+## Releasing
+
+Publishing is **fully automated** and happens **only** when a maintainer publishes a GitHub Release.
+
+- **Who can publish**: GitHub users with **write**, **maintain**, or **admin** permission on this repo.
+- **Required tag format**: `vMAJOR.MINOR.PATCH` (for example `v2.7.5`).
+- **Required semver bump**: the tag must be a **single** major/minor/patch increment over the latest existing `v*` tag.
+
+### How to cut a release
+
+1. In GitHub, go to **Releases** → **Draft a new release**
+2. Set **Tag** to the next version, e.g. `v2.7.5`
+3. Choose the target branch/commit (typically `main`)
+4. Click **Publish release**
+
+That will trigger the publish workflow, which will:
+
+- validate the tag + your repo permission
+- set `package.json` version from the tag (without the leading `v`)
+- run `bun test` and `bun run build`
+- publish to npm
+
+### Repository secrets required
+
+- **`NPM_TOKEN`**: an npm access token with permission to publish the package.
+
+### Troubleshooting
+
+- **Tag rejected**: make sure it matches `vX.Y.Z` and is exactly one major/minor/patch bump over the latest `v*` tag.
+- **Permission rejected**: ensure the releasing user has write/maintain/admin permission on the GitHub repo.
+- **Publish failed auth**: ensure `NPM_TOKEN` is configured in GitHub repository secrets.
+
 ## Creating a DID Resolver
 
 The `didwebvh-ts` library provides the core functionality for resolving DIDs, but it does not include a built-in HTTP resolver. You can create your own resolver using your preferred web framework by following these steps:
