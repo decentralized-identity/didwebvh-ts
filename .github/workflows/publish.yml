@@ -26,9 +26,6 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Upgrade npm (needed for OIDC trusted publishing)
-        run: npm install -g npm@latest
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
@@ -61,4 +58,4 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
-        run: npm publish --provenance
+        run: npx -y npm@latest publish --provenance
