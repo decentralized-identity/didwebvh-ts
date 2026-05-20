@@ -1,5 +1,5 @@
 import { fetchLogFromIdentifier, getActiveDIDs, maybeWriteTestLog } from "./utils";
-import type { CreateDIDInterface, DIDLog, UpdateDIDInterface, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry } from './interfaces';
+import type { CreateDIDInterface, CreateDIDResult, DIDLog, UpdateDIDInterface, UpdateDIDResult, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry } from './interfaces';
 import * as v1 from './method_versions/method.v1.0';
 import * as v0_5 from './method_versions/method.v0.5';
 
@@ -25,7 +25,7 @@ function getWebvhVersionFromOptions(options: any): string {
   return LATEST_VERSION;
 }
 
-export const createDID = async (options: CreateDIDInterface) => {
+export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
   const version = getWebvhVersionFromOptions(options);
   const result = version === '0.5'
     ? await v0_5.createDID(options)
@@ -90,7 +90,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   return result;
 };
 
-export const updateDID = async (options: UpdateDIDInterface & { services?: any[], domain?: string, updated?: string }) => {
+export const updateDID = async (options: UpdateDIDInterface & { services?: any[], domain?: string, updated?: string }): Promise<UpdateDIDResult> => {
   const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);
   const result = version === '0.5'
     ? await v0_5.updateDID(options)

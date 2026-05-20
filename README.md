@@ -168,16 +168,21 @@ For complete examples, see the [examples](./examples/) directory.
 - `resolveDID(did: string, options?: ResolutionOptions): Promise<{did: string, doc: any, meta: DIDResolutionMeta, controlled: boolean}>`
   Resolves a DID to its DID document.
 
-- `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
+- `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
   Creates a new DID.
   Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`) or legacy `domain`.
   Resolver URL mapping uses `http://localhost` for local testing and `https://` for non-local hosts.
+  If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
-- `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
+- `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
   Updates an existing DID.
+  Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
 
 - `deactivateDID(options: DeactivateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
   Deactivates an existing DID.
+
+- `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc`
+  Generates the parallel `did:web` document defined by did:webvh v1.0 §3.7.10.
 
 ### Cryptography Functions
 

@@ -117,6 +117,23 @@ export interface ServiceEndpoint {
   id?: string;
   type: string | string[];
   serviceEndpoint?: string | string[] | any;
+  [key: string]: unknown;
+}
+
+export interface CreateDIDResult {
+  did: string;
+  doc: DIDDoc;
+  meta: DIDResolutionMeta;
+  log: DIDLog;
+  webDoc?: DIDDoc;
+}
+
+export interface UpdateDIDResult {
+  did: string;
+  doc: DIDDoc;
+  meta: DIDResolutionMeta;
+  log: DIDLog;
+  webDoc?: DIDDoc;
 }
 
 export interface CreateDIDInterface {
@@ -124,11 +141,14 @@ export interface CreateDIDInterface {
   address?: string;
   signer: Signer;
   updateKeys: string[];
-  verificationMethods: VerificationMethod[];
+  verificationMethods?: VerificationMethod[];
+  didDocument?: DIDDoc;
+  services?: ServiceEndpoint[];
   paths?: string[];
   controller?: string;
   context?: string | string[] | object | object[];
   alsoKnownAs?: string[];
+  alsoKnownAsWeb?: boolean;
   portable?: boolean;
   nextKeyHashes?: string[];
   witness?: WitnessParameter | null;

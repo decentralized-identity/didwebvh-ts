@@ -1,13 +1,13 @@
-import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getActiveDIDs, getBaseUrl, replaceValueInObject, deepClone, parseCanonicalAddress } from "../utils";
+import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getActiveDIDs, getBaseUrl, replaceValueInObject, deepClone, enrichAlsoKnownAs, generateParallelDidWeb, parseCanonicalAddress, replaceCreateDidPlaceholders, validateCreateDidDocument } from "../utils";
 import { METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import type { CreateDIDInterface, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, DataIntegrityProof } from '../interfaces';
+import type { CreateDIDInterface, CreateDIDResult, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, UpdateDIDResult, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, DataIntegrityProof } from '../interfaces';
 import { verifyWitnessProofs, validateWitnessParameter, fetchWitnessProofs } from '../witness';
 
 const VERSION = '1.0';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
 
-export const createDID = async (options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}> => {
+export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
   if (!options.updateKeys) {
     throw new Error('Update keys not supplied')
   }
@@ -39,7 +39,28 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
     return vm;
   });
   
-  let {doc} = await createDIDDoc({...options, controller, verificationMethods: safeVerificationMethods});
+  let doc: any;
+  if (options.didDocument) {
+    validateCreateDidDocument(options.didDocument);
+    doc = deepClone(options.didDocument);
+  } else {
+    if (!safeVerificationMethods || safeVerificationMethods.length === 0) {
+      throw new Error('verificationMethods must be provided when didDocument is not supplied');
+    }
+    const didDocResult = await createDIDDoc({
+      ...options,
+      domain: addressInput,
+      paths: allPaths,
+      controller,
+      verificationMethods: safeVerificationMethods
+    });
+    doc = didDocResult.doc;
+  }
+
+  doc = enrichAlsoKnownAs(doc, controller, {
+    alsoKnownAsWeb: options.alsoKnownAsWeb,
+  });
+
   const params = {
     scid: PLACEHOLDER,
     updateKeys: options.updateKeys,
@@ -61,7 +82,11 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   params.scid = await createSCID(initialLogEntryHash);
   initialLogEntry.state = doc;
-  const prelimEntry = JSON.parse(JSON.stringify(initialLogEntry).replaceAll(PLACEHOLDER, params.scid));
+  const didWithScid = controller.replaceAll(PLACEHOLDER, params.scid);
+  const prelimEntry = replaceCreateDidPlaceholders(initialLogEntry, params.scid, didWithScid);
+  prelimEntry.state = enrichAlsoKnownAs(prelimEntry.state, didWithScid, {
+    alsoKnownAsWeb: options.alsoKnownAsWeb,
+  });
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;
   const signedProof = await options.signer.sign({ document: prelimEntry, proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' } });
@@ -79,6 +104,8 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
     throw new Error(`version ${prelimEntry.versionId} is invalid.`)
   }
 
+  const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(prelimEntry.state.id!, prelimEntry.state) : undefined;
+
   return {
     did: prelimEntry.state.id!,
     doc: prelimEntry.state,
@@ -91,7 +118,8 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
     },
     log: [
       prelimEntry
-    ]
+    ],
+    ...(webDoc ? { webDoc } : {})
   }
 }
 
@@ -350,7 +378,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   };
 }
 
-export const updateDID = async (options: UpdateDIDInterface & { services?: any[], domain?: string, updated?: string }): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}> => {
+export const updateDID = async (options: UpdateDIDInterface & { services?: any[], domain?: string, updated?: string }): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
   const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
@@ -436,6 +464,9 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
     ...params
   };
 
+  const hasWebAlias = (prelimEntry.state.alsoKnownAs ?? []).some((alias: string) => alias.startsWith('did:web:'));
+  const webDoc = hasWebAlias ? generateParallelDidWeb(prelimEntry.state.id!, prelimEntry.state) : undefined;
+
   return {
     did: prelimEntry.state.id!,
     doc: prelimEntry.state,
@@ -443,7 +474,8 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
     log: [
       ...log,
       prelimEntry
-    ]
+    ],
+    ...(webDoc ? { webDoc } : {})
   }
 }
 

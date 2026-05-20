@@ -1,7 +1,7 @@
 import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
 import { BASE_CONTEXT } from './constants';
-import type { CreateDIDInterface, DIDDoc, DIDLog, VerificationMethod, WitnessProofFileEntry } from './interfaces';
+import type { CreateDIDInterface, DIDDoc, DIDLog, ServiceEndpoint, VerificationMethod, WitnessProofFileEntry } from './interfaces';
 import { resolveDIDFromLog } from './method';
 import { bufferToString, createBuffer } from './utils/buffer';
 import { createHash } from './utils/crypto';
@@ -231,6 +231,112 @@ const toASCII = (domain: string): string => {
     return domain;
   }
 };
+
+export const DID_PLACEHOLDER = '{DID}';
+
+export function validateCreateDidDocument(didDocument: DIDDoc): void {
+  if (!didDocument || typeof didDocument !== 'object') {
+    throw new Error('didDocument must be an object');
+  }
+  if (typeof didDocument.id !== 'string') {
+    throw new Error("didDocument 'id' field must be a string");
+  }
+  if (!didDocument.id.includes('{SCID}') && !didDocument.id.includes(DID_PLACEHOLDER)) {
+    throw new Error(
+      "didDocument.id must contain a '{SCID}' or '{DID}' placeholder"
+    );
+  }
+}
+
+export function replaceCreateDidPlaceholders<T>(input: T, scid: string, did: string): T {
+  const withScid = replaceValueInObject(input, '{SCID}', scid);
+  return replaceValueInObject(withScid, DID_PLACEHOLDER, did) as T;
+}
+
+export function convertWebvhIdToWebId(id: string): string {
+  const parts = id.split(':');
+  if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
+    throw new Error(`Invalid did:webvh id '${id}'`);
+  }
+  return `did:web:${parts.slice(3).join(':')}`;
+}
+
+export function enrichAlsoKnownAs(
+  doc: DIDDoc,
+  did: string,
+  opts: { alsoKnownAsWeb?: boolean }
+): DIDDoc {
+  if (doc.alsoKnownAs !== undefined && !Array.isArray(doc.alsoKnownAs)) {
+    throw new Error('alsoKnownAs is not an array');
+  }
+
+  const aliases = Array.isArray(doc.alsoKnownAs) ? [...doc.alsoKnownAs] : [];
+  const addAlias = (alias: string) => {
+    if (!aliases.includes(alias)) {
+      aliases.push(alias);
+    }
+  };
+
+  if (opts.alsoKnownAsWeb) {
+    addAlias(convertWebvhIdToWebId(did));
+  }
+
+  if (aliases.length === 0) {
+    return doc;
+  }
+
+  return {
+    ...doc,
+    alsoKnownAs: aliases,
+  };
+}
+
+export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc {
+  let webDoc = deepClone(didwebvhDoc);
+
+  const domainPath = didwebvhDid.replace(/^did:webvh:[^:]+:/, '');
+  const httpsBase = `https://${decodeURIComponent(domainPath.replace(/:/g, '/'))}/`;
+
+  const existingServiceIds = (webDoc.service ?? []).map((service: ServiceEndpoint) => service.id ?? '');
+  const implicitServices: ServiceEndpoint[] = [];
+
+  if (!existingServiceIds.some((id: string) => id.endsWith('#files'))) {
+    implicitServices.push({
+      id: '#files',
+      type: 'relativeRef',
+      serviceEndpoint: httpsBase,
+    });
+  }
+
+  if (!existingServiceIds.some((id: string) => id.endsWith('#whois'))) {
+    implicitServices.push({
+      '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+      id: '#whois',
+      type: 'LinkedVerifiablePresentation',
+      serviceEndpoint: `${httpsBase}whois.vp`,
+    });
+  }
+
+  if (implicitServices.length > 0) {
+    webDoc = { ...webDoc, service: [...(webDoc.service ?? []), ...implicitServices] };
+  }
+
+  const scidPrefix = didwebvhDid.replace(/^did:webvh:([^:]+):.*$/, 'did:webvh:$1:');
+  webDoc = replaceValueInObject(webDoc, scidPrefix, 'did:web:');
+
+  const webDid = webDoc.id as string;
+  const aliases = (Array.isArray(webDoc.alsoKnownAs) ? [...webDoc.alsoKnownAs] : [])
+    .filter((alias: string) => alias !== webDid);
+
+  if (!aliases.includes(didwebvhDid)) {
+    aliases.push(didwebvhDid);
+  }
+
+  return {
+    ...webDoc,
+    alsoKnownAs: [...new Set(aliases)],
+  };
+}
 
 export const readLogFromDisk = async (path: string): Promise<DIDLog> => {
   const fs = await getFS();
@@ -521,6 +627,10 @@ export const createDIDDoc = async (options: CreateDIDInterface): Promise<{doc: D
   
   if (options.alsoKnownAs) {
     doc.alsoKnownAs = options.alsoKnownAs;
+  }
+
+  if (options.services) {
+    doc.service = options.services;
   }
   
   return {doc};
