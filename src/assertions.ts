@@ -2,7 +2,7 @@ import { createSCID, deriveNextKeyHash, resolveVM } from "./utils";
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
 import { concatBuffers } from './utils/buffer';
-import { Verifier, WitnessParameterResolution } from './interfaces';
+import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces';
 import { validateWitnessParameter } from './witness';
 import { multibaseDecode } from "./utils/multiformats";
 
@@ -34,7 +34,7 @@ const isWitnessAuthorized = (verificationMethod: string, witnesses: string[]): b
 };
 
 export const documentStateIsValid = async (
-  doc: any, 
+  doc: DIDLogEntry,
   updateKeys: string[], 
   witness: WitnessParameterResolution | undefined | null,
   skipWitnessVerification?: boolean,
@@ -45,6 +45,9 @@ export const documentStateIsValid = async (
   }
   
   let {proof: proofs, ...rest} = doc;
+  if (!proofs) {
+    throw new Error('Missing proof in DID log entry');
+  }
   if (!Array.isArray(proofs)) {
     proofs = [proofs];
   }
@@ -73,8 +76,8 @@ export const documentStateIsValid = async (
     if (proof.type !== 'DataIntegrityProof') {
       throw new Error(`Unknown proof type ${proof.type}`);
     }
-    if (proof.proofPurpose !== 'authentication' && proof.proofPurpose !== 'assertionMethod') {
-      throw new Error(`Unknown proof purpose ${proof.proofPurpose}`);
+    if (proof.proofPurpose !== 'assertionMethod') {
+      throw new Error(`Invalid proof purpose '${proof.proofPurpose}' for DID log entry proof. Expected 'assertionMethod'.`);
     }
     if (proof.cryptosuite !== 'eddsa-jcs-2022') {
       throw new Error(`Unknown cryptosuite ${proof.cryptosuite}`);

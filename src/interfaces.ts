@@ -1,6 +1,19 @@
+export type DataIntegrityProofPurpose =
+  | 'authentication'
+  | 'assertionMethod';
+
+export interface DataIntegrityProofTemplate {
+  id?: string;
+  type: string;
+  cryptosuite: string;
+  verificationMethod?: string;
+  created: string;
+  proofPurpose: string;
+}
+
 export interface SigningInput {
-  document: any;
-  proof: any;
+  document: unknown;
+  proof: DataIntegrityProofTemplate;
 }
 
 export interface SigningOutput {
@@ -161,8 +174,8 @@ export interface CreateDIDInterface {
 }
 
 export interface SignDIDDocInterface {
-  document: any;
-  proof: any;
+  document: unknown;
+  proof: DataIntegrityProofTemplate;
   verificationMethod: VerificationMethod;
 }
 
