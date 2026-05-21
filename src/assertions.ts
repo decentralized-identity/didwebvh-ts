@@ -1,4 +1,4 @@
-import { createSCID, deriveNextKeyHash, resolveVM } from "./utils";
+import { createSCID, deriveNextKeyHash, parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from "./utils";
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
 import { concatBuffers } from './utils/buffer';
@@ -7,22 +7,15 @@ import { validateWitnessParameter } from './witness';
 import { multibaseDecode } from "./utils/multiformats";
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
-  if (verificationMethod.startsWith('did:key:')) {
-    const keyParts = verificationMethod.split('did:key:')[1].split('#');
-    const key = keyParts[0];
-    
-    const authorized = updateKeys.some(updateKey => {
-      let updateKeyPart = updateKey;
-      if (updateKey.startsWith('did:key:')) {
-        updateKeyPart = updateKey.split('did:key:')[1].split('#')[0];
-      }
-      
-      return updateKeyPart === key;
-    });
-    
-    return authorized;
-  }
-  return false;
+  const parsedVerificationMethod = parseDidKeyVerificationMethod(verificationMethod);
+
+  return updateKeys.some((updateKey) => {
+    if (updateKey.startsWith('did:key:')) {
+      return parseDidKeyDid(updateKey).keyMultibase === parsedVerificationMethod.keyMultibase;
+    }
+
+    return updateKey === parsedVerificationMethod.keyMultibase;
+  });
 };
 
 const isWitnessAuthorized = (verificationMethod: string, witnesses: string[]): boolean => {

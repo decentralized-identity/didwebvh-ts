@@ -31,6 +31,11 @@ export interface Signer {
   getVerificationMethodId(): string;
 }
 
+export interface WitnessSigner {
+  sign(input: SigningInput): Promise<SigningOutput>;
+  getVerificationMethodId(): string;
+}
+
 export interface Verifier {
   verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean>;
 }
@@ -91,6 +96,24 @@ export interface VerificationMethod {
 
 export interface WitnessEntry {
   id: string;  // did:key DID
+}
+
+export interface ParsedDidKeyVerificationMethod {
+  did: string;
+  fragment?: string;
+  keyMultibase: string;
+}
+
+export interface WitnessSigningOptions {
+  versionId: string;
+  witnesses: WitnessEntry[];
+  witnessSignersByDid: Record<string, WitnessSigner>;
+  created?: string;
+}
+
+export interface WitnessSigningResult {
+  versionId: string;
+  proof: DataIntegrityProof[];
 }
 
 export interface WitnessParameter {

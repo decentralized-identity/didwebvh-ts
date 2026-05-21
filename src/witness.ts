@@ -1,10 +1,45 @@
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
-import type { DataIntegrityProof, DataIntegrityProofTemplate, DIDLogEntry, WitnessEntry, WitnessProofFileEntry, Verifier, WitnessParameterResolution } from './interfaces';
-import { resolveVM } from "./utils";
+import type {
+  DataIntegrityProof,
+  DataIntegrityProofTemplate,
+  DIDLogEntry,
+  SigningInput,
+  WitnessEntry,
+  WitnessProofFileEntry,
+  WitnessSigner,
+  WitnessSigningOptions,
+  WitnessSigningResult,
+  Verifier,
+  WitnessParameterResolution,
+} from './interfaces';
+import { parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from "./utils";
 import { concatBuffers } from './utils/buffer';
 import { fetchWitnessProofs } from './utils';
 import { multibaseDecode } from './utils/multiformats';
+
+function createWitnessProofSigner(signer: WitnessSigner) {
+  return async (
+    document: { versionId: string },
+    proofTemplate?: DataIntegrityProofTemplate
+  ): Promise<{ proof: Partial<DataIntegrityProof> }> => {
+    if (!proofTemplate) {
+      throw new Error('Witness proof template is required');
+    }
+
+    const signed = await signer.sign({
+      document,
+      proof: proofTemplate,
+    } satisfies SigningInput);
+
+    return {
+      proof: {
+        verificationMethod: proofTemplate.verificationMethod,
+        proofValue: signed.proofValue,
+      },
+    };
+  };
+}
 
 export async function createWitnessProof(
   signer: (
@@ -12,13 +47,14 @@ export async function createWitnessProof(
     proofTemplate?: DataIntegrityProofTemplate
   ) => Promise<{ proof: Partial<DataIntegrityProof> }>,
   versionId: string,
-  verificationMethod: string
+  verificationMethod: string,
+  created: string = new Date().toISOString()
 ): Promise<DataIntegrityProof> {
   const proofTemplate: DataIntegrityProofTemplate = {
     type: "DataIntegrityProof",
     cryptosuite: "eddsa-jcs-2022",
     verificationMethod,
-    created: new Date().toISOString(),
+    created,
     proofPurpose: "assertionMethod"
   };
 
@@ -42,6 +78,67 @@ export async function createWitnessProof(
   };
 }
 
+export async function signWitnessProofsForVersion(
+  options: WitnessSigningOptions
+): Promise<WitnessSigningResult> {
+  if (!options.versionId) {
+    throw new Error('versionId is required');
+  }
+
+  const witnessCount = options.witnesses.length;
+  if (witnessCount === 0) {
+    throw new Error('Witness list cannot be empty');
+  }
+
+  const proofs = await Promise.all(
+    options.witnesses.map(async (witness) => {
+      const { did } = parseDidKeyDid(witness.id);
+      const signer = options.witnessSignersByDid[did];
+
+      if (!signer) {
+        throw new Error(`Missing witness signer for ${did}`);
+      }
+
+      const verificationMethod = signer.getVerificationMethodId();
+      const parsedVerificationMethod = parseDidKeyVerificationMethod(verificationMethod);
+
+      if (parsedVerificationMethod.did !== did) {
+        throw new Error(`Witness signer verificationMethod DID does not match witness id: ${did}`);
+      }
+
+      return createWitnessProof(
+        createWitnessProofSigner(signer),
+        options.versionId,
+        verificationMethod,
+        options.created
+      );
+    })
+  );
+
+  return {
+    versionId: options.versionId,
+    proof: proofs,
+  };
+}
+
+export async function signWitnessProofsForVersions(
+  versionIds: string[],
+  witnesses: WitnessEntry[],
+  witnessSignersByDid: Record<string, WitnessSigner>,
+  created?: string
+): Promise<WitnessSigningResult[]> {
+  return Promise.all(
+    versionIds.map((versionId) =>
+      signWitnessProofsForVersion({
+        versionId,
+        witnesses,
+        witnessSignersByDid,
+        created,
+      })
+    )
+  );
+}
+
 export function validateWitnessParameter(witness: WitnessParameterResolution): void {
   if (!witness.witnesses || !Array.isArray(witness.witnesses) || witness.witnesses.length === 0) {
     throw new Error('Witness list cannot be empty');
@@ -53,21 +150,32 @@ export function validateWitnessParameter(witness: WitnessParameterResolution): v
 
   const ids = new Set<string>();
   for (const w of witness.witnesses) {
-    if (!w.id.startsWith('did:key:')) {
+    let parsedDid;
+    try {
+      parsedDid = parseDidKeyDid(w.id);
+    } catch {
       throw new Error('Witness DIDs must be did:key format');
     }
-    if (ids.has(w.id)) {
+
+    if (ids.has(parsedDid.did)) {
       throw new Error(`Duplicate witness id: ${w.id}`);
     }
-    ids.add(w.id);
+    ids.add(parsedDid.did);
   }
 }
 
-export function calculateWitnessWeight(proofs: DataIntegrityProof[], witnesses: WitnessEntry[]): number {
+export function countWitnessApprovals(proofs: DataIntegrityProof[], witnesses: WitnessEntry[]): number {
   const processed = new Set<string>();
+  const witnessesByDid = new Map(
+    witnesses.map((witness) => {
+      const parsedDid = parseDidKeyDid(witness.id);
+      return [parsedDid.did, witness];
+    })
+  );
 
   for (const proof of proofs) {
-    const witness = witnesses.find(w => proof.verificationMethod.startsWith(w.id));
+    const parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
+    const witness = witnessesByDid.get(parsedVerificationMethod.did);
     if (witness) {
       if (proof.cryptosuite !== 'eddsa-jcs-2022') {
         throw new Error('Invalid witness proof cryptosuite');
@@ -77,6 +185,86 @@ export function calculateWitnessWeight(proofs: DataIntegrityProof[], witnesses: 
   }
 
   return processed.size;
+}
+
+export async function countVerifiedWitnessApprovals(
+  logEntry: DIDLogEntry,
+  witnessProofs: WitnessProofFileEntry[],
+  currentWitness: WitnessParameterResolution,
+  verifier?: Verifier
+): Promise<number> {
+  if (!verifier) {
+    throw new Error('Verifier implementation is required');
+  }
+
+  let approvals = 0;
+  const processedWitnesses = new Set<string>();
+  const witnessesByDid = new Map(
+    (currentWitness.witnesses ?? []).map((witness) => {
+      const parsedDid = parseDidKeyDid(witness.id);
+      return [parsedDid.did, witness];
+    })
+  );
+
+  for (const proofSet of witnessProofs) {
+    for (const proof of proofSet.proof) {
+      try {
+        if (proof.type !== 'DataIntegrityProof') {
+          throw new Error('Invalid witness proof type');
+        }
+
+        if (proof.proofPurpose !== 'assertionMethod') {
+          throw new Error('Invalid witness proof purpose');
+        }
+
+        if (proof.cryptosuite !== 'eddsa-jcs-2022') {
+          throw new Error('Invalid witness proof cryptosuite');
+        }
+
+        const parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
+        const witness = witnessesByDid.get(parsedVerificationMethod.did);
+        if (!witness || processedWitnesses.has(witness.id)) {
+          continue;
+        }
+
+        const vm = await resolveVM(proof.verificationMethod);
+        if (!vm || !vm.publicKeyMultibase) {
+          throw new Error(`Verification Method ${proof.verificationMethod} not found`);
+        }
+
+        const publicKey = multibaseDecode(vm.publicKeyMultibase).bytes;
+        if (publicKey.length !== 34) {
+          throw new Error(`Invalid public key length ${publicKey.length} (should be 34 bytes)`);
+        }
+
+        const { proofValue, ...proofWithoutValue } = proof;
+        const canonicalizedData = canonicalize({ versionId: logEntry.versionId });
+        const canonicalizedProof = canonicalize(proofWithoutValue);
+        const dataHash = await createHash(canonicalizedData);
+        const proofHash = await createHash(canonicalizedProof);
+        const input = concatBuffers(proofHash, dataHash);
+        const signature = multibaseDecode(proofValue).bytes;
+
+        const verified = await verifier.verify(
+          signature,
+          input,
+          publicKey.slice(2)
+        );
+
+        if (!verified) {
+          throw new Error('Invalid witness proof signature');
+        }
+
+        approvals++;
+        processedWitnesses.add(witness.id);
+      } catch {
+        // Individual invalid proofs do not count toward threshold if other valid proofs remain.
+        continue;
+      }
+    }
+  }
+
+  return approvals;
 }
 
 export async function verifyWitnessProofs(
@@ -91,6 +279,12 @@ export async function verifyWitnessProofs(
 
   let approvals = 0;
   const processedWitnesses = new Set<string>();
+  const witnessesByDid = new Map(
+    (currentWitness.witnesses ?? []).map((witness) => {
+      const parsedDid = parseDidKeyDid(witness.id);
+      return [parsedDid.did, witness];
+    })
+  );
 
   // Process each proof set
   for (const proofSet of witnessProofs) {
@@ -108,7 +302,8 @@ export async function verifyWitnessProofs(
         throw new Error('Invalid witness proof cryptosuite');
       }
 
-      const witness = currentWitness.witnesses?.find(w => proof.verificationMethod.startsWith(w.id));
+      const parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
+      const witness = witnessesByDid.get(parsedVerificationMethod.did);
       if (!witness) {
         throw new Error('Proof from unauthorized witness');
       }

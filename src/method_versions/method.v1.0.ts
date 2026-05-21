@@ -1,8 +1,8 @@
 import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getActiveDIDs, getBaseUrl, replaceValueInObject, deepClone, enrichAlsoKnownAs, generateParallelDidWeb, parseCanonicalAddress, replaceCreateDidPlaceholders, validateCreateDidDocument } from "../utils";
 import { METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import type { CreateDIDInterface, CreateDIDResult, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, UpdateDIDResult, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, DataIntegrityProof } from '../interfaces';
-import { verifyWitnessProofs, validateWitnessParameter, fetchWitnessProofs } from '../witness';
+import type { CreateDIDInterface, CreateDIDResult, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, UpdateDIDResult, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, DataIntegrityProof, WitnessParameterResolution } from '../interfaces';
+import { countVerifiedWitnessApprovals, validateWitnessParameter, fetchWitnessProofs } from '../witness';
 
 const VERSION = '1.0';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
@@ -154,9 +154,10 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   let lastValidMeta: DIDResolutionMeta | null = null;
   let i = 0;
   let host = '';
+  const requiredWitnessChecks: RequiredWitnessCheck[] = [];
 
-  // Fast resolution: Only verify critical entries (first and last few entries)
-  const fastResolve = options.fastResolve ?? true; // Default to fast resolution
+  // Fast resolution is opt-in; full verification is the default conformant path.
+  const fastResolve = options.fastResolve ?? false;
   const isFirstEntry = (idx: number) => idx === 0;
   const isLastFewEntries = (idx: number) => idx >= resolutionLog.length - 10; // Verify last 10 entries
   const shouldVerifyEntry = (idx: number) => !fastResolve || isFirstEntry(idx) || isLastFewEntries(idx);
@@ -165,6 +166,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   while (i < resolutionLog.length) {
     const { versionId, versionTime, parameters, state, proof } = resolutionLog[i];
     const [version, entryHash] = versionId.split('-');
+    const previousWitness = meta.witness ? deepClone(meta.witness) : undefined;
     if (parseInt(version) !== i + 1) {
       throw new Error(`version '${version}' in log doesn't match expected '${i + 1}'.`);
     }
@@ -271,6 +273,15 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
         meta.watchers = parameters.watchers ?? null;
       }
     }
+
+    const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, meta.witness);
+    if (requiredWitness) {
+      requiredWitnessChecks.push({
+        targetVersionId: meta.versionId,
+        targetVersionNumber: parseInt(version, 10),
+        witness: requiredWitness,
+      });
+    }
     
     // Optimized: Use efficient cloning instead of clone() function
     doc = deepClone(newDoc);
@@ -327,26 +338,39 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
       }
     }
 
-    if (meta.witness && i === resolutionLog.length - 1) {
-      if (!options.witnessProofs) {
-        options.witnessProofs = await fetchWitnessProofs(did);
-      }
-
-      const validProofs = options.witnessProofs.filter((wp: WitnessProofFileEntry) => {
-        return wp.versionId === meta.versionId;
-      });
-
-      if (validProofs.length > 0) {
-        await verifyWitnessProofs(resolutionLog[i], validProofs, meta.witness!, options.verifier);
-      } else if (meta.witness && meta.witness.threshold && parseInt(meta.witness.threshold.toString()) > 0) {
-        throw new Error('No witness proofs found for version ' + meta.versionId);
-      }
-    }
-
     lastValidDoc = deepClone(doc);
     lastValidMeta = { ...meta };
 
     i++;
+  }
+
+  if (requiredWitnessChecks.length > 0) {
+    if (!options.witnessProofs) {
+      options.witnessProofs = await fetchWitnessProofs(did);
+    }
+
+    const publishedVersionNumbers = new Map(
+      resolutionLog.map((entry, index) => [entry.versionId, index + 1])
+    );
+
+    for (const check of requiredWitnessChecks) {
+      const candidateProofs = (options.witnessProofs ?? []).filter((witnessProof) => {
+        const proofVersionNumber = publishedVersionNumbers.get(witnessProof.versionId);
+        return proofVersionNumber !== undefined && proofVersionNumber >= check.targetVersionNumber;
+      });
+
+      const approvals = await countVerifiedWitnessApprovals(
+        resolutionLog[check.targetVersionNumber - 1],
+        candidateProofs,
+        check.witness,
+        options.verifier
+      );
+      const threshold = parseInt((check.witness.threshold ?? 0).toString(), 10);
+
+      if (approvals < threshold) {
+        throw new Error(`Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`);
+      }
+    }
   }
   } catch (e) {
     if (!resolvedDoc) {
@@ -536,4 +560,60 @@ export const deactivateDID = async (options: DeactivateDIDInterface & { updateKe
       prelimEntry
     ]
   }
-} 
+}
+
+interface RequiredWitnessCheck {
+  targetVersionId: string;
+  targetVersionNumber: number;
+  witness: WitnessParameterResolution;
+}
+
+const getEntryWitnessParameter = (parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined => {
+  if ('witness' in parameters) {
+    return parameters.witness ?? {};
+  }
+
+  if ((parameters as any).witnesses) {
+    return {
+      witnesses: (parameters as any).witnesses,
+      threshold: (parameters as any).witnessThreshold || (parameters as any).witnesses.length,
+    };
+  }
+
+  return undefined;
+};
+
+const isWitnessActive = (witness?: WitnessParameterResolution | null): witness is WitnessParameterResolution => {
+  if (!witness?.witnesses || witness.witnesses.length === 0) {
+    return false;
+  }
+
+  const threshold = parseInt((witness.threshold ?? 0).toString(), 10);
+  return threshold > 0;
+};
+
+const getRequiredWitnessForEntry = (
+  previousWitness: WitnessParameterResolution | undefined,
+  parameters: DIDLogEntry['parameters'],
+  currentWitness: WitnessParameterResolution | undefined
+): WitnessParameterResolution | undefined => {
+  const explicitWitness = getEntryWitnessParameter(parameters);
+
+  if (explicitWitness !== undefined) {
+    if (isWitnessActive(currentWitness)) {
+      return deepClone(currentWitness);
+    }
+
+    if (isWitnessActive(previousWitness)) {
+      return deepClone(previousWitness);
+    }
+
+    return undefined;
+  }
+
+  if (isWitnessActive(previousWitness)) {
+    return deepClone(previousWitness);
+  }
+
+  return undefined;
+};
