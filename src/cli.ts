@@ -4,7 +4,7 @@ import { createDID, updateDID, deactivateDID, resolveDIDFromLog } from './method
 import { fetchLogFromIdentifier, readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './utils';
 import { dirname } from 'path';
 import fs from 'fs';
-import { DIDLog, ServiceEndpoint, VerificationMethod, Verifier } from './interfaces';
+import { DIDLog, ServiceEndpoint, VerificationMethod, Verifier, DataIntegrityProofTemplate } from './interfaces';
 import { createBuffer } from './utils/buffer';
 import { bufferToString } from './utils/buffer';
 import { Signer, SigningInput, SigningOutput } from './interfaces';
@@ -440,18 +440,19 @@ async function handleGenerateWitnessProof(args: string[]) {
     };
     const crypto = createCustomCrypto(vm);
     const signerFn = async (data: any) => {
-      const proofTemplate = {
+      const proofTemplate: DataIntegrityProofTemplate = {
         type: 'DataIntegrityProof',
         cryptosuite: 'eddsa-jcs-2022',
         verificationMethod: `${did}#${publicKeyMultibase}`,
         created: new Date().toISOString(),
-        proofPurpose: 'authentication'
+        proofPurpose: 'assertionMethod'
       };
       const signingInput = { document: data, proof: proofTemplate };
       const signed = await crypto.sign(signingInput);
       return { proof: { ...proofTemplate, proofValue: signed.proofValue } };
     };
-    const proof = await createWitnessProof(signerFn, versionId);
+    const verificationMethod = `${did}#${publicKeyMultibase}`;
+    const proof = await createWitnessProof(signerFn, versionId, verificationMethod);
     proofs.push(proof);
   }
 

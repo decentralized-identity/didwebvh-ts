@@ -92,11 +92,46 @@ describe("Not So Happy Path Tests", () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
     tamperedLog[3].state.alsoKnownAs = ['did:example:tampered'];
 
-    // fastResolve defaults to true — middle entries skip signature checks
-    // but hash chain should still be verified
+    // Hash chain validation remains active even when fastResolve is opted in.
+    await expect(
+      resolveDIDFromLog(tamperedLog, { verifier: testImplementation, fastResolve: true })
+    ).rejects.toThrow('Hash chain broken');
+  });
+
+  test("Default resolve verifies every log entry proof", async () => {
+    let currentLog: DIDLog;
+    const { log: log0 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      verifier: testImplementation
+    });
+    currentLog = log0;
+
+    for (let j = 0; j < 12; j++) {
+      const { log: nextLog } = await updateDID({
+        log: currentLog,
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: [authKey],
+        verifier: testImplementation
+      });
+      currentLog = nextLog;
+    }
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
+    // With 13 entries, index 1 is outside the fastResolve verification window
+    // (first entry + last 10 entries), but still checked in default full mode.
+    tamperedLog[1].proof[0].proofValue = 'zinvalid-proof';
+
     await expect(
       resolveDIDFromLog(tamperedLog, { verifier: testImplementation })
-    ).rejects.toThrow('Hash chain broken');
+    ).rejects.toThrow();
+
+    await expect(
+      resolveDIDFromLog(tamperedLog, { verifier: testImplementation, fastResolve: true })
+    ).resolves.toBeDefined();
   });
 
   test("Error metadata on later-entry failure", async () => {

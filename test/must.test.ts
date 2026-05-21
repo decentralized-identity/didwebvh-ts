@@ -84,6 +84,9 @@ describe("did:webvh normative witness tests", async () => {
   let testImplementation: TestCryptoImplementation;
   let witnessImpl1: TestCryptoImplementation, witnessImpl2: TestCryptoImplementation, witnessImpl3: TestCryptoImplementation;
 
+  const witnessVerificationMethod = (vm: VerificationMethod) =>
+    `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`;
+
   const createWitnessSigner = (verificationMethod: VerificationMethod) => {
     const signer = createTestSigner(verificationMethod);
     return async (data: any, proofTemplate?: any) => {
@@ -162,7 +165,7 @@ describe("did:webvh normative witness tests", async () => {
       {
         versionId: initialDID.log[0].versionId,
         proof: [
-          await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId)
+          await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId, witnessVerificationMethod(witness1))
         ]
       }
     ];
@@ -185,8 +188,8 @@ describe("did:webvh normative witness tests", async () => {
       {
         versionId: initialDID.log[0].versionId,
         proof: [
-          {...(await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId)), cryptosuite: 'invalid-suite'},
-          await createWitnessProof(createWitnessSigner(witness2), initialDID.log[0].versionId)
+          {...(await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId, witnessVerificationMethod(witness1))), cryptosuite: 'invalid-suite'},
+          await createWitnessProof(createWitnessSigner(witness2), initialDID.log[0].versionId, witnessVerificationMethod(witness2))
         ]
       }
     ];
@@ -201,7 +204,7 @@ describe("did:webvh normative witness tests", async () => {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Invalid witness proof cryptosuite");
+    expect(err.message).toContain("Witness threshold not met");
   });
 
   test("resolver MUST verify witness proofs before accepting DID update", async () => {
@@ -229,7 +232,7 @@ describe("did:webvh normative witness tests", async () => {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Invalid witness proof");
+    expect(err.message).toContain("Witness threshold not met");
   });
 });
 
