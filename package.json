@@ -25,6 +25,7 @@
     "cli": "bun src/cli.ts",
     "build": "bun run scripts/build.ts",
     "build:clean": "rm -rf dist",
+    "check": "bunx tsc --noEmit",
     "prepublishOnly": "bun run build",
     "example:signer": "bun run examples/signer.ts",
     "example:resolver": "bun run examples/elysia-resolver.ts"
