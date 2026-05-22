@@ -30,6 +30,7 @@ describe("Injectable Cryptography Tests", () => {
   let failingMockImplementation: MockCryptoImplementation;
   let testDoc: any;
   let testProof: any;
+  const updateKey = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
   beforeAll(() => {
     // Create a mock implementation that succeeds verification
@@ -37,7 +38,7 @@ describe("Injectable Cryptography Tests", () => {
       verificationMethod: {
         id: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
         type: "Multikey",
-        publicKeyMultibase: "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+        publicKeyMultibase: updateKey
       }
     });
 
@@ -46,7 +47,7 @@ describe("Injectable Cryptography Tests", () => {
       verificationMethod: {
         id: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
         type: "Multikey",
-        publicKeyMultibase: "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+        publicKeyMultibase: updateKey
       }
     }, false);
 
@@ -86,7 +87,7 @@ describe("Injectable Cryptography Tests", () => {
 
     const result = await documentStateIsValid(
       signedDoc,
-      [mockImplementation.getVerificationMethodId()],
+      [updateKey],
       null,
       true,
       mockImplementation
@@ -104,10 +105,10 @@ describe("Injectable Cryptography Tests", () => {
       }
     };
 
-    await expect(
+    expect(
       documentStateIsValid(
         signedDoc,
-        [failingMockImplementation.getVerificationMethodId()],
+        [updateKey],
         null,
         true,
         failingMockImplementation
@@ -179,7 +180,7 @@ describe("Injectable Cryptography Tests", () => {
       }
     };
 
-    await expect(
+    expect(
       documentStateIsValid(signedDoc, [mockImplementation.getVerificationMethodId()], null, true)
     ).rejects.toThrow("Verifier implementation is required");
   });
@@ -207,7 +208,7 @@ describe("Injectable Cryptography Tests", () => {
       }]
     };
 
-    await expect(
+    expect(
       verifyWitnessProofs(logEntry, witnessProofs, witness)
     ).rejects.toThrow("Verifier implementation is required");
   });

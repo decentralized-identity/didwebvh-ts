@@ -214,11 +214,11 @@ describe("Witness CLI End-to-End Tests", async () => {
     try {
       // Use the test implementation instead of generateEd25519VerificationMethod
       const witness = await generateTestVerificationMethod();
-      // Parse the witness log and get the verification key from the state
-      const witnessDIDKey = `did:key:${witness.publicKeyMultibase}#${witness.publicKeyMultibase}`;
+      // Witness ids are did:key DIDs (not DID URLs with fragments)
+      const witnessDid = `did:key:${witness.publicKeyMultibase}`;
       
       // Run the CLI create command with witness
-      const proc = await $`bun run cli create --domain localhost:8000 --output ${logFile} --witness ${witnessDIDKey} --witness-threshold 1`.quiet();
+      const proc = await $`bun run cli create --domain localhost:8000 --output ${logFile} --witness ${witnessDid} --witness-threshold 1`.quiet();
 
       expect(proc.exitCode).toBe(0);
       
@@ -231,7 +231,7 @@ describe("Witness CLI End-to-End Tests", async () => {
       }
       
       expect(log[0].parameters.witness.witnesses).toHaveLength(1);
-      expect(log[0].parameters.witness.witnesses?.[0]?.id).toBe(witnessDIDKey);
+      expect(log[0].parameters.witness.witnesses?.[0]?.id).toBe(witnessDid);
       expect(log[0].parameters.witness.threshold).toBe(1);
     } catch (error) {
       console.error('Error in witness test:', error);

@@ -10,10 +10,6 @@ const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): bool
   const parsedVerificationMethod = parseDidKeyVerificationMethod(verificationMethod);
 
   return updateKeys.some((updateKey) => {
-    if (updateKey.startsWith('did:key:')) {
-      return parseDidKeyDid(updateKey).keyMultibase === parsedVerificationMethod.keyMultibase;
-    }
-
     return updateKey === parsedVerificationMethod.keyMultibase;
   });
 };
