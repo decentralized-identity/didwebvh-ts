@@ -37,7 +37,6 @@ export interface Verifier {
 
 export interface SignerOptions {
   verificationMethod?: VerificationMethod | null;
-  // Controls fallback did:key ID derivation when no explicit verificationMethod.id is available.
   useStaticId?: boolean;
 }
 
