@@ -238,4 +238,23 @@ describe("Witness CLI End-to-End Tests", async () => {
       throw error;
     }
   });
+
+  test("Generate witness proof for multiple version IDs", async () => {
+    const witness = await generateTestVerificationMethod();
+    const witnessDid = `did:key:${witness.publicKeyMultibase}`;
+    const outputFile = join(TEST_DIR, 'did-witness-multi.json');
+
+    const proc = await $`bun run cli generate-witness-proof --version-id 1-abc123 --version-id 2-def456 --witness-did ${witnessDid} --witness-secret ${witness.secretKeyMultibase!} --output ${outputFile}`.quiet();
+    expect(proc.exitCode).toBe(0);
+
+    const content = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+    expect(Array.isArray(content)).toBe(true);
+    expect(content).toHaveLength(2);
+    expect(content[0].versionId).toBe('1-abc123');
+    expect(content[1].versionId).toBe('2-def456');
+    expect(content[0].proof).toHaveLength(1);
+    expect(content[1].proof).toHaveLength(1);
+    expect(content[0].proof[0].proofPurpose).toBe('assertionMethod');
+    expect(content[1].proof[0].proofPurpose).toBe('assertionMethod');
+  });
 });
