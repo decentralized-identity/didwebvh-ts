@@ -172,10 +172,10 @@ describe("Not So Happy Path Tests", () => {
     });
 
     expect(result.doc).not.toBeNull();
-    expect(result.meta.error).toBe('INVALID_DID_DOCUMENT');
+    expect(result.meta.error).toBe('invalidDid');
     expect(result.meta.problemDetails).toBeDefined();
-    expect(result.meta.problemDetails!.type).toBe('https://w3id.org/security#INVALID_DID_DOCUMENT');
-    expect(result.meta.problemDetails!.title).toBe('Verification of a later log entry failed.');
+    expect(result.meta.problemDetails!.type).toBe('https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID');
+    expect(result.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
     expect(result.meta.problemDetails!.detail).toContain('Hash chain broken');
   });
 

@@ -1,13 +1,14 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
+import { DidResolutionError } from "../src/interfaces";
 import type { DIDLog, VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from "../src/utils";
 import {
   countWitnessApprovals,
   createWitnessProof,
-  signWitnessProofsForVersion,
-  signWitnessProofsForVersions,
+  signWitnessProofEntry,
+  signWitnessProofEntries,
 } from "../src/witness";
 
 describe("Witness Implementation Tests", async () => {
@@ -124,6 +125,124 @@ describe("Witness Implementation Tests", async () => {
     expect(resolved.meta?.witness?.threshold).toBe(2);
     expect(updatedDID.log).toHaveLength(2);
     expect(resolved.meta?.witness?.witnesses).toHaveLength(2);
+  });
+
+  test("API e2e: create, update, witness, and resolve with raw multibase updateKeys", async () => {
+    const authKey2 = await generateTestVerificationMethod();
+
+    const created = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      witness: {
+        threshold: 1,
+        witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }],
+      },
+      verifier: testImplementation,
+    });
+
+    const version1Proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      created.log[0].versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    const updated = await updateDID({
+      log: created.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey2.publicKeyMultibase!],
+      verificationMethods: [authKey2],
+      verifier: testImplementation,
+      witnessProofs: [{
+        versionId: created.log[0].versionId,
+        proof: [version1Proof],
+      }],
+    });
+
+    const version2Proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      updated.log[1].versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    const resolved = await resolveDIDFromLog(updated.log, {
+      verifier: testImplementation,
+      witnessProofs: [
+        {
+          versionId: created.log[0].versionId,
+          proof: [version1Proof],
+        },
+        {
+          versionId: updated.log[1].versionId,
+          proof: [version2Proof],
+        },
+      ],
+    });
+
+    expect(resolved.did).toBe(updated.did);
+    expect(resolved.meta?.updateKeys).toEqual([authKey2.publicKeyMultibase!]);
+  });
+
+  test("API e2e: rejects did:key-formatted updateKeys in update flow", async () => {
+    const authKey2 = await generateTestVerificationMethod();
+    const authKey3 = await generateTestVerificationMethod();
+
+    const created = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      witness: {
+        threshold: 1,
+        witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }],
+      },
+      verifier: testImplementation,
+    });
+
+    const version1Proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      created.log[0].versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    const firstUpdate = await updateDID({
+      log: created.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [`did:key:${authKey2.publicKeyMultibase}`],
+      verificationMethods: [authKey2],
+      verifier: testImplementation,
+      witnessProofs: [{
+        versionId: created.log[0].versionId,
+        proof: [version1Proof],
+      }],
+    });
+
+    const version2Proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      firstUpdate.log[1].versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    await expect(
+      updateDID({
+        log: firstUpdate.log,
+        signer: createTestSigner(authKey2),
+        updateKeys: [authKey3.publicKeyMultibase!],
+        verificationMethods: [authKey3],
+        verifier: testImplementation,
+        witnessProofs: [
+          {
+            versionId: created.log[0].versionId,
+            proof: [version1Proof],
+          },
+          {
+            versionId: firstUpdate.log[1].versionId,
+            proof: [version2Proof],
+          },
+        ],
+      })
+    ).rejects.toThrow("is not authorized to update.");
   });
 
   test("Replace witness list with new witnesses", async () => {
@@ -308,10 +427,10 @@ describe("Witness Implementation Tests", async () => {
     );
   });
 
-  test("signWitnessProofsForVersion signs for every configured witness", async () => {
+  test("signWitnessProofEntry signs for every configured witness", async () => {
     const versionId = initialDID.log[0].versionId;
     const created = "2026-05-22T12:00:00Z";
-    const result = await signWitnessProofsForVersion({
+    const result = await signWitnessProofEntry({
       versionId,
       witnesses: [
         { id: `did:key:${witness1.publicKeyMultibase}` },
@@ -334,9 +453,9 @@ describe("Witness Implementation Tests", async () => {
     ]);
   });
 
-  test("signWitnessProofsForVersion rejects missing signer", async () => {
+  test("signWitnessProofEntry rejects missing signer", async () => {
     await expect(
-      signWitnessProofsForVersion({
+      signWitnessProofEntry({
         versionId: initialDID.log[0].versionId,
         witnesses: [
           { id: `did:key:${witness1.publicKeyMultibase}` },
@@ -349,9 +468,9 @@ describe("Witness Implementation Tests", async () => {
     ).rejects.toThrow(`Missing witness signer for did:key:${witness2.publicKeyMultibase}`);
   });
 
-  test("signWitnessProofsForVersion rejects malformed signer verificationMethod", async () => {
+  test("signWitnessProofEntry rejects malformed signer verificationMethod", async () => {
     await expect(
-      signWitnessProofsForVersion({
+      signWitnessProofEntry({
         versionId: initialDID.log[0].versionId,
         witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }],
         witnessSignersByDid: {
@@ -364,8 +483,8 @@ describe("Witness Implementation Tests", async () => {
     ).rejects.toThrow("did:key verificationMethod must be an absolute DID URL");
   });
 
-  test("signWitnessProofsForVersions signs multiple versionIds", async () => {
-    const results = await signWitnessProofsForVersions(
+  test("signWitnessProofEntries signs multiple versionIds", async () => {
+    const results = await signWitnessProofEntries(
       [initialDID.log[0].versionId, "2-test-version"],
       [{ id: `did:key:${witness1.publicKeyMultibase}` }],
       {
@@ -509,6 +628,48 @@ describe("Witness Implementation Tests", async () => {
     });
 
     expect(resolved.did).toBe(didWithWitness.did);
+  });
+
+  test("Resolve maps witness threshold failure to invalidDid metadata for partial results", async () => {
+    const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+    const didWithWitness = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      witness: {
+        threshold: 1,
+        witnesses: [{ id: witnessDid }],
+      },
+      verifier: testImplementation,
+    });
+
+    const updatedDid = await updateDID({
+      log: didWithWitness.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      verifier: testImplementation,
+      witnessProofs: [{
+        versionId: didWithWitness.log[0].versionId,
+        proof: [await createWitnessProof(createWitnessSigner(witness1), didWithWitness.log[0].versionId, witnessVerificationMethod(witness1))],
+      }],
+    });
+
+    const resolved = await resolveDIDFromLog(updatedDid.log, {
+      versionNumber: 1,
+      verifier: testImplementation,
+      witnessProofs: [{
+        versionId: didWithWitness.log[0].versionId,
+        proof: [await createWitnessProof(createWitnessSigner(witness1), didWithWitness.log[0].versionId, witnessVerificationMethod(witness1))],
+      }],
+    });
+
+    expect(resolved.meta.error).toBe(DidResolutionError.InvalidDid);
+    expect(resolved.meta.problemDetails).toBeDefined();
+    expect(resolved.meta.problemDetails!.type).toBe('https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID');
+    expect(resolved.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
+    expect(resolved.meta.problemDetails!.detail).toContain('Witness threshold not met');
   });
 
   const createWitnessSigner = (verificationMethod: VerificationMethod) => {

@@ -2,8 +2,8 @@ export { resolveDID, resolveDIDFromLog, createDID, updateDID, deactivateDID } fr
 export { createDocumentSigner, prepareDataForSigning, createProof, createSigner, AbstractCrypto } from './cryptography';
 export {
 	createWitnessProof,
-	signWitnessProofsForVersion,
-	signWitnessProofsForVersions,
+	signWitnessProofEntry,
+	signWitnessProofEntries,
 } from './witness';
 export * from './interfaces';
 export { generateParallelDidWeb, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils';

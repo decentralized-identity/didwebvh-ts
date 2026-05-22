@@ -1,6 +1,7 @@
 import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getActiveDIDs, getBaseUrl, replaceValueInObject, deepClone, enrichAlsoKnownAs, generateParallelDidWeb, parseCanonicalAddress, replaceCreateDidPlaceholders, validateCreateDidDocument } from "../utils";
 import { METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
+import { DidResolutionError } from '../interfaces';
 import type { CreateDIDInterface, CreateDIDResult, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, UpdateDIDResult, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, DataIntegrityProof, WitnessParameterResolution } from '../interfaces';
 import { countVerifiedWitnessApprovals, validateWitnessParameter, fetchWitnessProofs } from '../witness';
 
@@ -378,10 +379,10 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
     }
     if (resolvedMeta) {
       const message = e instanceof Error ? e.message : String(e);
-      resolvedMeta.error = 'INVALID_DID_DOCUMENT';
+      resolvedMeta.error = DidResolutionError.InvalidDid;
       resolvedMeta.problemDetails = {
-        type: 'https://w3id.org/security#INVALID_DID_DOCUMENT',
-        title: 'Verification of a later log entry failed.',
+        type: 'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID',
+        title: 'The resolved DID is invalid.',
         detail: message
       };
     }

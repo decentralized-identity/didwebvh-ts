@@ -41,6 +41,15 @@ function createWitnessProofSigner(signer: WitnessSigner) {
   };
 }
 
+/**
+ * Creates a single witness DataIntegrityProof for one `versionId`.
+ *
+ * @param signer Proof signer callback.
+ * @param versionId Target DID log version id.
+ * @param verificationMethod Witness verification method DID URL.
+ * @param created Optional proof creation time in ISO format.
+ * @returns A complete DataIntegrityProof for did-witness processing.
+ */
 export async function createWitnessProof(
   signer: (
     doc: { versionId: string },
@@ -78,7 +87,15 @@ export async function createWitnessProof(
   };
 }
 
-export async function signWitnessProofsForVersion(
+/**
+ * Signs one did-witness proof entry for a single target `versionId`.
+ *
+ * The signer map is keyed by witness DID (`did:key:...`).
+ *
+ * @param options Witness signing options for one target version.
+ * @returns A witness proof file entry for the target version.
+ */
+export async function signWitnessProofEntry(
   options: WitnessSigningOptions
 ): Promise<WitnessSigningResult> {
   if (!options.versionId) {
@@ -121,7 +138,16 @@ export async function signWitnessProofsForVersion(
   };
 }
 
-export async function signWitnessProofsForVersions(
+/**
+ * Signs did-witness proof entries for multiple target `versionId`s.
+ *
+ * @param versionIds Target DID log version ids.
+ * @param witnesses Witness DID entries used to sign.
+ * @param witnessSignersByDid Signer map keyed by witness did:key DID.
+ * @param created Optional proof creation time in ISO format.
+ * @returns A witness proof file entry per version id.
+ */
+export async function signWitnessProofEntries(
   versionIds: string[],
   witnesses: WitnessEntry[],
   witnessSignersByDid: Record<string, WitnessSigner>,
@@ -129,7 +155,7 @@ export async function signWitnessProofsForVersions(
 ): Promise<WitnessSigningResult[]> {
   return Promise.all(
     versionIds.map((versionId) =>
-      signWitnessProofsForVersion({
+      signWitnessProofEntry({
         versionId,
         witnesses,
         witnessSignersByDid,
