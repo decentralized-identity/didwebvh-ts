@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
-import type { DIDLog, VerificationMethod } from "../src/interfaces";
+import { DidResolutionError, type DIDLog, type VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from "../src/method_versions/method.v1.0";
 
@@ -123,7 +123,7 @@ describe("Not So Happy Path Tests", () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
     // With 13 entries, index 1 is outside the fastResolve verification window
     // (first entry + last 10 entries), but still checked in default full mode.
-    tamperedLog[1].proof[0].proofValue = 'zinvalid-proof';
+    tamperedLog[1]!.proof![0]!.proofValue = 'zinvalid-proof';
 
     await expect(
       resolveDIDFromLog(tamperedLog, { verifier: testImplementation })
@@ -172,7 +172,7 @@ describe("Not So Happy Path Tests", () => {
     });
 
     expect(result.doc).not.toBeNull();
-    expect(result.meta.error).toBe('invalidDid');
+    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
     expect(result.meta.problemDetails).toBeDefined();
     expect(result.meta.problemDetails!.type).toBe('https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID');
     expect(result.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
