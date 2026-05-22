@@ -445,7 +445,7 @@ async function handleGenerateWitnessProof(args: string[]) {
         cryptosuite: 'eddsa-jcs-2022',
         verificationMethod: `${did}#${publicKeyMultibase}`,
         created: new Date().toISOString(),
-        proofPurpose: 'authentication'
+        proofPurpose: 'assertionMethod'
       };
       const signingInput = { document: data, proof: proofTemplate };
       const signed = await crypto.sign(signingInput);

@@ -17,7 +17,7 @@ export async function createWitnessProof(
     type: "DataIntegrityProof",
     cryptosuite: "eddsa-jcs-2022",
     created: new Date().toISOString(),
-    proofPurpose: "authentication"
+    proofPurpose: "assertionMethod"
   };
 
   const signedData = await signer({versionId}, proofTemplate);
@@ -94,6 +94,14 @@ export async function verifyWitnessProofs(
   for (const proofSet of witnessProofs) {
     // Process each proof in the set
     for (const proof of proofSet.proof) {
+      if (proof.type !== 'DataIntegrityProof') {
+        throw new Error('Invalid witness proof type');
+      }
+
+      if (proof.proofPurpose !== 'assertionMethod') {
+        throw new Error('Invalid witness proof purpose');
+      }
+
       if (proof.cryptosuite !== 'eddsa-jcs-2022') {
         throw new Error('Invalid witness proof cryptosuite');
       }
