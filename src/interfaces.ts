@@ -1,14 +1,20 @@
 export type DataIntegrityProofPurpose =
   | 'authentication'
-  | 'assertionMethod';
+  | 'assertionMethod'
+  | 'keyAgreement'
+  | 'capabilityInvocation'
+  | 'capabilityDelegation';
+
+export type DataIntegrityProofType = 'DataIntegrityProof';
+export type DataIntegrityCryptosuite = 'eddsa-jcs-2022';
 
 export interface DataIntegrityProofTemplate {
   id?: string;
-  type: string;
-  cryptosuite: string;
-  verificationMethod?: string;
+  type: DataIntegrityProofType;
+  cryptosuite: DataIntegrityCryptosuite;
+  verificationMethod: string;
   created: string;
-  proofPurpose: string;
+  proofPurpose: DataIntegrityProofPurpose;
 }
 
 export interface SigningInput {
@@ -31,6 +37,7 @@ export interface Verifier {
 
 export interface SignerOptions {
   verificationMethod?: VerificationMethod | null;
+  // Controls fallback did:key ID derivation when no explicit verificationMethod.id is available.
   useStaticId?: boolean;
 }
 
@@ -78,7 +85,7 @@ export interface VerificationMethod {
   controller?: string;
   publicKeyMultibase?: string;
   secretKeyMultibase?: string;
-  purpose?: 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation';
+  purpose?: DataIntegrityProofPurpose;
   publicKeyJwk?: any;
   use?: string;
 }
@@ -99,12 +106,12 @@ export interface WitnessParameterResolution {
 
 export interface DataIntegrityProof {
   id?: string;
-  type: string;
-  cryptosuite: string;
+  type: DataIntegrityProofType;
+  cryptosuite: DataIntegrityCryptosuite;
   verificationMethod: string;
   created: string;
   proofValue: string;
-  proofPurpose: string;
+  proofPurpose: DataIntegrityProofPurpose;
 }
 
 export interface DIDLogEntry {

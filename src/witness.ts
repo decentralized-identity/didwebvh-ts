@@ -11,11 +11,13 @@ export async function createWitnessProof(
     doc: { versionId: string },
     proofTemplate?: DataIntegrityProofTemplate
   ) => Promise<{ proof: Partial<DataIntegrityProof> }>,
-  versionId: string
+  versionId: string,
+  verificationMethod: string
 ): Promise<DataIntegrityProof> {
   const proofTemplate: DataIntegrityProofTemplate = {
     type: "DataIntegrityProof",
     cryptosuite: "eddsa-jcs-2022",
+    verificationMethod,
     created: new Date().toISOString(),
     proofPurpose: "assertionMethod"
   };

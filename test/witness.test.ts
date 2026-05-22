@@ -18,6 +18,9 @@ describe("Witness Implementation Tests", async () => {
     testImplementation = new TestCryptoImplementation({ verificationMethod: authKey });
   });
 
+  const witnessVerificationMethod = (vm: VerificationMethod) =>
+    `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`;
+
   test("Create DID with witness threshold", async () => {
     initialDID = await createDID({
       domain: 'example.com',
@@ -47,8 +50,8 @@ describe("Witness Implementation Tests", async () => {
     const witness2SignerFn = createWitnessSigner(witness2);
     
     const proofs = await Promise.all([
-      createWitnessProof(witness1SignerFn, versionId),
-      createWitnessProof(witness2SignerFn, versionId)
+      createWitnessProof(witness1SignerFn, versionId, witnessVerificationMethod(witness1)),
+      createWitnessProof(witness2SignerFn, versionId, witnessVerificationMethod(witness2))
     ]);
 
     const witnessProofs = [{
@@ -99,8 +102,8 @@ describe("Witness Implementation Tests", async () => {
     const witness2SignerFn = createWitnessSigner(witness2);
     
     const proofs = await Promise.all([
-      createWitnessProof(witness1SignerFn, newVersionId),
-      createWitnessProof(witness2SignerFn, newVersionId)
+      createWitnessProof(witness1SignerFn, newVersionId, witnessVerificationMethod(witness1)),
+      createWitnessProof(witness2SignerFn, newVersionId, witnessVerificationMethod(witness2))
     ]);
 
     const witnessProofs = [{
@@ -125,8 +128,8 @@ describe("Witness Implementation Tests", async () => {
     const witness1SignerFn = createWitnessSigner(witness1);
     const witness2SignerFn = createWitnessSigner(witness2);
     const proofs = await Promise.all([
-      createWitnessProof(witness1SignerFn, versionId),
-      createWitnessProof(witness2SignerFn, versionId)
+      createWitnessProof(witness1SignerFn, versionId, witnessVerificationMethod(witness1)),
+      createWitnessProof(witness2SignerFn, versionId, witnessVerificationMethod(witness2))
     ]);
     const witnessProofs = [{ versionId, proof: proofs }];
     
@@ -148,7 +151,7 @@ describe("Witness Implementation Tests", async () => {
     // Create proof for new version from new witness
     const newVersionId = updatedDID.log[1].versionId;
     const newWitnessSignerFn = createWitnessSigner(newWitness);
-    const newProof = await createWitnessProof(newWitnessSignerFn, newVersionId);
+    const newProof = await createWitnessProof(newWitnessSignerFn, newVersionId, witnessVerificationMethod(newWitness));
     const newWitnessProofs = [{
       versionId: newVersionId,
       proof: [newProof]
@@ -168,8 +171,8 @@ describe("Witness Implementation Tests", async () => {
     const witness1SignerFn = createWitnessSigner(witness1);
     const witness2SignerFn = createWitnessSigner(witness2);
     const proofs = await Promise.all([
-      createWitnessProof(witness1SignerFn, versionId),
-      createWitnessProof(witness2SignerFn, versionId)
+      createWitnessProof(witness1SignerFn, versionId, witnessVerificationMethod(witness1)),
+      createWitnessProof(witness2SignerFn, versionId, witnessVerificationMethod(witness2))
     ]);
     const witnessProofs = [{ versionId, proof: proofs }];
     
@@ -193,20 +196,20 @@ describe("Witness Implementation Tests", async () => {
       {
         versionId: initialDID.log[0].versionId,
         proof: [
-          await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId)
+          await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId, witnessVerificationMethod(witness1))
         ]
       },
       {
         versionId: initialDID.log[0].versionId,
         proof: [
-          await createWitnessProof(createWitnessSigner(witness2), initialDID.log[0].versionId)
+          await createWitnessProof(createWitnessSigner(witness2), initialDID.log[0].versionId, witnessVerificationMethod(witness2))
         ]
       },
       {
         versionId: "future-version-id",
         proof: [
           // This proof should be ignored since version doesn't exist in log
-          await createWitnessProof(createWitnessSigner(witness1), "future-version-id")
+          await createWitnessProof(createWitnessSigner(witness1), "future-version-id", witnessVerificationMethod(witness1))
         ]
       }
     ];
@@ -222,7 +225,8 @@ describe("Witness Implementation Tests", async () => {
   test("Reject witness proofs with invalid proofPurpose", async () => {
     const badProof = await createWitnessProof(
       createWitnessSigner(witness1),
-      initialDID.log[0].versionId
+      initialDID.log[0].versionId,
+      witnessVerificationMethod(witness1)
     );
 
     const witnessProofs = [
