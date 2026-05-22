@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
 import { DidResolutionError } from "../src/interfaces";
-import type { DIDLog, VerificationMethod } from "../src/interfaces";
+import type { DIDLog, Signer, VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from "../src/utils";
 import {
@@ -243,6 +243,34 @@ describe("Witness Implementation Tests", async () => {
         ],
       })
     ).rejects.toThrow("is not authorized to update.");
+  });
+
+  test("API e2e: rejects did:webvh verificationMethod in DID log entry proof", async () => {
+    const authKey2 = await generateTestVerificationMethod();
+
+    const created = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      verifier: testImplementation,
+    });
+
+    const baseSigner = createTestSigner(authKey);
+    const nonCompliantSigner: Signer = {
+      sign: (input) => baseSigner.sign(input),
+      getVerificationMethodId: () => `${created.did}#controller-key`,
+    };
+
+    await expect(
+      updateDID({
+        log: created.log,
+        signer: nonCompliantSigner,
+        updateKeys: [authKey2.publicKeyMultibase!],
+        verificationMethods: [authKey2],
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow("Unsupported verification method for DID log entry authorization");
   });
 
   test("Replace witness list with new witnesses", async () => {
