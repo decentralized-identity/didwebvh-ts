@@ -219,6 +219,32 @@ describe("Witness Implementation Tests", async () => {
     expect(resolved.did).toBe(initialDID.did);
   });
 
+  test("Reject witness proofs with invalid proofPurpose", async () => {
+    const badProof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      initialDID.log[0].versionId
+    );
+
+    const witnessProofs = [
+      {
+        versionId: initialDID.log[0].versionId,
+        proof: [
+          {
+            ...badProof,
+            proofPurpose: "authentication"
+          }
+        ]
+      }
+    ];
+
+    await expect(
+      resolveDIDFromLog(initialDID.log, {
+        witnessProofs,
+        verifier: testImplementation
+      })
+    ).rejects.toThrow("Invalid witness proof purpose");
+  });
+
   const createWitnessSigner = (verificationMethod: VerificationMethod) => {
     const signer = createTestSigner(verificationMethod);
     return async (data: any, proofTemplate?: any) => {
