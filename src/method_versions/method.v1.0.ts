@@ -270,6 +270,9 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
           threshold: parameters.witnessThreshold || parameters.witnesses.length
         };
       }
+      if (meta.witness?.witnesses?.length) {
+        validateWitnessParameter(meta.witness);
+      }
       if ('watchers' in parameters) {
         meta.watchers = parameters.watchers ?? null;
       }
@@ -414,15 +417,23 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
   const versionNumber = log.length + 1;
   const createdDate = createDate(options.updated);
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
+  const witnessInput = options.witness;
+  const witness = witnessInput?.witnesses?.length
+    ? {
+        witnesses: witnessInput.witnesses,
+        threshold: witnessInput.threshold ?? 0,
+      }
+    : {};
   const params = {
     updateKeys: options.updateKeys ?? [],
     nextKeyHashes: options.nextKeyHashes ?? [],
-    witness: (options.witness !== undefined && options.witness !== null) ? {
-      witnesses: options.witness?.witnesses || [],
-      threshold: options.witness?.threshold || 0
-    } : {},
+    witness,
     watchers: watchersValue ?? []
   };
+  
+  if (params.witness?.witnesses?.length) {
+    validateWitnessParameter(params.witness);
+  }
   
   // Safety guard: Strip secret keys from verification methods before creating DID document  
   const safeVerificationMethods = options.verificationMethods?.map(vm => {
