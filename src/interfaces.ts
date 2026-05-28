@@ -5,6 +5,10 @@ export type DataIntegrityProofPurpose =
   | 'capabilityInvocation'
   | 'capabilityDelegation';
 
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+
 export type DataIntegrityProofType = 'DataIntegrityProof';
 export type DataIntegrityCryptosuite = 'eddsa-jcs-2022';
 

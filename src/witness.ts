@@ -1,4 +1,4 @@
-import { canonicalize } from 'json-canonicalize';
+import { canonicalizeStrict, validateStrictJsonValue } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import type { DataIntegrityProof, DataIntegrityProofTemplate, DIDLogEntry, WitnessEntry, WitnessProofFileEntry, Verifier, WitnessParameterResolution } from './interfaces';
 import { resolveVM } from "./utils";
@@ -27,6 +27,13 @@ export async function createWitnessProof(
     ...proofTemplate,
     ...signedData.proof
   };
+
+  try {
+    validateStrictJsonValue(mergedProof);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Witness proof contains non-JSON-compatible value: ${message}`);
+  }
 
   if (!mergedProof.verificationMethod) {
     throw new Error('Witness proof is missing verificationMethod');
@@ -140,9 +147,8 @@ export async function verifyWitnessProofs(
         const { proofValue, ...proofWithoutValue } = proof;
         
         // Create hashes
-        const canonicalizedData = canonicalize({versionId: logEntry.versionId});
-        const canonicalizedProof = canonicalize(proofWithoutValue);
-        
+        const canonicalizedData = canonicalizeStrict({ versionId: logEntry.versionId });
+        const canonicalizedProof = canonicalizeStrict(proofWithoutValue);
         const dataHash = await createHash(canonicalizedData);
         const proofHash = await createHash(canonicalizedProof);
         
