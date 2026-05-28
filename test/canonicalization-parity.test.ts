@@ -21,6 +21,8 @@ describe('canonicalization parity semantics', () => {
   });
 
   test('still rejects undefined values in arrays', () => {
-    expect(() => canonicalizeStrict([undefined])).toThrow('Canonicalization input contains undefined in array position');
+    expect(() => canonicalizeStrict([undefined])).toThrow(
+      'Canonicalization input contains undefined in array position'
+    );
   });
 });
