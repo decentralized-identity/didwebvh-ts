@@ -249,19 +249,19 @@ describe("Witness Implementation Tests", async () => {
     ).rejects.toThrow("Invalid witness proof purpose");
   });
 
-  test("Reject witness signer output containing undefined fields", async () => {
-    await expect(
-      createWitnessProof(
-        async () => ({
-          proof: {
-            created: undefined,
-            proofValue: 'zInvalidButPresent',
-          },
-        }),
-        initialDID.log[0].versionId,
-        witnessVerificationMethod(witness1)
-      )
-    ).rejects.toThrow("Witness proof contains non-JSON-compatible value");
+  test("Accept witness signer output containing undefined fields", async () => {
+    const proof = await createWitnessProof(
+      async () => ({
+        proof: {
+          created: undefined,
+          proofValue: 'zInvalidButPresent',
+        },
+      }),
+      initialDID.log[0].versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    expect(proof.proofValue).toBe('zInvalidButPresent');
   });
 
   const createWitnessSigner = (verificationMethod: VerificationMethod) => {

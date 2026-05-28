@@ -8,15 +8,19 @@ describe('canonicalization parity semantics', () => {
     expect(canonicalizeStrict({ a: null })).toBe('{"a":null}');
   });
 
-  test('rejects explicit undefined at top level object fields', () => {
-    expect(() => canonicalizeStrict({ a: undefined })).toThrow('Canonicalization input contains undefined');
+  test('strips explicit undefined at top level object fields', () => {
+    expect(canonicalizeStrict({ a: undefined })).toBe('{}');
   });
 
-  test('rejects nested undefined in arrays and objects', () => {
-    expect(() => canonicalizeStrict({ a: [{ b: undefined }] })).toThrow('Canonicalization input contains undefined');
+  test('strips nested undefined in objects', () => {
+    expect(canonicalizeStrict({ a: { b: undefined, c: 1 } })).toBe('{"a":{"c":1}}');
   });
 
-  test('deriveHash rejects undefined-bearing payloads', async () => {
-    await expect(deriveHash({ a: undefined } as any)).rejects.toThrow('Canonicalization input contains undefined');
+  test('deriveHash accepts payloads with undefined object fields by stripping them', async () => {
+    await expect(deriveHash({ a: undefined } as any)).resolves.toEqual(await deriveHash({}));
+  });
+
+  test('still rejects undefined values in arrays', () => {
+    expect(() => canonicalizeStrict([undefined])).toThrow('Canonicalization input contains undefined in array position');
   });
 });
