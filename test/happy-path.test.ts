@@ -18,7 +18,7 @@ describe("Happy Path Tests", () => {
     expect(did).toContain('did:webvh:');
     expect(doc.verificationMethod).toHaveLength(1);
     expect(doc.authentication).toHaveLength(1);
-    expect(doc.authentication[0]).toBe(doc.verificationMethod[0].id);
+    expect(doc.authentication![0]).toBe(doc.verificationMethod![0]!.id!);
   });
 
   test("Create DID with multiple auth keys", async () => {
@@ -37,8 +37,8 @@ describe("Happy Path Tests", () => {
     expect(did).toContain('did:webvh:');
     expect(doc.verificationMethod).toHaveLength(2);
     expect(doc.authentication).toHaveLength(2);
-    expect(doc.authentication).toContain(doc.verificationMethod[0].id);
-    expect(doc.authentication).toContain(doc.verificationMethod[1].id);
+    expect(doc.authentication).toContain(doc.verificationMethod![0]!.id);
+    expect(doc.authentication).toContain(doc.verificationMethod![1]!.id);
   });
 
   test("Update DID with new auth key", async () => {
@@ -64,7 +64,7 @@ describe("Happy Path Tests", () => {
 
     expect(updatedDoc.verificationMethod).toHaveLength(1);
     expect(updatedDoc.authentication).toHaveLength(1);
-    expect(updatedDoc.authentication[0]).toBe(updatedDoc.verificationMethod[0].id);
+    expect(updatedDoc.authentication![0]).toBe(updatedDoc.verificationMethod![0]!.id!);
   });
 
   test("Update DID with multiple auth keys", async () => {
@@ -91,8 +91,8 @@ describe("Happy Path Tests", () => {
 
     expect(updatedDoc.verificationMethod).toHaveLength(2);
     expect(updatedDoc.authentication).toHaveLength(2);
-    expect(updatedDoc.authentication).toContain(updatedDoc.verificationMethod[0].id);
-    expect(updatedDoc.authentication).toContain(updatedDoc.verificationMethod[1].id);
+    expect(updatedDoc.authentication).toContain(updatedDoc.verificationMethod![0]!.id);
+    expect(updatedDoc.authentication).toContain(updatedDoc.verificationMethod![1]!.id);
   });
 
   test("Update DID with external auth key", async () => {
@@ -117,7 +117,7 @@ describe("Happy Path Tests", () => {
     });
 
     expect(updatedDoc.authentication).toHaveLength(1);
-    expect(updatedDoc.authentication[0]).toBe(externalDID);
+    expect(updatedDoc.authentication![0]).toBe(externalDID);
   });
 
   test("Update DID with custom verification relationships", async () => {
@@ -180,7 +180,7 @@ describe("Happy Path Tests", () => {
     });
 
     expect(updatedDoc.service).toHaveLength(1);
-    expect(updatedDoc.service[0]).toEqual(service);
+    expect(updatedDoc.service![0]).toEqual(service);
   });
 
   test("Update DID with also known as", async () => {
@@ -205,7 +205,7 @@ describe("Happy Path Tests", () => {
     });
 
     expect(updatedDoc.alsoKnownAs).toHaveLength(1);
-    expect(updatedDoc.alsoKnownAs[0]).toBe(alias);
+    expect(updatedDoc.alsoKnownAs![0]).toBe(alias);
   });
 
   test("Update DID with controller", async () => {

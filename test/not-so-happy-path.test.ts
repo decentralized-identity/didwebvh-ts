@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
-import type { DIDLog, VerificationMethod } from "../src/interfaces";
+import { DidResolutionError, type DIDLog, type VerificationMethod } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from "../src/method_versions/method.v1.0";
 
@@ -92,8 +92,38 @@ describe("Not So Happy Path Tests", () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
     tamperedLog[3].state.alsoKnownAs = ['did:example:tampered'];
 
-    // fastResolve defaults to true — middle entries skip signature checks
-    // but hash chain should still be verified
+    // Hash chain validation remains active even when fastResolve is opted in.
+    await expect(
+      resolveDIDFromLog(tamperedLog, { verifier: testImplementation, fastResolve: true })
+    ).rejects.toThrow('Hash chain broken');
+  });
+
+  test("Default resolve verifies every log entry proof", async () => {
+    let currentLog: DIDLog;
+    const { log: log0 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      verifier: testImplementation
+    });
+    currentLog = log0;
+
+    for (let j = 0; j < 12; j++) {
+      const { log: nextLog } = await updateDID({
+        log: currentLog,
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: [authKey],
+        verifier: testImplementation
+      });
+      currentLog = nextLog;
+    }
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
+    // With 13 entries, index 1 is outside the fastResolve verification window
+    // (first entry + last 10 entries), but still checked in default full mode.
+    tamperedLog[1]!.proof![0]!.proofValue = 'zinvalid-proof';
     await expect(
       resolveDIDFromLog(tamperedLog, { verifier: testImplementation })
     ).rejects.toThrow('Hash chain broken');
@@ -137,7 +167,7 @@ describe("Not So Happy Path Tests", () => {
     });
 
     expect(result.doc).not.toBeNull();
-    expect(result.meta.error).toBe('INVALID_DID_DOCUMENT');
+    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
     expect(result.meta.problemDetails).toBeDefined();
     expect(result.meta.problemDetails!.type).toBe('https://w3id.org/security#INVALID_DID_DOCUMENT');
     expect(result.meta.problemDetails!.title).toBe('Verification of a later log entry failed.');
