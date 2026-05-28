@@ -152,11 +152,12 @@ describe("did:webvh normative witness tests", async () => {
           ]
         }
       });
-    } catch (e: any) {
+    } catch (e) {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Witness DIDs must be did:key format");
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('Witness DIDs must be did:key format');
   });
 
   test("witness threshold MUST be met for DID updates", async () => {
@@ -176,11 +177,12 @@ describe("did:webvh normative witness tests", async () => {
         witnessProofs: mockWitnessProofs as any,
         verifier: testImplementation
       });
-    } catch (e: any) {
+    } catch (e) {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Witness threshold not met");
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('Witness threshold not met');
   });
 
   test("witness proofs MUST use eddsa-jcs-2022 cryptosuite", async () => {
@@ -200,11 +202,12 @@ describe("did:webvh normative witness tests", async () => {
         witnessProofs: mockWitnessProofs as any,
         verifier: testImplementation
       });
-    } catch (e: any) {
+    } catch (e) {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Invalid witness proof cryptosuite");
+    expect(err).toBeInstanceOf(Error);
+  expect((err as Error).message).toContain('Invalid witness proof cryptosuite');
   });
 
   test("resolver MUST verify witness proofs before accepting DID update", async () => {
@@ -228,11 +231,12 @@ describe("did:webvh normative witness tests", async () => {
         witnessProofs: mockWitnessProofs as any,
         verifier: testImplementation
       });
-    } catch (e: any) {
+    } catch (e) {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Invalid witness proof");
+    expect(err).toBeInstanceOf(Error);
+  expect((err as Error).message).toContain('Invalid witness proof');
   });
 });
 

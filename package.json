@@ -20,7 +20,7 @@
     "server": "bun --watch ./examples/elysia-resolver.ts",
     "lint": "bunx biome check .",
     "lint:fix": "bunx biome check --write .",
-    "format": "bunx biome format --check .",
+    "format": "bunx biome format .",
     "format:fix": "bunx biome format --write .",
     "test": "NODE_ENV=test rm -rf ./test/logs/** && bun test",
     "test:watch": "NODE_ENV=test rm -rf ./test/logs/** && bun test --watch",
