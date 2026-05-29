@@ -3,7 +3,7 @@ import { config } from '../config';
 // Helper to convert bytes to hex string
 const bytesToHex = (bytes: Uint8Array): string => {
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 };
 
@@ -62,7 +62,7 @@ export const concatBuffers = (...buffers: Uint8Array[]): Uint8Array => {
 
   // Calculate total length
   const totalLength = buffers.reduce((acc, buf) => acc + buf.length, 0);
-  
+
   // Create new array and copy all buffers into it
   const result = new Uint8Array(totalLength);
   let offset = 0;
@@ -70,6 +70,6 @@ export const concatBuffers = (...buffers: Uint8Array[]): Uint8Array => {
     result.set(buffer, offset);
     offset += buffer.length;
   }
-  
+
   return result;
-}; 
+};

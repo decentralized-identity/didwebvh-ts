@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { createDID, updateDID } from '../src/method';
 import { generateParallelDidWeb } from '../src/utils';
 import { createTestSigner, createTestVerifier, generateTestVerificationMethod } from './utils';

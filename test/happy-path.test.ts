@@ -1,9 +1,9 @@
-import { describe, test, expect } from "bun:test";
-import { createDID, updateDID } from "../src/method";
-import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
+import { describe, expect, test } from 'bun:test';
+import { createDID, updateDID } from '../src/method';
+import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
 
-describe("Happy Path Tests", () => {
-  test("Create DID with single auth key", async () => {
+describe('Happy Path Tests', () => {
+  test('Create DID with single auth key', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
 
@@ -12,7 +12,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
 
     expect(did).toContain('did:webvh:');
@@ -21,7 +21,7 @@ describe("Happy Path Tests", () => {
     expect(doc.authentication![0]).toBe(doc.verificationMethod![0]!.id!);
   });
 
-  test("Create DID with multiple auth keys", async () => {
+  test('Create DID with multiple auth keys', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const authKey2 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
@@ -31,7 +31,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!],
       verificationMethods: [authKey1, authKey2],
-      verifier
+      verifier,
     });
 
     expect(did).toContain('did:webvh:');
@@ -41,7 +41,7 @@ describe("Happy Path Tests", () => {
     expect(doc.authentication).toContain(doc.verificationMethod![1]!.id);
   });
 
-  test("Update DID with new auth key", async () => {
+  test('Update DID with new auth key', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
@@ -50,7 +50,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
     const authKey2 = await generateTestVerificationMethod();
@@ -59,7 +59,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
       verificationMethods: [authKey2],
-      verifier
+      verifier,
     });
 
     expect(updatedDoc.verificationMethod).toHaveLength(1);
@@ -67,7 +67,7 @@ describe("Happy Path Tests", () => {
     expect(updatedDoc.authentication![0]).toBe(updatedDoc.verificationMethod![0]!.id!);
   });
 
-  test("Update DID with multiple auth keys", async () => {
+  test('Update DID with multiple auth keys', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
@@ -76,7 +76,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
     const authKey2 = await generateTestVerificationMethod();
@@ -86,7 +86,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
       verificationMethods: [authKey2, authKey3],
-      verifier
+      verifier,
     });
 
     expect(updatedDoc.verificationMethod).toHaveLength(2);
@@ -95,7 +95,7 @@ describe("Happy Path Tests", () => {
     expect(updatedDoc.authentication).toContain(updatedDoc.verificationMethod![1]!.id);
   });
 
-  test("Update DID with external auth key", async () => {
+  test('Update DID with external auth key', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
@@ -104,7 +104,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
     const externalDID = 'did:example:123#key-1';
@@ -113,14 +113,14 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       authentication: [externalDID],
-      verifier
+      verifier,
     });
 
     expect(updatedDoc.authentication).toHaveLength(1);
     expect(updatedDoc.authentication![0]).toBe(externalDID);
   });
 
-  test("Update DID with custom verification relationships", async () => {
+  test('Update DID with custom verification relationships', async () => {
     // Create a verification method with authentication purpose for initial DID
     const authKey1 = await generateTestVerificationMethod('authentication');
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
@@ -131,20 +131,20 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
     // Create verification methods with specific purposes
     const assertionKey = await generateTestVerificationMethod('assertionMethod');
     const keyAgreementKey = await generateTestVerificationMethod('keyAgreement');
-    
+
     // Update the DID with the new verification methods
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [assertionKey, keyAgreementKey],
-      verifier
+      verifier,
     });
 
     // Check that the verification methods were added correctly
@@ -153,7 +153,7 @@ describe("Happy Path Tests", () => {
     expect(updatedDoc.keyAgreement).toHaveLength(1);
   });
 
-  test("Update DID with service endpoints", async () => {
+  test('Update DID with service endpoints', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
@@ -162,13 +162,13 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
     const service = {
-      id: "#service-1",
-      type: "TestService",
-      serviceEndpoint: "https://example.com/service"
+      id: '#service-1',
+      type: 'TestService',
+      serviceEndpoint: 'https://example.com/service',
     };
 
     const { doc: updatedDoc } = await updateDID({
@@ -176,14 +176,14 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       services: [service],
-      verifier
+      verifier,
     });
 
     expect(updatedDoc.service).toHaveLength(1);
     expect(updatedDoc.service![0]).toEqual(service);
   });
 
-  test("Update DID with also known as", async () => {
+  test('Update DID with also known as', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
@@ -192,7 +192,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
     const alias = 'did:web:example.com';
@@ -201,14 +201,14 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       alsoKnownAs: [alias],
-      verifier
+      verifier,
     });
 
     expect(updatedDoc.alsoKnownAs).toHaveLength(1);
     expect(updatedDoc.alsoKnownAs![0]).toBe(alias);
   });
 
-  test("Update DID with controller", async () => {
+  test('Update DID with controller', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
@@ -217,7 +217,7 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
     const controller = 'did:example:123';
@@ -226,13 +226,13 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       controller,
-      verifier
+      verifier,
     });
 
     expect(updatedDoc.controller).toBe(controller);
   });
 
-  test("Update DID with future update key", async () => {
+  test('Update DID with future update key', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
@@ -241,16 +241,16 @@ describe("Happy Path Tests", () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: [authKey1],
-      verifier
+      verifier,
     });
 
-    const nextKeyHash = "z6MkgYGF3thn8k1Qz9P4c3mKthZXNhUgkdwBwE5hbWFJktGH";
+    const nextKeyHash = 'z6MkgYGF3thn8k1Qz9P4c3mKthZXNhUgkdwBwE5hbWFJktGH';
     const { doc: updatedDoc, meta } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       nextKeyHashes: [nextKeyHash],
-      verifier
+      verifier,
     });
 
     expect(meta.nextKeyHashes).toHaveLength(1);

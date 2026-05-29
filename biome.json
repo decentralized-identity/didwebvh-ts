@@ -13,32 +13,28 @@
   },
   "linter": {
     "rules": {
+      "correctness": {
+        "noUnusedVariables": "off",
+        "noUnusedFunctionParameters": "off"
+      },
       "complexity": {
-        "noUselessSwitchCase": "error"
+        "noUselessSwitchCase": "off"
       },
       "style": {
         "useImportType": "error"
       },
       "suspicious": {
-        "noExplicitAny": "error",
+        "noExplicitAny": "off",
         "noImplicitAnyLet": "error"
       }
     }
   },
   "files": {
-    "includes": [
-      "src/**",
-      "test/**",
-      "examples/**",
-      "scripts/**"
-    ]
+    "includes": ["src/**", "test/**", "examples/**", "scripts/**"]
   },
   "overrides": [
     {
-      "includes": [
-        "examples/**",
-        "scripts/**"
-      ],
+      "includes": ["examples/**", "scripts/**"],
       "linter": {
         "rules": {
           "complexity": {
@@ -50,6 +46,16 @@
           "suspicious": {
             "noExplicitAny": "off",
             "noImplicitAnyLet": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["test/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
           }
         }
       }

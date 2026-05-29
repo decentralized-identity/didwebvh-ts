@@ -1,9 +1,9 @@
-import { describe, test, expect } from "bun:test";
-import { createDID } from "../src/method";
-import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
+import { describe, expect, test } from 'bun:test';
+import { createDID } from '../src/method';
+import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
 
-describe("Paths feature", () => {
-  test("creates DID without paths (default behavior)", async () => {
+describe('Paths feature', () => {
+  test('creates DID without paths (default behavior)', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -11,16 +11,16 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Should only contain domain, no additional path components
     const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(4); // did:webvh:scid:domain
     expect(didParts[3]).toBe('example.com');
   });
 
-  test("creates DID with single path component", async () => {
+  test('creates DID with single path component', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -29,9 +29,9 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Should contain domain + single path component
     const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(5); // did:webvh:scid:domain:path
@@ -39,7 +39,7 @@ describe("Paths feature", () => {
     expect(didParts[4]).toBe('api');
   });
 
-  test("creates DID with multiple path components", async () => {
+  test('creates DID with multiple path components', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -48,9 +48,9 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Should contain domain + multiple path components
     const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(7); // did:webvh:scid:domain:path1:path2:path3
@@ -60,7 +60,7 @@ describe("Paths feature", () => {
     expect(didParts[6]).toBe('users');
   });
 
-  test("creates DID with empty paths array (should behave like no paths)", async () => {
+  test('creates DID with empty paths array (should behave like no paths)', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -69,16 +69,16 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Should only contain domain, no additional path components
     const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(4); // did:webvh:scid:domain
     expect(didParts[3]).toBe('example.com');
   });
 
-  test("creates DID with paths containing special characters", async () => {
+  test('creates DID with paths containing special characters', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -87,9 +87,9 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Should contain domain + path components with special characters
     const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(7); // did:webvh:scid:domain:path1:path2:path3
@@ -99,7 +99,7 @@ describe("Paths feature", () => {
     expect(didParts[6]).toBe('path.with.dots');
   });
 
-  test("creates DID with domain requiring encoding and paths", async () => {
+  test('creates DID with domain requiring encoding and paths', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -108,9 +108,9 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Should contain encoded domain + path components
     const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(6); // did:webvh:scid:domain:path1:path2
@@ -119,7 +119,7 @@ describe("Paths feature", () => {
     expect(didParts[5]).toBe('health');
   });
 
-  test("controller field matches DID with paths", async () => {
+  test('controller field matches DID with paths', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -128,15 +128,15 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Controller should match the DID ID
     expect(doc.controller).toBe(doc.id!);
     expect(doc.controller).toContain('example.com:api:v2');
   });
 
-  test("verification method IDs include paths", async () => {
+  test('verification method IDs include paths', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
@@ -145,12 +145,12 @@ describe("Paths feature", () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
-      verifier
+      verifier,
     });
-    
+
     // Verification method ID should include the paths in the DID
     expect(doc.verificationMethod![0]!.id).toContain('example.com:secure:keys');
     // Verify the ID starts with the correct DID prefix
-    expect(doc.verificationMethod![0]!.id).toStartWith(doc.id! + '#');
+    expect(doc.verificationMethod![0]!.id).toStartWith(`${doc.id!}#`);
   });
-}); 
+});

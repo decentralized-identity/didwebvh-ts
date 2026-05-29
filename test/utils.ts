@@ -1,10 +1,17 @@
-import { deriveHash } from '../src/utils';
-import type { DIDLogEntry, DIDLog } from '../src/interfaces';
-import { AbstractCrypto } from "../src/cryptography";
-import { SigningInput, SigningOutput, SignerOptions, Verifier, VerificationMethod, Signer } from "../src/interfaces";
 import * as crypto from '@stablelib/ed25519';
-import { prepareDataForSigning } from '../src/cryptography';
-import { multibaseDecode, multibaseEncode, MultibaseEncoding } from '../src/utils/multiformats';
+import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography';
+import type {
+  DIDLog,
+  DIDLogEntry,
+  Signer,
+  SignerOptions,
+  SigningInput,
+  SigningOutput,
+  VerificationMethod,
+  Verifier,
+} from '../src/interfaces';
+import { deriveHash } from '../src/utils';
+import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats';
 
 export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
   return entries.map((entry, index) => {
@@ -14,7 +21,7 @@ export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
       versionTime: entry.versionTime || new Date().toISOString(),
       parameters: entry.parameters || {},
       state: entry.state || {},
-      proof: entry.proof || []
+      proof: entry.proof || [],
     };
     return mockEntry;
   });
@@ -61,16 +68,24 @@ export class MockFailingImplementation extends TestCryptoImplementation {
 }
 
 // Helper to generate verification method for tests
-export async function generateTestVerificationMethod(purpose: "authentication" | "assertionMethod" | "keyAgreement" | "capabilityInvocation" | "capabilityDelegation" = 'authentication', id?: string): Promise<VerificationMethod> {
+export async function generateTestVerificationMethod(
+  purpose:
+    | 'authentication'
+    | 'assertionMethod'
+    | 'keyAgreement'
+    | 'capabilityInvocation'
+    | 'capabilityDelegation' = 'authentication',
+  id?: string
+): Promise<VerificationMethod> {
   const keyPair = crypto.generateKeyPair();
   const secretKey = multibaseEncode(new Uint8Array([0x80, 0x26, ...keyPair.secretKey]), MultibaseEncoding.BASE58_BTC);
   const publicKey = multibaseEncode(new Uint8Array([0xed, 0x01, ...keyPair.publicKey]), MultibaseEncoding.BASE58_BTC);
   return {
-    id,   
+    id,
     type: 'Multikey',
     publicKeyMultibase: publicKey,
     secretKeyMultibase: secretKey,
-    purpose
+    purpose,
   };
 }
 

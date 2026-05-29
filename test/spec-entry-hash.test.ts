@@ -1,8 +1,8 @@
-import { describe, test, expect, beforeAll } from "bun:test";
-import { createDID, updateDID, deactivateDID, resolveDIDFromLog } from "../src/method";
-import { deriveHash } from "../src/utils";
-import type { DIDLog, VerificationMethod } from "../src/interfaces";
-import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
+import { beforeAll, describe, expect, test } from 'bun:test';
+import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
+import { deriveHash } from '../src/utils';
+import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
 
 // didwebvh v1.0 §"Entry Hash Generation and Verification":
 //   "The versionId used in the input to the hash is a predecessor value to the
@@ -19,7 +19,7 @@ async function specEntryHashForEntry(entry: any, previousVersionId: string): Pro
   return deriveHash({ ...entryWithoutProof, versionId: previousVersionId });
 }
 
-describe("didwebvh v1.0 entryHash spec compliance", () => {
+describe('didwebvh v1.0 entryHash spec compliance', () => {
   let authKey: VerificationMethod;
   let verifier: TestCryptoImplementation;
   let log: DIDLog;
@@ -34,7 +34,7 @@ describe("didwebvh v1.0 entryHash spec compliance", () => {
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: [authKey],
       created: '2024-01-01T00:00:00Z',
-      verifier
+      verifier,
     });
     log = created.log;
 
@@ -45,7 +45,7 @@ describe("didwebvh v1.0 entryHash spec compliance", () => {
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: [authKey],
         updated,
-        verifier
+        verifier,
       });
       log = next.log;
     }
@@ -65,7 +65,7 @@ describe("didwebvh v1.0 entryHash spec compliance", () => {
     }
   });
 
-  test("substituting the SCID placeholder produces a different hash (regression)", async () => {
+  test('substituting the SCID placeholder produces a different hash (regression)', async () => {
     // Direct regression guard: if create/verify ever reverts to hashing with
     // the "{SCID}" placeholder for entries 2+, this computation would match
     // the stored hash. It must NOT match.
@@ -79,7 +79,7 @@ describe("didwebvh v1.0 entryHash spec compliance", () => {
     const deactivated = await deactivateDID({
       log,
       signer: createTestSigner(authKey),
-      verifier
+      verifier,
     });
     const finalLog = deactivated.log;
     const last = finalLog[finalLog.length - 1];
@@ -90,7 +90,7 @@ describe("didwebvh v1.0 entryHash spec compliance", () => {
     expect(specHash).toBe(storedHash);
   });
 
-  test("log is resolvable end-to-end (hash chain + signatures)", async () => {
+  test('log is resolvable end-to-end (hash chain + signatures)', async () => {
     const resolved = await resolveDIDFromLog(log, { verifier, fastResolve: false });
     expect(resolved.meta.versionId).toBe(log[log.length - 1].versionId);
   });
