@@ -460,12 +460,24 @@ describe("Witness Implementation Tests", async () => {
       }
     ];
 
-    await expect(
-      resolveDIDFromLog(initialDID.log, {
-        witnessProofs,
-        verifier: testImplementation
-      })
-    ).rejects.toThrow(`Witness threshold not met for version ${initialDID.log[0].versionId}`);
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "));
+    };
+
+    try {
+      await expect(
+        resolveDIDFromLog(initialDID.log, {
+          witnessProofs,
+          verifier: testImplementation
+        })
+      ).rejects.toThrow(`Witness threshold not met for version ${initialDID.log[0].versionId}`);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    expect(warnings.some((msg) => msg.includes("Invalid witness proof purpose"))).toBe(true);
   });
 
   test("parseDidKeyDid accepts a valid did:key DID", () => {

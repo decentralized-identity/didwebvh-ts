@@ -283,7 +283,13 @@ export async function countVerifiedWitnessApprovals(
 
         approvals++;
         processedWitnesses.add(witness.id);
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `Ignoring invalid witness proof for version ${proofSet.versionId} ` +
+          `(verificationMethod: ${proof.verificationMethod}): ${message}`
+        );
+
         // Individual invalid proofs do not count toward threshold if other valid proofs remain.
         continue;
       }
@@ -291,116 +297,6 @@ export async function countVerifiedWitnessApprovals(
   }
 
   return approvals;
-}
-
-export async function verifyWitnessProofs(
-  logEntry: DIDLogEntry,
-  witnessProofs: WitnessProofFileEntry[],
-  currentWitness: WitnessParameterResolution,
-  verifier?: Verifier
-): Promise<void> {
-  if (!verifier) {
-    throw new Error('Verifier implementation is required');
-  }
-
-  let approvals = 0;
-  const processedWitnesses = new Set<string>();
-  const witnessesByDid = new Map(
-    (currentWitness.witnesses ?? []).map((witness) => {
-      const parsedDid = parseDidKeyDid(witness.id);
-      return [parsedDid.did, witness];
-    })
-  );
-
-  // Process each proof set
-  for (const proofSet of witnessProofs) {
-    // Process each proof in the set
-    for (const proof of proofSet.proof) {
-      if (proof.type !== 'DataIntegrityProof') {
-        throw new Error('Invalid witness proof type');
-      }
-
-      if (proof.proofPurpose !== 'assertionMethod') {
-        throw new Error('Invalid witness proof purpose');
-      }
-
-      if (proof.cryptosuite !== 'eddsa-jcs-2022') {
-        throw new Error('Invalid witness proof cryptosuite');
-      }
-
-      const parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
-      const witness = witnessesByDid.get(parsedVerificationMethod.did);
-      if (!witness) {
-        throw new Error('Proof from unauthorized witness');
-      }
-
-      if (processedWitnesses.has(witness.id)) {
-        continue; // Skip duplicate proofs from same witness
-      }
-
-      try {
-        // Resolve verification method
-        const vm = await resolveVM(proof.verificationMethod);
-        if (!vm || !vm.publicKeyMultibase) {
-          throw new Error(`Verification Method ${proof.verificationMethod} not found`);
-        }
-
-        // Decode public key
-        let publicKey: Uint8Array;
-        try {
-          publicKey = multibaseDecode(vm.publicKeyMultibase).bytes;
-        } catch (error: any) {
-          throw new Error(`Failed to decode public key: ${error.message}`);
-        }
-        
-        if (publicKey.length !== 34) {
-          throw new Error(`Invalid public key length ${publicKey.length} (should be 34 bytes)`);
-        }
-
-        // Extract proof value and prepare data for verification
-        const { proofValue, ...proofWithoutValue } = proof;
-        
-        // Create hashes
-        const canonicalizedData = canonicalize({versionId: logEntry.versionId});
-        const canonicalizedProof = canonicalize(proofWithoutValue);
-        
-        const dataHash = await createHash(canonicalizedData);
-        const proofHash = await createHash(canonicalizedProof);
-        
-        // Concatenate buffers
-        const input = concatBuffers(proofHash, dataHash);
-
-        // Decode signature
-        let signature: Uint8Array;
-        try {
-          signature = multibaseDecode(proofValue).bytes;
-        } catch (error: any) {
-          throw new Error(`Failed to decode signature: ${error.message}`);
-        }
-
-        // Verify signature
-        const verified = await verifier.verify(
-          signature,
-          input,
-          publicKey.slice(2)
-        );
-
-        if (!verified) {
-          throw new Error('Invalid witness proof signature');
-        }
-
-        approvals++;
-        processedWitnesses.add(witness.id);
-
-      } catch (error: any) {
-        throw new Error(`Invalid witness proof: ${error.message}`);
-      }
-    }
-  }
-
-  if (approvals < parseInt(currentWitness.threshold?.toString() ?? '0')) {
-    throw new Error(`Witness threshold not met: got ${approvals}, need ${currentWitness.threshold}`);
-  }
 }
 
 export { fetchWitnessProofs }; 
