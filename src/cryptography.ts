@@ -1,7 +1,7 @@
 import { createDate } from "./utils";
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
-import type { VerificationMethod, SigningInput, SigningOutput, Signer, SignerOptions, Verifier } from './interfaces';
+import type { DataIntegrityProofTemplate, VerificationMethod, SigningInput, SigningOutput, Signer, SignerOptions, Verifier } from './interfaces';
 import { concatBuffers } from './utils/buffer';
 
 /**
@@ -9,7 +9,7 @@ import { concatBuffers } from './utils/buffer';
  * @param verificationMethodId - The verification method ID to use in the proof
  * @returns A proof object with type, cryptosuite, verificationMethod, created, and proofPurpose
  */
-export const createProof = (verificationMethodId: string): any => {
+export const createProof = (verificationMethodId: string): DataIntegrityProofTemplate => {
   return {
     type: 'DataIntegrityProof',
     cryptosuite: 'eddsa-jcs-2022',
@@ -25,7 +25,10 @@ export const createProof = (verificationMethodId: string): any => {
  * @param proof - The proof object
  * @returns The prepared data for signing as a Uint8Array
  */
-export const prepareDataForSigning = async (document: any, proof: any): Promise<Uint8Array> => {
+export const prepareDataForSigning = async (
+  document: unknown,
+  proof: DataIntegrityProofTemplate
+): Promise<Uint8Array> => {
   const dataHash = await createHash(canonicalize(document));
   const proofHash = await createHash(canonicalize(proof));
   return concatBuffers(proofHash, dataHash);
@@ -86,9 +89,8 @@ export const createDocumentSigner = (signer: Signer, verificationMethodId: strin
     try {
       const proof = createProof(verificationMethodId);
       const result = await signer.sign({ document: doc, proof });
-      
-      proof.proofValue = result.proofValue;
-      return { ...doc, proof };
+
+      return { ...doc, proof: { ...proof, proofValue: result.proofValue } };
     } catch (e: any) {
       console.error(e);
       throw new Error(`Document signing failure: ${e.message || e}`);

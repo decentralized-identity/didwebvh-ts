@@ -1,27 +1,44 @@
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
-import type { DataIntegrityProof, DIDLogEntry, WitnessEntry, WitnessProofFileEntry, Verifier, WitnessParameterResolution } from './interfaces';
+import type { DataIntegrityProof, DataIntegrityProofTemplate, DIDLogEntry, WitnessEntry, WitnessProofFileEntry, Verifier, WitnessParameterResolution } from './interfaces';
 import { resolveVM } from "./utils";
 import { concatBuffers } from './utils/buffer';
 import { fetchWitnessProofs } from './utils';
 import { multibaseDecode } from './utils/multiformats';
 
 export async function createWitnessProof(
-  signer: (doc: any, proofTemplate?: any) => Promise<{proof: any}>,
-  versionId: string
+  signer: (
+    doc: { versionId: string },
+    proofTemplate?: DataIntegrityProofTemplate
+  ) => Promise<{ proof: Partial<DataIntegrityProof> }>,
+  versionId: string,
+  verificationMethod: string
 ): Promise<DataIntegrityProof> {
-  const proofTemplate = {
+  const proofTemplate: DataIntegrityProofTemplate = {
     type: "DataIntegrityProof",
     cryptosuite: "eddsa-jcs-2022",
+    verificationMethod,
     created: new Date().toISOString(),
-    proofPurpose: "authentication"
+    proofPurpose: "assertionMethod"
   };
 
   const signedData = await signer({versionId}, proofTemplate);
-
-  return {
+  const mergedProof = {
     ...proofTemplate,
     ...signedData.proof
+  };
+
+  if (!mergedProof.verificationMethod) {
+    throw new Error('Witness proof is missing verificationMethod');
+  }
+  if (!mergedProof.proofValue) {
+    throw new Error('Witness proof is missing proofValue');
+  }
+
+  return {
+    ...mergedProof,
+    verificationMethod: mergedProof.verificationMethod,
+    proofValue: mergedProof.proofValue
   };
 }
 
@@ -79,6 +96,14 @@ export async function verifyWitnessProofs(
   for (const proofSet of witnessProofs) {
     // Process each proof in the set
     for (const proof of proofSet.proof) {
+      if (proof.type !== 'DataIntegrityProof') {
+        throw new Error('Invalid witness proof type');
+      }
+
+      if (proof.proofPurpose !== 'assertionMethod') {
+        throw new Error('Invalid witness proof purpose');
+      }
+
       if (proof.cryptosuite !== 'eddsa-jcs-2022') {
         throw new Error('Invalid witness proof cryptosuite');
       }

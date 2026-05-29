@@ -1,6 +1,25 @@
+export type DataIntegrityProofPurpose =
+  | 'authentication'
+  | 'assertionMethod'
+  | 'keyAgreement'
+  | 'capabilityInvocation'
+  | 'capabilityDelegation';
+
+export type DataIntegrityProofType = 'DataIntegrityProof';
+export type DataIntegrityCryptosuite = 'eddsa-jcs-2022';
+
+export interface DataIntegrityProofTemplate {
+  id?: string;
+  type: DataIntegrityProofType;
+  cryptosuite: DataIntegrityCryptosuite;
+  verificationMethod: string;
+  created: string;
+  proofPurpose: DataIntegrityProofPurpose;
+}
+
 export interface SigningInput {
-  document: any;
-  proof: any;
+  document: unknown;
+  proof: DataIntegrityProofTemplate;
 }
 
 export interface SigningOutput {
@@ -65,7 +84,7 @@ export interface VerificationMethod {
   controller?: string;
   publicKeyMultibase?: string;
   secretKeyMultibase?: string;
-  purpose?: 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation';
+  purpose?: DataIntegrityProofPurpose;
   publicKeyJwk?: any;
   use?: string;
 }
@@ -86,12 +105,12 @@ export interface WitnessParameterResolution {
 
 export interface DataIntegrityProof {
   id?: string;
-  type: string;
-  cryptosuite: string;
+  type: DataIntegrityProofType;
+  cryptosuite: DataIntegrityCryptosuite;
   verificationMethod: string;
   created: string;
   proofValue: string;
-  proofPurpose: string;
+  proofPurpose: DataIntegrityProofPurpose;
 }
 
 export interface DIDLogEntry {
@@ -161,8 +180,8 @@ export interface CreateDIDInterface {
 }
 
 export interface SignDIDDocInterface {
-  document: any;
-  proof: any;
+  document: unknown;
+  proof: DataIntegrityProofTemplate;
   verificationMethod: VerificationMethod;
 }
 

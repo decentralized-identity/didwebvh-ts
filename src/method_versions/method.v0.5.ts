@@ -1,7 +1,7 @@
 import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getBaseUrl, replaceValueInObject, deepClone, parseCanonicalAddress } from "../utils";
 import {METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import type { CreateDIDInterface, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, WitnessParameterResolution } from '../interfaces';
+import type { CreateDIDInterface, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, WitnessParameterResolution, DataIntegrityProof } from '../interfaces';
 import { verifyWitnessProofs, validateWitnessParameter, fetchWitnessProofs } from '../witness';
 
 const VERSION = '0.5';
@@ -66,8 +66,9 @@ export const createDID = async (options: CreateDIDInterface): Promise<{did: stri
   const prelimEntry = JSON.parse(JSON.stringify(initialLogEntry).replaceAll(PLACEHOLDER, params.scid));
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;
-  const proof = await options.signer.sign({ document: prelimEntry, proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' } });
-  let allProofs = [{ type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod', proofValue: proof.proofValue }];
+  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' };
+  const proof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
+  const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: proof.proofValue }];
   prelimEntry.proof = allProofs;
 
   const verified = await documentStateIsValid(
@@ -390,8 +391,9 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
   const logEntryHash = await deriveHash(logEntry);
   const versionId = `${versionNumber}-${logEntryHash}`;
   const prelimEntry = { ...logEntry, versionId };
-  const proof = await options.signer.sign({ document: prelimEntry, proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' } });
-  let allProofs = [{ type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod', proofValue: proof.proofValue }];
+  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' };
+  const proof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
+  const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: proof.proofValue }];
   prelimEntry.proof = allProofs;
 
   const verified = await documentStateIsValid(
@@ -446,8 +448,9 @@ export const deactivateDID = async (options: DeactivateDIDInterface & { updateKe
   const logEntryHash = await deriveHash(logEntry);
   const versionId = `${versionNumber}-${logEntryHash}`;
   const prelimEntry = { ...logEntry, versionId };
-  const proof = await options.signer.sign({ document: prelimEntry, proof: { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' } });
-  let allProofs = [{ type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod', proofValue: proof.proofValue }];
+  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' };
+  const proof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
+  const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: proof.proofValue }];
   prelimEntry.proof = allProofs;
 
   const verified = await documentStateIsValid(
