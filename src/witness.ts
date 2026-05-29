@@ -4,10 +4,10 @@ import type {
   DataIntegrityProof,
   DataIntegrityProofTemplate,
   DIDLogEntry,
+  Signer,
   SigningInput,
   WitnessEntry,
   WitnessProofFileEntry,
-  WitnessSigner,
   WitnessSigningOptions,
   WitnessSigningResult,
   Verifier,
@@ -18,7 +18,7 @@ import { concatBuffers } from './utils/buffer';
 import { fetchWitnessProofs } from './utils';
 import { multibaseDecode } from './utils/multiformats';
 
-function createWitnessProofSigner(signer: WitnessSigner) {
+function createWitnessProofSigner(signer: Signer) {
   return async (
     document: { versionId: string },
     proofTemplate?: DataIntegrityProofTemplate
@@ -150,7 +150,7 @@ export async function signWitnessProofEntry(
 export async function signWitnessProofEntries(
   versionIds: string[],
   witnesses: WitnessEntry[],
-  witnessSignersByDid: Record<string, WitnessSigner>,
+  witnessSignersByDid: Record<string, Signer>,
   created?: string
 ): Promise<WitnessSigningResult[]> {
   return Promise.all(
