@@ -172,7 +172,7 @@ describe("did:webvh normative witness tests", async () => {
 
     let err;
     try {
-      await resolveDIDFromLog(initialDID.log, { 
+      await resolveDIDFromLog(initialDID.log, {
         witnessProofs: mockWitnessProofs as any,
         verifier: testImplementation
       });
@@ -194,17 +194,26 @@ describe("did:webvh normative witness tests", async () => {
       }
     ];
 
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "));
+    };
+
     let err;
     try {
-      await resolveDIDFromLog(initialDID.log, { 
+      await resolveDIDFromLog(initialDID.log, {
         witnessProofs: mockWitnessProofs as any,
         verifier: testImplementation
       });
     } catch (e: any) {
       err = e;
+    } finally {
+      console.warn = originalWarn;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Invalid witness proof cryptosuite");
+    expect(err.message).toContain("Witness threshold not met");
+    expect(warnings.some((msg) => msg.includes("Invalid witness proof cryptosuite"))).toBe(true);
   });
 
   test("resolver MUST verify witness proofs before accepting DID update", async () => {
@@ -224,7 +233,7 @@ describe("did:webvh normative witness tests", async () => {
 
     let err;
     try {
-      await resolveDIDFromLog(initialDID.log, { 
+      await resolveDIDFromLog(initialDID.log, {
         witnessProofs: mockWitnessProofs as any,
         verifier: testImplementation
       });
@@ -232,7 +241,7 @@ describe("did:webvh normative witness tests", async () => {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Invalid witness proof");
+    expect(err.message).toContain("Witness threshold not met");
   });
 });
 
