@@ -151,6 +151,6 @@ describe('Paths feature', () => {
     // Verification method ID should include the paths in the DID
     expect(doc.verificationMethod![0]!.id).toContain('example.com:secure:keys');
     // Verify the ID starts with the correct DID prefix
-    expect(doc.verificationMethod![0]!.id).toStartWith(doc.id! + '#');
+    expect(doc.verificationMethod![0]!.id).toStartWith(`${doc.id!}#`);
   });
-}); 
+});

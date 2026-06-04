@@ -1,7 +1,15 @@
 import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
 import { BASE_CONTEXT } from './constants';
-import type { CreateDIDInterface, DIDDoc, DIDLog, ParsedDidKeyVerificationMethod, ServiceEndpoint, VerificationMethod, WitnessProofFileEntry } from './interfaces';
+import type {
+  CreateDIDInterface,
+  DIDDoc,
+  DIDLog,
+  ParsedDidKeyVerificationMethod,
+  ServiceEndpoint,
+  VerificationMethod,
+  WitnessProofFileEntry,
+} from './interfaces';
 import { resolveDIDFromLog } from './method';
 import { bufferToString, createBuffer } from './utils/buffer';
 import { createHash } from './utils/crypto';
@@ -99,7 +107,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     }
 
     const scid = parts[0];
-    let domainPart = parts[1];
+    const domainPart = parts[1];
     const pathParts = parts.slice(2);
 
     // Detect double encoding
@@ -115,7 +123,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
       const [h, p] = domainPart.split('%3A');
       host = h;
       const portNum = parseInt(p, 10);
-      if (isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+      if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
         throw new Error(`Invalid port number: ${p}`);
       }
       port = portNum;
@@ -156,8 +164,10 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
       if (url.pathname && url.pathname !== '/') {
         url.pathname
           .split('/')
-          .filter(p => p.length > 0)
-          .forEach(p => pathParts.push(p));
+          .filter((p) => p.length > 0)
+          .forEach((p) => {
+            pathParts.push(p);
+          });
       }
 
       return {
@@ -167,7 +177,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
         paths: pathParts.length > 0 ? pathParts : undefined,
       };
     } catch (e: any) {
-      if (e.message && e.message.includes('not allowed')) throw e;
+      if (e.message?.includes('not allowed')) throw e;
       throw new Error(`Invalid URL: ${e.message}`);
     }
   }
@@ -189,7 +199,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     }
     host = parts[0];
     const portNum = parseInt(parts[1], 10);
-    if (isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+    if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
       throw new Error(`Invalid port number: ${parts[1]}`);
     }
     port = portNum;
@@ -201,7 +211,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     }
     host = parts[0];
     const portNum = parseInt(parts[1], 10);
-    if (isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+    if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
       throw new Error(`Invalid port number: ${parts[1]}`);
     }
     port = portNum;
@@ -224,9 +234,10 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
 }
 
 // Environment detection - treat React Native like a browser, but Bun as Node-like
-const isNodeEnvironment = typeof process !== 'undefined'
-  && typeof window === 'undefined'
-  && !!(process.versions && (process.versions as any).node || (process.versions as any).bun);
+const isNodeEnvironment =
+  typeof process !== 'undefined' &&
+  typeof window === 'undefined' &&
+  !!((process.versions && (process.versions as any).node) || (process.versions as any).bun);
 
 // Avoid bundlers including `fs`: hide the specifier from static analyzers
 const fsModuleSpecifier = ['node', 'fs'].join(':');
@@ -237,20 +248,22 @@ let fsImportPromise: Promise<any> | null = null;
 
 const getFS = async (): Promise<any> => {
   if (!isNodeEnvironment) {
-    throw new Error('Filesystem access is not available in this environment (React Native, browser, or failed Node.js import)');
+    throw new Error(
+      'Filesystem access is not available in this environment (React Native, browser, or failed Node.js import)'
+    );
   }
-  
+
   if (fsModule) {
     return fsModule;
   }
-  
+
   if (fsImportPromise) {
     return fsImportPromise;
   }
-  
+
   fsImportPromise = (async () => {
     // Prefer require when present (Node)
-    const maybeRequire = (globalThis as any)["require"];
+    const maybeRequire = (globalThis as any).require;
     if (typeof maybeRequire === 'function') {
       try {
         const module = maybeRequire(fsModuleSpecifier);
@@ -276,7 +289,7 @@ const getFS = async (): Promise<any> => {
     } catch {}
     throw new Error('Filesystem access is not available in this environment (unable to load fs)');
   })();
-  
+
   return fsImportPromise;
 };
 
@@ -299,9 +312,7 @@ export function validateCreateDidDocument(didDocument: DIDDoc): void {
     throw new Error("didDocument 'id' field must be a string");
   }
   if (!didDocument.id.includes('{SCID}') && !didDocument.id.includes(DID_PLACEHOLDER)) {
-    throw new Error(
-      "didDocument.id must contain a '{SCID}' or '{DID}' placeholder"
-    );
+    throw new Error("didDocument.id must contain a '{SCID}' or '{DID}' placeholder");
   }
 }
 
@@ -318,11 +329,7 @@ export function convertWebvhIdToWebId(id: string): string {
   return `did:web:${parts.slice(3).join(':')}`;
 }
 
-export function enrichAlsoKnownAs(
-  doc: DIDDoc,
-  did: string,
-  opts: { alsoKnownAsWeb?: boolean }
-): DIDDoc {
+export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsWeb?: boolean }): DIDDoc {
   if (doc.alsoKnownAs !== undefined && !Array.isArray(doc.alsoKnownAs)) {
     throw new Error('alsoKnownAs is not an array');
   }
@@ -382,8 +389,9 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
   webDoc = replaceValueInObject(webDoc, scidPrefix, 'did:web:');
 
   const webDid = webDoc.id as string;
-  const aliases = (Array.isArray(webDoc.alsoKnownAs) ? [...webDoc.alsoKnownAs] : [])
-    .filter((alias: string) => alias !== webDid);
+  const aliases = (Array.isArray(webDoc.alsoKnownAs) ? [...webDoc.alsoKnownAs] : []).filter(
+    (alias: string) => alias !== webDid
+  );
 
   if (!aliases.includes(didwebvhDid)) {
     aliases.push(didwebvhDid);
@@ -398,11 +406,14 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
 export const readLogFromDisk = async (path: string): Promise<DIDLog> => {
   const fs = await getFS();
   return readLogFromString(fs.readFileSync(path, 'utf8'));
-}
+};
 
 export const readLogFromString = (str: string): DIDLog => {
-  return str.trim().split('\n').map(l => JSON.parse(l));
-}
+  return str
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l));
+};
 
 export const writeLogToDisk = async (path: string, log: DIDLog) => {
   const fs = await getFS();
@@ -412,16 +423,16 @@ export const writeLogToDisk = async (path: string, log: DIDLog) => {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(path, JSON.stringify(log[0]) + '\n');
-    
+    fs.writeFileSync(path, `${JSON.stringify(log[0])}\n`);
+
     for (let i = 1; i < log.length; i++) {
-      fs.appendFileSync(path, JSON.stringify(log[i]) + '\n');
+      fs.appendFileSync(path, `${JSON.stringify(log[i])}\n`);
     }
   } catch (error) {
     console.error('Error writing log to disk:', error);
     throw error;
   }
-}
+};
 
 export const maybeWriteTestLog = async (did: string, log: DIDLog) => {
   if (!config.isTestEnvironment) return;
@@ -435,30 +446,30 @@ export const maybeWriteTestLog = async (did: string, log: DIDLog) => {
 };
 
 export const writeVerificationMethodToEnv = async (verificationMethod: VerificationMethod) => {
-  const envFilePath = process.cwd() + '/.env';
-  
+  const envFilePath = `${process.cwd()}/.env`;
+
   const vmData = {
     id: verificationMethod.id,
     type: verificationMethod.type,
     controller: verificationMethod.controller || '',
     publicKeyMultibase: verificationMethod.publicKeyMultibase,
-    secretKeyMultibase: verificationMethod.secretKeyMultibase || ''
+    secretKeyMultibase: verificationMethod.secretKeyMultibase || '',
   };
 
   const fs = await getFS();
   try {
     let envContent = '';
     let existingData: any[] = [];
-    
+
     if (fs.existsSync(envFilePath)) {
       envContent = fs.readFileSync(envFilePath, 'utf8');
       const match = envContent.match(/DID_VERIFICATION_METHODS=(.*)/);
-      if (match && match[1]) {
+      if (match?.[1]) {
         const decodedData = bufferToString(createBuffer(match[1], 'base64'));
         existingData = JSON.parse(decodedData);
-        
+
         // Check if verification method with same ID already exists
-        const existingIndex = existingData.findIndex(vm => vm.id === vmData.id);
+        const existingIndex = existingData.findIndex((vm) => vm.id === vmData.id);
         if (existingIndex !== -1) {
           // Update existing verification method
           existingData[existingIndex] = vmData;
@@ -474,10 +485,10 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
       // No .env file exists, create new array
       existingData = [vmData];
     }
-    
+
     const jsonData = JSON.stringify(existingData);
     const encodedData = bufferToString(createBuffer(jsonData), 'base64');
-    
+
     // If DID_VERIFICATION_METHODS already exists, replace it
     if (envContent.includes('DID_VERIFICATION_METHODS=')) {
       envContent = envContent.replace(/DID_VERIFICATION_METHODS=.*\n?/, `DID_VERIFICATION_METHODS=${encodedData}\n`);
@@ -486,7 +497,7 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
       envContent += `DID_VERIFICATION_METHODS=${encodedData}\n`;
     }
 
-    fs.writeFileSync(envFilePath, envContent.trim() + '\n');
+    fs.writeFileSync(envFilePath, `${envContent.trim()}\n`);
     console.log('Verification method written to .env file successfully.');
   } catch (error) {
     console.error('Error writing verification method to .env file:', error);
@@ -498,8 +509,8 @@ export const clone = (input: any) => JSON.parse(JSON.stringify(input));
 export function deepClone(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
   if (obj instanceof Date) return new Date(obj.getTime());
-  if (Array.isArray(obj)) return obj.map(item => deepClone(item));
-  
+  if (Array.isArray(obj)) return obj.map((item) => deepClone(item));
+
   const cloned: any = {};
   for (const [key, value] of Object.entries(obj)) {
     cloned[key] = deepClone(value);
@@ -513,29 +524,29 @@ export const getBaseUrl = (id: string) => {
     throw new Error(`${id} is not a valid did:webvh identifier`);
   }
 
-  let remainder = decodeURIComponent(parts.slice(3).join('/'));
+  const remainder = decodeURIComponent(parts.slice(3).join('/'));
   const protocol = remainder.includes('localhost') ? 'http' : 'https';
 
   const [hostPart, ...pathParts] = remainder.split('/');
   let [host, port] = decodeURIComponent(hostPart).split(':');
 
-  host = toASCII(host.normalize("NFC"));
+  host = toASCII(host.normalize('NFC'));
 
   const normalizedHost = port ? `${host}:${port}` : host;
   const path = pathParts.join('/');
 
-  return `${protocol}://${normalizedHost}${path ? '/' + path : ''}`;
-}
+  return `${protocol}://${normalizedHost}${path ? `/${path}` : ''}`;
+};
 
 export const getFileUrl = (id: string) => {
   const baseUrl = getBaseUrl(id);
   const domainEndIndex = baseUrl.indexOf('/', baseUrl.indexOf('://') + 3);
-  
+
   if (domainEndIndex !== -1) {
     return `${baseUrl}/did.jsonl`;
   }
   return `${baseUrl}/.well-known/did.jsonl`;
-}
+};
 
 export async function fetchLogFromIdentifier(identifier: string, controlled: boolean = false): Promise<DIDLog> {
   try {
@@ -557,7 +568,7 @@ export async function fetchLogFromIdentifier(identifier: string, controlled: boo
         if (!text) {
           return [];
         }
-        return text.split('\n').map(line => JSON.parse(line));
+        return text.split('\n').map((line) => JSON.parse(line));
       } catch (error) {
         throw new Error(`Error reading local DID log: ${error}`);
       }
@@ -568,27 +579,29 @@ export async function fetchLogFromIdentifier(identifier: string, controlled: boo
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const text = (await response.text()).trim();
     if (!text) {
       throw new Error(`DID log not found for ${identifier}`);
     }
-    return text.split('\n').map(line => JSON.parse(line));
+    return text.split('\n').map((line) => JSON.parse(line));
   } catch (error) {
     console.error('Error fetching DID log:', error);
     throw error;
   }
 }
 
-export const createDate = (created?: Date | string) => new Date(created ?? Date.now()).toISOString().slice(0,-5)+'Z';
+export const createDate = (created?: Date | string) => `${new Date(created ?? Date.now()).toISOString().slice(0, -5)}Z`;
 
 export function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 export const createSCID = async (logEntryHash: string): Promise<string> => {
   return logEntryHash;
-}
+};
 
 // Cache for deriveHash operations to avoid redundant computation
 const hashCache = new Map<string, string>();
@@ -616,7 +629,7 @@ export async function deriveHash(input: any): Promise<string> {
   if (cached) {
     return cached;
   }
-  
+
   const data = canonicalize(input);
   const hash = await createHash(data);
   const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
@@ -629,15 +642,15 @@ export const deriveNextKeyHash = async (input: string): Promise<string> => {
   const hash = await createHash(input);
   const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
   return encodeBase58Btc(multihash);
-}
+};
 
-export const createDIDDoc = async (options: CreateDIDInterface): Promise<{doc: DIDDoc}> => {
-  const {controller} = options;
+export const createDIDDoc = async (options: CreateDIDInterface): Promise<{ doc: DIDDoc }> => {
+  const { controller } = options;
   const all = normalizeVMs(options.verificationMethods, controller);
 
   // Create the base document
   const doc: DIDDoc = {
-    "@context": options.context || BASE_CONTEXT,
+    '@context': options.context || BASE_CONTEXT,
     id: controller,
     controller,
   };
@@ -647,41 +660,41 @@ export const createDIDDoc = async (options: CreateDIDInterface): Promise<{doc: D
     if (all.verificationMethod) {
       doc.verificationMethod = all.verificationMethod;
     }
-    
+
     if (all.authentication) {
       doc.authentication = all.authentication;
     }
-    
+
     if (all.assertionMethod) {
       doc.assertionMethod = all.assertionMethod;
     }
-    
+
     if (all.keyAgreement) {
       doc.keyAgreement = all.keyAgreement;
     }
-    
+
     if (all.capabilityDelegation) {
       doc.capabilityDelegation = all.capabilityDelegation;
     }
-    
+
     if (all.capabilityInvocation) {
       doc.capabilityInvocation = all.capabilityInvocation;
     }
   }
-  
+
   // Add direct properties from options
   if (options.authentication) {
     doc.authentication = options.authentication;
   }
-  
+
   if (options.assertionMethod) {
     doc.assertionMethod = options.assertionMethod;
   }
-  
+
   if (options.keyAgreement) {
     doc.keyAgreement = options.keyAgreement;
   }
-  
+
   if (options.alsoKnownAs) {
     doc.alsoKnownAs = options.alsoKnownAs;
   }
@@ -689,9 +702,9 @@ export const createDIDDoc = async (options: CreateDIDInterface): Promise<{doc: D
   if (options.services) {
     doc.service = options.services;
   }
-  
-  return {doc};
-}
+
+  return { doc };
+};
 
 // Helper function to generate a random string (replacement for nanoid)
 export const generateRandomId = (length: number = 8): string => {
@@ -705,8 +718,8 @@ export const generateRandomId = (length: number = 8): string => {
 };
 
 export const createVMID = (vm: VerificationMethod, did: string | null) => {
-  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || generateRandomId(8)}`
-}
+  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || generateRandomId(8)}`;
+};
 
 export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefined, did: string | null = null) => {
   const all: any = {
@@ -715,15 +728,15 @@ export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefine
     assertionMethod: [],
     keyAgreement: [],
     capabilityDelegation: [],
-    capabilityInvocation: []
+    capabilityInvocation: [],
   };
-  
+
   if (!verificationMethod || verificationMethod.length === 0) {
     return all;
   }
-  
+
   // First collect all VMs
-  const vms = verificationMethod.map(vm => ({
+  const vms = verificationMethod.map((vm) => ({
     ...vm,
     id: vm.id ?? createVMID(vm, did),
     // Default controller to the DID — required by W3C DID Core §5.2
@@ -733,24 +746,24 @@ export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefine
 
   // Then handle relationships - default to authentication if no purpose is specified
   all.authentication = verificationMethod
-    .filter(vm => !vm.purpose || vm.purpose === 'authentication')
-    .map(vm => vm.id ?? createVMID(vm, did));
+    .filter((vm) => !vm.purpose || vm.purpose === 'authentication')
+    .map((vm) => vm.id ?? createVMID(vm, did));
 
   all.assertionMethod = verificationMethod
-    .filter(vm => vm.purpose === 'assertionMethod')
-    .map(vm => vm.id ??createVMID(vm, did));
+    .filter((vm) => vm.purpose === 'assertionMethod')
+    .map((vm) => vm.id ?? createVMID(vm, did));
 
   all.keyAgreement = verificationMethod
-    .filter(vm => vm.purpose === 'keyAgreement')
-    .map(vm => vm.id ??createVMID(vm, did));
+    .filter((vm) => vm.purpose === 'keyAgreement')
+    .map((vm) => vm.id ?? createVMID(vm, did));
 
   all.capabilityDelegation = verificationMethod
-    .filter(vm => vm.purpose === 'capabilityDelegation')
-    .map(vm => vm.id ??createVMID(vm, did));
+    .filter((vm) => vm.purpose === 'capabilityDelegation')
+    .map((vm) => vm.id ?? createVMID(vm, did));
 
   all.capabilityInvocation = verificationMethod
-    .filter(vm => vm.purpose === 'capabilityInvocation')
-    .map(vm => vm.id ?? createVMID(vm, did));
+    .filter((vm) => vm.purpose === 'capabilityInvocation')
+    .map((vm) => vm.id ?? createVMID(vm, did));
 
   return all;
 };
@@ -759,29 +772,37 @@ export const resolveVM = async (vm: string) => {
   try {
     if (vm.startsWith('did:key:')) {
       const parsedVerificationMethod = parseDidKeyVerificationMethod(vm);
-      return {publicKeyMultibase: parsedVerificationMethod.keyMultibase}
-    }
-    else if (vm.startsWith('did:webvh:')) {
+      return { publicKeyMultibase: parsedVerificationMethod.keyMultibase };
+    } else if (vm.startsWith('did:webvh:')) {
       const url = getFileUrl(vm.split('#')[0]);
       const didLog = await (await fetch(url)).text();
-      const logEntries: DIDLog = didLog.trim().split('\n').map(l => JSON.parse(l));
-      const {doc} = await resolveDIDFromLog(logEntries, {verificationMethod: vm});
+      const logEntries: DIDLog = didLog
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l));
+      const { doc } = await resolveDIDFromLog(logEntries, { verificationMethod: vm });
       return findVerificationMethod(doc, vm);
     }
     throw new Error(`Verification method ${vm} not found`);
   } catch (e) {
-    throw new Error(`Error resolving VM ${vm}`)
+    throw new Error(`Error resolving VM ${vm}`);
   }
-}
+};
 
 export const findVerificationMethod = (doc: any, vmId: string): VerificationMethod | null => {
   // Check in the verificationMethod array
-  if (doc.verificationMethod && doc.verificationMethod.some((vm: any) => vm.id === vmId)) {
+  if (doc.verificationMethod?.some((vm: any) => vm.id === vmId)) {
     return doc.verificationMethod.find((vm: any) => vm.id === vmId);
   }
 
   // Check in other verification method relationship arrays
-  const vmRelationships = ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'];
+  const vmRelationships = [
+    'authentication',
+    'assertionMethod',
+    'keyAgreement',
+    'capabilityInvocation',
+    'capabilityDelegation',
+  ];
   for (const relationship of vmRelationships) {
     if (doc[relationship]) {
       if (doc[relationship].some((item: any) => item.id === vmId)) {
@@ -791,11 +812,11 @@ export const findVerificationMethod = (doc: any, vmId: string): VerificationMeth
   }
 
   return null;
-}
+};
 
 export async function getActiveDIDs(): Promise<string[]> {
   const activeDIDs: string[] = [];
-  
+
   try {
     for (const vm of config.getVerificationMethods()) {
       const did = vm.controller || vm.id.split('#')[0];
@@ -804,19 +825,19 @@ export async function getActiveDIDs(): Promise<string[]> {
   } catch (error) {
     console.error('Error processing verification methods:', error);
   }
-  
+
   return activeDIDs;
 }
 
 export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileEntry[]> {
   try {
     const url = getFileUrl(did).replace('did.jsonl', 'did-witness.json');
-    
+
     const response = await fetch(url);
     if (!response.ok) {
       return [];
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Error fetching witness proofs:', error);
@@ -829,7 +850,7 @@ export function replaceValueInObject(obj: any, searchValue: string, replaceValue
     return obj.replaceAll(searchValue, replaceValue);
   }
   if (Array.isArray(obj)) {
-    return obj.map(item => replaceValueInObject(item, searchValue, replaceValue));
+    return obj.map((item) => replaceValueInObject(item, searchValue, replaceValue));
   }
   if (obj && typeof obj === 'object') {
     const result: any = {};

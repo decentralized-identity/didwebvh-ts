@@ -1,19 +1,53 @@
-import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMethod, getActiveDIDs, getBaseUrl, replaceValueInObject, deepClone, enrichAlsoKnownAs, generateParallelDidWeb, parseCanonicalAddress, replaceCreateDidPlaceholders, validateCreateDidDocument } from "../utils";
-import { METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
+import { METHOD, PLACEHOLDER } from '../constants';
+import type {
+  CreateDIDInterface,
+  CreateDIDResult,
+  DataIntegrityProof,
+  DeactivateDIDInterface,
+  DIDLog,
+  DIDLogEntry,
+  DIDResolutionMeta,
+  ResolutionOptions,
+  UpdateDIDInterface,
+  UpdateDIDResult,
+  WitnessParameterResolution,
+  WitnessProofFileEntry,
+} from '../interfaces';
 import { DidResolutionError } from '../interfaces';
-import type { CreateDIDInterface, CreateDIDResult, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, UpdateDIDResult, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, DataIntegrityProof, WitnessParameterResolution } from '../interfaces';
-import { countVerifiedWitnessApprovals, validateWitnessParameter, fetchWitnessProofs } from '../witness';
+import {
+  createDate,
+  createDIDDoc,
+  createSCID,
+  deepClone,
+  deriveHash,
+  enrichAlsoKnownAs,
+  findVerificationMethod,
+  generateParallelDidWeb,
+  getBaseUrl,
+  parseCanonicalAddress,
+  replaceCreateDidPlaceholders,
+  replaceValueInObject,
+  validateCreateDidDocument,
+} from '../utils';
+import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
 const VERSION = '1.0';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
 
+const requireDidId = (id: string | undefined): string => {
+  if (!id) {
+    throw new Error('DID document id is missing');
+  }
+  return id;
+};
+
 export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
   if (!options.updateKeys) {
-    throw new Error('Update keys not supplied')
+    throw new Error('Update keys not supplied');
   }
-  
-  if (options.witness && options.witness.witnesses && options.witness.witnesses.length > 0) {
+
+  if (options.witness?.witnesses && options.witness.witnesses.length > 0) {
     validateWitnessParameter(options.witness);
   }
 
@@ -29,17 +63,19 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   const path = allPaths.length > 0 ? allPaths.join(':') : undefined;
   const controller = `did:${METHOD}:${PLACEHOLDER}:${didDomainComponent}${path ? `:${path}` : ''}`;
   const createdDate = createDate(options.created);
-  
+
   // Safety guard: Strip secret keys from verification methods before creating DID document
-  const safeVerificationMethods = options.verificationMethods?.map(vm => {
+  const safeVerificationMethods = options.verificationMethods?.map((vm) => {
     if (vm.secretKeyMultibase) {
-      console.warn('Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents');
+      console.warn(
+        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
+      );
       const { secretKeyMultibase, ...safeVm } = vm;
       return safeVm;
     }
     return vm;
   });
-  
+
   let doc: any;
   if (options.didDocument) {
     validateCreateDidDocument(options.didDocument);
@@ -53,7 +89,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
       domain: addressInput,
       paths: allPaths,
       controller,
-      verificationMethods: safeVerificationMethods
+      verificationMethods: safeVerificationMethods,
     });
     doc = didDocResult.doc;
   }
@@ -69,16 +105,16 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
     nextKeyHashes: options.nextKeyHashes ?? [],
     watchers: options.watchers ?? [],
     witness: options.witness ?? {},
-    deactivated: false
+    deactivated: false,
   };
   const initialLogEntry: DIDLogEntry = {
     versionId: PLACEHOLDER,
     versionTime: createdDate,
     parameters: {
       method: PROTOCOL,
-      ...params
+      ...params,
     },
-    state: doc
+    state: doc,
   };
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   params.scid = await createSCID(initialLogEntryHash);
@@ -90,46 +126,54 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   });
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;
-  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' };
+  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
+    type: 'DataIntegrityProof',
+    cryptosuite: 'eddsa-jcs-2022',
+    verificationMethod: options.signer.getVerificationMethodId(),
+    created: createdDate,
+    proofPurpose: 'assertionMethod',
+  };
   const signedProof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
   const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
   prelimEntry.proof = allProofs;
 
   const verified = await documentStateIsValid(
-    { ...prelimEntry, versionId: `1-${logEntryHash2}` }, 
-    params.updateKeys, 
+    { ...prelimEntry, versionId: `1-${logEntryHash2}` },
+    params.updateKeys,
     params.witness,
     true, // skipWitnessVerification
     options.verifier
   );
   if (!verified) {
-    throw new Error(`version ${prelimEntry.versionId} is invalid.`)
+    throw new Error(`version ${prelimEntry.versionId} is invalid.`);
   }
 
-  const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(prelimEntry.state.id!, prelimEntry.state) : undefined;
+  const didId = requireDidId(prelimEntry.state.id);
+  const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(didId, prelimEntry.state) : undefined;
 
   return {
-    did: prelimEntry.state.id!,
+    did: didId,
     doc: prelimEntry.state,
     meta: {
       versionId: prelimEntry.versionId,
       created: prelimEntry.versionTime,
       updated: prelimEntry.versionTime,
       prerotation: (params.nextKeyHashes?.length ?? 0) > 0,
-      ...params
+      ...params,
     },
-    log: [
-      prelimEntry
-    ],
-    ...(webDoc ? { webDoc } : {})
-  }
-}
+    log: [prelimEntry],
+    ...(webDoc ? { webDoc } : {}),
+  };
+};
 
-export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[], fastResolve?: boolean } = {}): Promise<{did: string, doc: any, meta: DIDResolutionMeta}> => {
+export const resolveDIDFromLog = async (
+  log: DIDLog,
+  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[]; fastResolve?: boolean } = {}
+): Promise<{ did: string; doc: any; meta: DIDResolutionMeta }> => {
   if (options.verificationMethod && (options.versionNumber || options.versionId)) {
-    throw new Error("Cannot specify both verificationMethod and version number/id");
+    throw new Error('Cannot specify both verificationMethod and version number/id');
   }
-  const resolutionLog = log.map(l => deepClone(l));
+  const resolutionLog = log.map((l) => deepClone(l));
   const protocol = resolutionLog[0]?.parameters?.method;
   if (protocol !== PROTOCOL) {
     throw new Error(`'${protocol}' is not a supported method version.`);
@@ -138,7 +182,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   let doc: any = null;
   let resolvedDoc: any = null;
   let lastValidDoc: any = null;
-  let meta: DIDResolutionMeta = {
+  const meta: DIDResolutionMeta = {
     versionId: '',
     created: '',
     updated: '',
@@ -149,7 +193,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
     nextKeyHashes: [],
     prerotation: false,
     witness: undefined,
-    watchers: null
+    watchers: null,
   };
   let resolvedMeta: DIDResolutionMeta | null = null;
   let lastValidMeta: DIDResolutionMeta | null = null;
@@ -164,218 +208,221 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   const shouldVerifyEntry = (idx: number) => !fastResolve || isFirstEntry(idx) || isLastFewEntries(idx);
 
   try {
-  while (i < resolutionLog.length) {
-    const { versionId, versionTime, parameters, state, proof } = resolutionLog[i];
-    const [version, entryHash] = versionId.split('-');
-    const previousWitness = meta.witness ? deepClone(meta.witness) : undefined;
-    if (parseInt(version) !== i + 1) {
-      throw new Error(`version '${version}' in log doesn't match expected '${i + 1}'.`);
+    while (i < resolutionLog.length) {
+      const { versionId, versionTime, parameters, state, proof } = resolutionLog[i];
+      const [version, entryHash] = versionId.split('-');
+      const previousWitness = meta.witness ? deepClone(meta.witness) : undefined;
+      if (parseInt(version, 10) !== i + 1) {
+        throw new Error(`version '${version}' in log doesn't match expected '${i + 1}'.`);
+      }
+      meta.versionId = versionId;
+      if (versionTime) {
+        // TODO check timestamps make sense
+      }
+      meta.updated = versionTime;
+      let newDoc = state;
+
+      if (version === '1') {
+        meta.created = versionTime;
+        newDoc = state;
+        host = newDoc.id.split(':').at(-1);
+        meta.scid = parameters.scid;
+        if (options.scid && options.scid !== meta.scid) {
+          throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${meta.scid}'`);
+        }
+        meta.portable = parameters.portable ?? meta.portable;
+        meta.updateKeys = parameters.updateKeys;
+        meta.nextKeyHashes = parameters.nextKeyHashes || [];
+        meta.prerotation = meta.nextKeyHashes.length > 0;
+        meta.witness = parameters.witness || meta.witness;
+        meta.watchers = parameters.watchers ?? null;
+
+        if (shouldVerifyEntry(i)) {
+          // Optimized: Use efficient object manipulation instead of JSON stringify/parse
+          const logEntry = {
+            versionId: PLACEHOLDER,
+            versionTime: meta.created,
+            parameters: replaceValueInObject(parameters, meta.scid, PLACEHOLDER),
+            state: replaceValueInObject(newDoc, meta.scid, PLACEHOLDER),
+          };
+
+          const logEntryHash = await deriveHash(logEntry);
+          meta.previousLogEntryHash = logEntryHash;
+          if (!(await scidIsFromHash(meta.scid, logEntryHash))) {
+            throw new Error(`SCID '${meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
+          }
+
+          // Optimized: Direct object manipulation instead of JSON stringify/parse
+          const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
+
+          const logEntryHash2 = await deriveHash(prelimEntry);
+          const verified = await documentStateIsValid(
+            { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
+            meta.updateKeys,
+            meta.witness,
+            false,
+            options.verifier
+          );
+          if (!verified) {
+            throw new Error(`version ${meta.versionId} failed verification of the proof.`);
+          }
+        }
+      } else {
+        // version number > 1
+        const newHost = newDoc.id.split(':').at(-1);
+        if (!meta.portable && newHost !== host) {
+          throw new Error('Cannot move DID: portability is disabled');
+        } else if (newHost !== host) {
+          host = newHost;
+        }
+
+        // Hash chain — ALWAYS runs (cheap), even in fast-resolve
+        const { proof: _proof, ...entryWithoutProof } = resolutionLog[i];
+        const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: resolutionLog[i - 1].versionId });
+        if (!hashChainValid(recomputedHash, entryHash)) {
+          throw new Error(`Hash chain broken at '${meta.versionId}'`);
+        }
+
+        if (shouldVerifyEntry(i)) {
+          // Signature verification — expensive, skipped for middle entries in fast-resolve
+          const keys = meta.prerotation ? parameters.updateKeys : meta.updateKeys;
+          const verified = await documentStateIsValid(resolutionLog[i], keys, meta.witness, false, options.verifier);
+          if (!verified) {
+            throw new Error(`version ${meta.versionId} failed verification of the proof.`);
+          }
+
+          if (meta.prerotation) {
+            await newKeysAreInNextKeys(parameters.updateKeys ?? [], meta.nextKeyHashes ?? []);
+          }
+        }
+
+        if (parameters.updateKeys) {
+          meta.updateKeys = parameters.updateKeys;
+        }
+        if (parameters.deactivated === true) {
+          meta.deactivated = true;
+        }
+        if (parameters.nextKeyHashes && parameters.nextKeyHashes.length > 0) {
+          meta.nextKeyHashes = parameters.nextKeyHashes;
+          meta.prerotation = true;
+        } else {
+          meta.nextKeyHashes = [];
+          meta.prerotation = false;
+        }
+        if ('witness' in parameters) {
+          meta.witness = parameters.witness;
+        } else if (parameters.witnesses) {
+          meta.witness = {
+            witnesses: parameters.witnesses,
+            threshold: parameters.witnessThreshold || parameters.witnesses.length,
+          };
+        }
+        if (meta.witness?.witnesses?.length) {
+          validateWitnessParameter(meta.witness);
+        }
+        if ('watchers' in parameters) {
+          meta.watchers = parameters.watchers ?? null;
+        }
+      }
+
+      const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, meta.witness);
+      if (requiredWitness) {
+        requiredWitnessChecks.push({
+          targetVersionId: meta.versionId,
+          targetVersionNumber: parseInt(version, 10),
+          witness: requiredWitness,
+        });
+      }
+
+      // Optimized: Use efficient cloning instead of clone() function
+      doc = deepClone(newDoc);
+      did = doc.id;
+
+      // Only add default services for entries we need to process
+      if (shouldVerifyEntry(i) || i === resolutionLog.length - 1) {
+        // Add default services if they don't exist
+        doc.service = Array.isArray(doc.service) ? doc.service : [];
+        const baseUrl = getBaseUrl(did);
+
+        if (!doc.service.some((s: any) => s.id === '#files')) {
+          doc.service.push({
+            id: '#files',
+            type: 'relativeRef',
+            serviceEndpoint: baseUrl,
+          });
+        }
+
+        if (!doc.service.some((s: any) => s.id === '#whois')) {
+          doc.service.push({
+            '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+            id: '#whois',
+            type: 'LinkedVerifiablePresentation',
+            serviceEndpoint: `${baseUrl}/whois.vp`,
+          });
+        }
+      }
+
+      if (options.verificationMethod && findVerificationMethod(doc, options.verificationMethod)) {
+        if (!resolvedDoc) {
+          resolvedDoc = deepClone(doc);
+          resolvedMeta = { ...meta };
+        }
+      }
+
+      if (options.versionNumber === parseInt(version, 10) || options.versionId === meta.versionId) {
+        if (!resolvedDoc) {
+          resolvedDoc = deepClone(doc);
+          resolvedMeta = { ...meta };
+        }
+      }
+      if (options.versionTime && options.versionTime > new Date(meta.updated)) {
+        if (resolutionLog[i + 1] && options.versionTime < new Date(resolutionLog[i + 1].versionTime)) {
+          if (!resolvedDoc) {
+            resolvedDoc = deepClone(doc);
+            resolvedMeta = { ...meta };
+          }
+        } else if (!resolutionLog[i + 1]) {
+          if (!resolvedDoc) {
+            resolvedDoc = deepClone(doc);
+            resolvedMeta = { ...meta };
+          }
+        }
+      }
+
+      lastValidDoc = deepClone(doc);
+      lastValidMeta = { ...meta };
+
+      i++;
     }
-    meta.versionId = versionId;
-    if (versionTime) {
-      // TODO check timestamps make sense
-    }
-    meta.updated = versionTime;
-    let newDoc = state;
-    
-    if (version === '1') {
-      meta.created = versionTime;
-      newDoc = state;
-      host = newDoc.id.split(':').at(-1);
-      meta.scid = parameters.scid;
-      if (options.scid && options.scid !== meta.scid) {
-        throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${meta.scid}'`);
-      }
-      meta.portable = parameters.portable ?? meta.portable;
-      meta.updateKeys = parameters.updateKeys;
-      meta.nextKeyHashes = parameters.nextKeyHashes || [];
-      meta.prerotation = meta.nextKeyHashes.length > 0;
-      meta.witness = parameters.witness || meta.witness;
-      meta.watchers = parameters.watchers ?? null;
-      
-      if (shouldVerifyEntry(i)) {
-        // Optimized: Use efficient object manipulation instead of JSON stringify/parse
-        const logEntry = {
-          versionId: PLACEHOLDER,
-          versionTime: meta.created,
-          parameters: replaceValueInObject(parameters, meta.scid, PLACEHOLDER),
-          state: replaceValueInObject(newDoc, meta.scid, PLACEHOLDER)
-        };
-        
-        const logEntryHash = await deriveHash(logEntry);
-        meta.previousLogEntryHash = logEntryHash;
-        if (!await scidIsFromHash(meta.scid, logEntryHash)) {
-          throw new Error(`SCID '${meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
-        }
-        
-        // Optimized: Direct object manipulation instead of JSON stringify/parse
-        const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
-        
-        const logEntryHash2 = await deriveHash(prelimEntry);
-        const verified = await documentStateIsValid({...prelimEntry, versionId: `1-${logEntryHash2}`, proof}, meta.updateKeys, meta.witness, false, options.verifier);
-        if (!verified) {
-          throw new Error(`version ${meta.versionId} failed verification of the proof.`)
-        }
-      }
-    } else {
-      // version number > 1
-      const newHost = newDoc.id.split(':').at(-1);
-      if (!meta.portable && newHost !== host) {
-        throw new Error("Cannot move DID: portability is disabled");
-      } else if (newHost !== host) {
-        host = newHost;
+
+    if (requiredWitnessChecks.length > 0) {
+      if (!options.witnessProofs) {
+        options.witnessProofs = await fetchWitnessProofs(did);
       }
 
-      // Hash chain — ALWAYS runs (cheap), even in fast-resolve
-      const { proof: _proof, ...entryWithoutProof } = resolutionLog[i];
-      const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: resolutionLog[i - 1].versionId });
-      if (!hashChainValid(recomputedHash, entryHash)) {
-        throw new Error(`Hash chain broken at '${meta.versionId}'`);
-      }
+      const publishedVersionNumbers = new Map(resolutionLog.map((entry, index) => [entry.versionId, index + 1]));
 
-      if (shouldVerifyEntry(i)) {
-        // Signature verification — expensive, skipped for middle entries in fast-resolve
-        const keys = meta.prerotation ? parameters.updateKeys : meta.updateKeys;
-        const verified = await documentStateIsValid(resolutionLog[i], keys, meta.witness, false, options.verifier);
-        if (!verified) {
-          throw new Error(`version ${meta.versionId} failed verification of the proof.`)
-        }
+      for (const check of requiredWitnessChecks) {
+        const candidateProofs = (options.witnessProofs ?? []).filter((witnessProof) => {
+          const proofVersionNumber = publishedVersionNumbers.get(witnessProof.versionId);
+          return proofVersionNumber !== undefined && proofVersionNumber >= check.targetVersionNumber;
+        });
 
-        if (meta.prerotation) {
-          await newKeysAreInNextKeys(
-            parameters.updateKeys ?? [],
-            meta.nextKeyHashes ?? []
+        const approvals = await countVerifiedWitnessApprovals(
+          resolutionLog[check.targetVersionNumber - 1],
+          candidateProofs,
+          check.witness,
+          options.verifier
+        );
+        const threshold = parseInt((check.witness.threshold ?? 0).toString(), 10);
+
+        if (approvals < threshold) {
+          throw new Error(
+            `Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`
           );
         }
       }
-
-      if (parameters.updateKeys) {
-        meta.updateKeys = parameters.updateKeys;
-      }
-      if (parameters.deactivated === true) {
-        meta.deactivated = true;
-      }
-      if (parameters.nextKeyHashes && parameters.nextKeyHashes.length > 0) {
-        meta.nextKeyHashes = parameters.nextKeyHashes;
-        meta.prerotation = true;
-      } else {
-        meta.nextKeyHashes = [];
-        meta.prerotation = false;
-      }
-      if ('witness' in parameters) {
-        meta.witness = parameters.witness;
-      } else if (parameters.witnesses) {
-        meta.witness = {
-          witnesses: parameters.witnesses,
-          threshold: parameters.witnessThreshold || parameters.witnesses.length
-        };
-      }
-      if (meta.witness?.witnesses?.length) {
-        validateWitnessParameter(meta.witness);
-      }
-      if ('watchers' in parameters) {
-        meta.watchers = parameters.watchers ?? null;
-      }
     }
-
-    const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, meta.witness);
-    if (requiredWitness) {
-      requiredWitnessChecks.push({
-        targetVersionId: meta.versionId,
-        targetVersionNumber: parseInt(version, 10),
-        witness: requiredWitness,
-      });
-    }
-    
-    // Optimized: Use efficient cloning instead of clone() function
-    doc = deepClone(newDoc);
-    did = doc.id;
-
-    // Only add default services for entries we need to process
-    if (shouldVerifyEntry(i) || i === resolutionLog.length - 1) {
-      // Add default services if they don't exist
-      doc.service = Array.isArray(doc.service) ? doc.service : [];
-      const baseUrl = getBaseUrl(did);
-
-      if (!doc.service.some((s: any) => s.id === '#files')) {
-        doc.service.push({
-          id: '#files',
-          type: 'relativeRef',
-          serviceEndpoint: baseUrl
-        });
-      }
-
-      if (!doc.service.some((s: any) => s.id === '#whois')) {
-        doc.service.push({
-          "@context": "https://identity.foundation/linked-vp/contexts/v1",
-          id: '#whois',
-          type: 'LinkedVerifiablePresentation',
-          serviceEndpoint: `${baseUrl}/whois.vp`
-        });
-      }
-    }
-
-    if (options.verificationMethod && findVerificationMethod(doc, options.verificationMethod)) {
-      if (!resolvedDoc) {
-        resolvedDoc = deepClone(doc);
-        resolvedMeta = { ...meta };
-      }
-    }
-
-    if (options.versionNumber === parseInt(version) || options.versionId === meta.versionId) {
-      if (!resolvedDoc) {
-        resolvedDoc = deepClone(doc);
-        resolvedMeta = { ...meta };
-      }
-    }
-    if (options.versionTime && options.versionTime > new Date(meta.updated)) {
-      if (resolutionLog[i+1] && options.versionTime < new Date(resolutionLog[i+1].versionTime)) {
-        if (!resolvedDoc) {
-          resolvedDoc = deepClone(doc);
-          resolvedMeta = { ...meta };
-        }
-      } else if(!resolutionLog[i+1]) {
-        if (!resolvedDoc) {
-          resolvedDoc = deepClone(doc);
-          resolvedMeta = { ...meta };
-        }
-      }
-    }
-
-    lastValidDoc = deepClone(doc);
-    lastValidMeta = { ...meta };
-
-    i++;
-  }
-
-  if (requiredWitnessChecks.length > 0) {
-    if (!options.witnessProofs) {
-      options.witnessProofs = await fetchWitnessProofs(did);
-    }
-
-    const publishedVersionNumbers = new Map(
-      resolutionLog.map((entry, index) => [entry.versionId, index + 1])
-    );
-
-    for (const check of requiredWitnessChecks) {
-      const candidateProofs = (options.witnessProofs ?? []).filter((witnessProof) => {
-        const proofVersionNumber = publishedVersionNumbers.get(witnessProof.versionId);
-        return proofVersionNumber !== undefined && proofVersionNumber >= check.targetVersionNumber;
-      });
-
-      const approvals = await countVerifiedWitnessApprovals(
-        resolutionLog[check.targetVersionNumber - 1],
-        candidateProofs,
-        check.witness,
-        options.verifier
-      );
-      const threshold = parseInt((check.witness.threshold ?? 0).toString(), 10);
-
-      if (approvals < threshold) {
-        throw new Error(`Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`);
-      }
-    }
-  }
   } catch (e) {
     if (!resolvedDoc) {
       throw e;
@@ -386,7 +433,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
       resolvedMeta.problemDetails = {
         type: 'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID',
         title: 'The resolved DID is invalid.',
-        detail: message
+        detail: message,
       };
     }
   }
@@ -403,14 +450,17 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
   return {
     did,
     doc: resolvedDoc,
-    meta: resolvedMeta
+    meta: resolvedMeta,
   };
-}
+};
 
-export const updateDID = async (options: UpdateDIDInterface & { services?: any[], domain?: string, updated?: string }): Promise<UpdateDIDResult> => {
+export const updateDID = async (
+  options: UpdateDIDInterface & { services?: any[]; domain?: string; updated?: string }
+): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
+  const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs }))
+    .meta;
   if (lastMeta.deactivated) {
     throw new Error('Cannot update deactivated DID');
   }
@@ -428,42 +478,44 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
     updateKeys: options.updateKeys ?? [],
     nextKeyHashes: options.nextKeyHashes ?? [],
     witness,
-    watchers: watchersValue ?? []
+    watchers: watchersValue ?? [],
   };
-  
+
   if (params.witness?.witnesses?.length) {
     validateWitnessParameter(params.witness);
   }
-  
-  // Safety guard: Strip secret keys from verification methods before creating DID document  
-  const safeVerificationMethods = options.verificationMethods?.map(vm => {
+
+  // Safety guard: Strip secret keys from verification methods before creating DID document
+  const safeVerificationMethods = options.verificationMethods?.map((vm) => {
     if (vm.secretKeyMultibase) {
-      console.warn('Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents');
+      console.warn(
+        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
+      );
       const { secretKeyMultibase, ...safeVm } = vm;
       return safeVm;
     }
     return vm;
   });
-  
+
   const { doc } = await createDIDDoc({
     ...options,
     controller: options.controller || lastEntry.state.id || '',
     context: options.context || lastEntry.state['@context'],
     domain: options.domain ?? lastEntry.state.id?.split(':').at(-1) ?? '',
     updateKeys: options.updateKeys ?? [],
-    verificationMethods: safeVerificationMethods ?? []
+    verificationMethods: safeVerificationMethods ?? [],
   });
-  
+
   // Add services if provided
   if (options.services && options.services.length > 0) {
     doc.service = options.services;
   }
-  
+
   // Add assertionMethod if provided
   if (options.assertionMethod) {
     doc.assertionMethod = options.assertionMethod;
   }
-  
+
   // Add keyAgreement if provided
   if (options.keyAgreement) {
     doc.keyAgreement = options.keyAgreement;
@@ -473,25 +525,25 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
     versionId: lastEntry.versionId,
     versionTime: createdDate,
     parameters: params,
-    state: doc
+    state: doc,
   };
   const logEntryHash = await deriveHash(logEntry);
   const versionId = `${versionNumber}-${logEntryHash}`;
   const prelimEntry = { ...logEntry, versionId };
-  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' };
+  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
+    type: 'DataIntegrityProof',
+    cryptosuite: 'eddsa-jcs-2022',
+    verificationMethod: options.signer.getVerificationMethodId(),
+    created: createdDate,
+    proofPurpose: 'assertionMethod',
+  };
   const signedProof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
   const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
   prelimEntry.proof = allProofs;
   const keysToVerify = lastMeta.prerotation ? params.updateKeys : lastMeta.updateKeys;
-  const verified = await documentStateIsValid(
-    prelimEntry,
-    keysToVerify,
-    lastMeta.witness,
-    true,
-    options.verifier
-  );
+  const verified = await documentStateIsValid(prelimEntry, keysToVerify, lastMeta.witness, true, options.verifier);
   if (!verified) {
-    throw new Error(`version ${prelimEntry.versionId} is invalid.`)
+    throw new Error(`version ${prelimEntry.versionId} is invalid.`);
   }
 
   const meta: DIDResolutionMeta = {
@@ -499,25 +551,25 @@ export const updateDID = async (options: UpdateDIDInterface & { services?: any[]
     versionId: prelimEntry.versionId,
     updated: prelimEntry.versionTime,
     prerotation: (params.nextKeyHashes?.length ?? 0) > 0,
-    ...params
+    ...params,
   };
 
   const hasWebAlias = (prelimEntry.state.alsoKnownAs ?? []).some((alias: string) => alias.startsWith('did:web:'));
-  const webDoc = hasWebAlias ? generateParallelDidWeb(prelimEntry.state.id!, prelimEntry.state) : undefined;
+  const didId = requireDidId(prelimEntry.state.id);
+  const webDoc = hasWebAlias ? generateParallelDidWeb(didId, prelimEntry.state) : undefined;
 
   return {
-    did: prelimEntry.state.id!,
+    did: didId,
     doc: prelimEntry.state,
     meta,
-    log: [
-      ...log,
-      prelimEntry
-    ],
-    ...(webDoc ? { webDoc } : {})
-  }
-}
+    log: [...log, prelimEntry],
+    ...(webDoc ? { webDoc } : {}),
+  };
+};
 
-export const deactivateDID = async (options: DeactivateDIDInterface & { updateKeys?: string[] }): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}> => {
+export const deactivateDID = async (
+  options: DeactivateDIDInterface & { updateKeys?: string[] }
+): Promise<{ did: string; doc: any; meta: DIDResolutionMeta; log: DIDLog }> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
   const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier })).meta;
@@ -528,31 +580,37 @@ export const deactivateDID = async (options: DeactivateDIDInterface & { updateKe
   const createdDate = createDate();
   const params = {
     updateKeys: options.updateKeys ?? lastMeta.updateKeys,
-    deactivated: true
+    deactivated: true,
   };
   const logEntry: DIDLogEntry = {
     versionId: lastEntry.versionId,
     versionTime: createdDate,
     parameters: params,
-    state: lastEntry.state
+    state: lastEntry.state,
   };
   const logEntryHash = await deriveHash(logEntry);
   const versionId = `${versionNumber}-${logEntryHash}`;
   const prelimEntry = { ...logEntry, versionId };
-  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = { type: 'DataIntegrityProof', cryptosuite: 'eddsa-jcs-2022', verificationMethod: options.signer.getVerificationMethodId(), created: createdDate, proofPurpose: 'assertionMethod' };
+  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
+    type: 'DataIntegrityProof',
+    cryptosuite: 'eddsa-jcs-2022',
+    verificationMethod: options.signer.getVerificationMethodId(),
+    created: createdDate,
+    proofPurpose: 'assertionMethod',
+  };
   const signedProof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
   const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
   prelimEntry.proof = allProofs;
 
   const verified = await documentStateIsValid(
-    prelimEntry, 
-    lastMeta.updateKeys, 
+    prelimEntry,
+    lastMeta.updateKeys,
     lastMeta.witness,
     true, // skipWitnessVerification
     options.verifier
   );
   if (!verified) {
-    throw new Error(`version ${prelimEntry.versionId} is invalid.`)
+    throw new Error(`version ${prelimEntry.versionId} is invalid.`);
   }
 
   const meta: DIDResolutionMeta = {
@@ -560,19 +618,18 @@ export const deactivateDID = async (options: DeactivateDIDInterface & { updateKe
     versionId: prelimEntry.versionId,
     updated: prelimEntry.versionTime,
     deactivated: true,
-    updateKeys: params.updateKeys
+    updateKeys: params.updateKeys,
   };
 
+  const didId = requireDidId(prelimEntry.state.id);
+
   return {
-    did: prelimEntry.state.id!,
+    did: didId,
     doc: prelimEntry.state,
     meta,
-    log: [
-      ...log,
-      prelimEntry
-    ]
-  }
-}
+    log: [...log, prelimEntry],
+  };
+};
 
 interface RequiredWitnessCheck {
   targetVersionId: string;
