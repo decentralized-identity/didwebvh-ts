@@ -2,7 +2,7 @@ import { createDate, createDIDDoc, createSCID, deriveHash, findVerificationMetho
 import {METHOD, PLACEHOLDER } from '../constants';
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
 import type { CreateDIDInterface, DIDResolutionMeta, DIDLogEntry, DIDLog, UpdateDIDInterface, DeactivateDIDInterface, ResolutionOptions, WitnessProofFileEntry, WitnessParameterResolution, DataIntegrityProof } from '../interfaces';
-import { verifyWitnessProofs, validateWitnessParameter, fetchWitnessProofs } from '../witness';
+import { countVerifiedWitnessApprovals, validateWitnessParameter, fetchWitnessProofs } from '../witness';
 
 const VERSION = '0.5';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
@@ -294,10 +294,15 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
         return wp.versionId === meta.versionId;
       });
 
-      if (validProofs.length > 0) {
-        await verifyWitnessProofs(resolutionLog[i], validProofs, meta.witness!, options.verifier);
-      } else if (meta.witness && meta.witness.threshold && parseInt(meta.witness.threshold.toString()) > 0) {
-        throw new Error('No witness proofs found for version ' + meta.versionId);
+      const approvals = await countVerifiedWitnessApprovals(
+        resolutionLog[i],
+        validProofs,
+        meta.witness,
+        options.verifier
+      );
+      const threshold = parseInt((meta.witness.threshold ?? 0).toString(), 10);
+      if (approvals < threshold) {
+        throw new Error(`Witness threshold not met for version ${meta.versionId}: got ${approvals}, need ${meta.witness.threshold}`);
       }
     }
 

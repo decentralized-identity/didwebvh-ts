@@ -214,11 +214,11 @@ describe("Witness CLI End-to-End Tests", async () => {
     try {
       // Use the test implementation instead of generateEd25519VerificationMethod
       const witness = await generateTestVerificationMethod();
-      // Parse the witness log and get the verification key from the state
-      const witnessDIDKey = `did:key:${witness.publicKeyMultibase}#${witness.publicKeyMultibase}`;
+      // Witness ids are did:key DIDs (not DID URLs with fragments)
+      const witnessDid = `did:key:${witness.publicKeyMultibase}`;
       
       // Run the CLI create command with witness
-      const proc = await $`bun run cli create --domain localhost:8000 --output ${logFile} --witness ${witnessDIDKey} --witness-threshold 1`.quiet();
+      const proc = await $`bun run cli create --domain localhost:8000 --output ${logFile} --witness ${witnessDid} --witness-threshold 1`.quiet();
 
       expect(proc.exitCode).toBe(0);
       
@@ -231,11 +231,30 @@ describe("Witness CLI End-to-End Tests", async () => {
       }
       
       expect(log[0].parameters.witness.witnesses).toHaveLength(1);
-      expect(log[0].parameters.witness.witnesses?.[0]?.id).toBe(witnessDIDKey);
+      expect(log[0].parameters.witness.witnesses?.[0]?.id).toBe(witnessDid);
       expect(log[0].parameters.witness.threshold).toBe(1);
     } catch (error) {
       console.error('Error in witness test:', error);
       throw error;
     }
+  });
+
+  test("Generate witness proof for multiple version IDs", async () => {
+    const witness = await generateTestVerificationMethod();
+    const witnessDid = `did:key:${witness.publicKeyMultibase}`;
+    const outputFile = join(TEST_DIR, 'did-witness-multi.json');
+
+    const proc = await $`bun run cli generate-witness-proof --version-id 1-abc123 --version-id 2-def456 --witness-did ${witnessDid} --witness-secret ${witness.secretKeyMultibase!} --output ${outputFile}`.quiet();
+    expect(proc.exitCode).toBe(0);
+
+    const content = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+    expect(Array.isArray(content)).toBe(true);
+    expect(content).toHaveLength(2);
+    expect(content[0].versionId).toBe('1-abc123');
+    expect(content[1].versionId).toBe('2-def456');
+    expect(content[0].proof).toHaveLength(1);
+    expect(content[1].proof).toHaveLength(1);
+    expect(content[0].proof[0].proofPurpose).toBe('assertionMethod');
+    expect(content[1].proof[0].proofPurpose).toBe('assertionMethod');
   });
 });

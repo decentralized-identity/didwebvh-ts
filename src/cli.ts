@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 import { createDID, updateDID, deactivateDID, resolveDIDFromLog } from './method';
-import { fetchLogFromIdentifier, readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './utils';
+import { fetchLogFromIdentifier, parseDidKeyDid, readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './utils';
 import { dirname } from 'path';
 import fs from 'fs';
-import { DIDLog, ServiceEndpoint, VerificationMethod, Verifier, DataIntegrityProofTemplate } from './interfaces';
+import { DIDLog, ServiceEndpoint, VerificationMethod, Verifier } from './interfaces';
 import { createBuffer } from './utils/buffer';
 import { bufferToString } from './utils/buffer';
 import { Signer, SigningInput, SigningOutput } from './interfaces';
@@ -18,7 +18,7 @@ import { multibaseDecode } from './utils/multiformats';
 import { generateKeyPair } from '@stablelib/ed25519';
 import { canonicalizeStrict } from './utils/canonicalize';
 
-import { createWitnessProof } from './witness';
+import { signWitnessProofEntries } from './witness';
 
 const usage = `
 Usage: bun run cli [command] [options]
@@ -47,12 +47,12 @@ Options:
   --witness-file [file]     Path to witness proofs file (optional for resolve)
 
   # Options for generate-witness-proof:
-  --version-id [id]         The version ID to generate proofs for (required)
+  --version-id [id]         The version ID to generate proofs for (required, can be used multiple times)
   --witness-did [did]       Witness DID (did:key) (can be used multiple times)
   --witness-secret [secret] Witness secret key multibase (matches witness-did order)
 
 Examples:
-  bun run cli create --address example.com --portable --witness did:example:witness1 --witness did:example:witness2
+  bun run cli create --address example.com --portable --witness did:key:z6Mk... --witness did:key:z6Mk...
   bun run cli create --address https://example.com --portable
   bun run cli create --address "example.com:3000" --portable
   bun run cli create --address "did:webvh:example.com:3000" --portable
@@ -62,6 +62,7 @@ Examples:
   bun run cli update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
   bun run cli deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
   bun run cli generate-witness-proof --version-id 1-abc123 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
+  bun run cli generate-witness-proof --version-id 1-abc123 --version-id 2-def456 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
   bun run cli generate-vm
 `;
 
@@ -409,13 +410,18 @@ export async function handleDeactivate(args: string[]) {
 
 async function handleGenerateWitnessProof(args: string[]) {
   const options = parseOptions(args);
-  const versionId = options['version-id'] as string;
+  const rawVersionIds = options['version-id'];
+  const versionIds = Array.isArray(rawVersionIds)
+    ? rawVersionIds
+    : rawVersionIds
+      ? [rawVersionIds]
+      : [];
   const witnessDids = options['witness-did'] as string[] | undefined;
   const witnessSecrets = options['witness-secret'] as string[] | undefined;
   const output = options['output'] as string;
 
-  if (!versionId) {
-    console.error('Version ID is required');
+  if (versionIds.length === 0) {
+    console.error('At least one --version-id is required');
     process.exit(1);
   }
   if (!output) {
@@ -427,39 +433,34 @@ async function handleGenerateWitnessProof(args: string[]) {
     process.exit(1);
   }
 
-  const proofs = [];
+  const witnessSignersByDid: Record<string, Signer> = {};
+  const witnesses: { id: string }[] = [];
+
   for (let i = 0; i < witnessDids.length; i++) {
     const did = witnessDids[i];
     const secret = witnessSecrets[i];
-    const publicKeyMultibase = did.split(':')[2];
+    const { did: normalizedDid, keyMultibase: publicKeyMultibase } = parseDidKeyDid(did);
     const vm: VerificationMethod = {
       type: 'Multikey',
       publicKeyMultibase,
       secretKeyMultibase: secret,
       purpose: 'authentication'
     };
-    const crypto = createCustomCrypto(vm);
-    const signerFn = async (data: any) => {
-      const proofTemplate: DataIntegrityProofTemplate = {
-        type: 'DataIntegrityProof',
-        cryptosuite: 'eddsa-jcs-2022',
-        verificationMethod: `${did}#${publicKeyMultibase}`,
-        created: new Date().toISOString(),
-        proofPurpose: 'assertionMethod'
-      };
-      const signingInput = { document: data, proof: proofTemplate };
-      const signed = await crypto.sign(signingInput);
-      return { proof: { ...proofTemplate, proofValue: signed.proofValue } };
-    };
-    const verificationMethod = `${did}#${publicKeyMultibase}`;
-    const proof = await createWitnessProof(signerFn, versionId, verificationMethod);
-    proofs.push(proof);
+
+    witnessSignersByDid[normalizedDid] = createCustomCrypto(vm);
+    witnesses.push({ id: normalizedDid });
   }
 
-  const witnessFileContent = [{
-    versionId,
-    proof: proofs
-  }];
+  const witnessEntries = await signWitnessProofEntries(
+    versionIds,
+    witnesses,
+    witnessSignersByDid,
+  );
+
+  const witnessFileContent = witnessEntries.map((entry) => ({
+    versionId: entry.versionId,
+    proof: entry.proof
+  }));
 
   fs.writeFileSync(output, JSON.stringify(witnessFileContent, null, 2));
   console.log(`Witness proof file generated at ${output}`);
@@ -473,7 +474,7 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
     if (args[i].startsWith('--')) {
       const key = args[i].slice(2);
       if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
-        if (key === 'witness' || key === 'service' || key === 'also-known-as' || key === 'next-key-hash' || key === 'watcher' || key === 'witness-did' || key === 'witness-secret') {
+        if (key === 'witness' || key === 'service' || key === 'also-known-as' || key === 'next-key-hash' || key === 'watcher' || key === 'witness-did' || key === 'witness-secret' || key === 'version-id') {
           options[key] = options[key] || [];
           (options[key] as string[]).push(args[++i]);
         } else if (key === 'add-vm') {
