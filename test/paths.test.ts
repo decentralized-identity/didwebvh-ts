@@ -15,7 +15,7 @@ describe("Paths feature", () => {
     });
     
     // Should only contain domain, no additional path components
-    const didParts = doc.id.split(':');
+    const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(4); // did:webvh:scid:domain
     expect(didParts[3]).toBe('example.com');
   });
@@ -33,7 +33,7 @@ describe("Paths feature", () => {
     });
     
     // Should contain domain + single path component
-    const didParts = doc.id.split(':');
+    const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(5); // did:webvh:scid:domain:path
     expect(didParts[3]).toBe('example.com');
     expect(didParts[4]).toBe('api');
@@ -52,7 +52,7 @@ describe("Paths feature", () => {
     });
     
     // Should contain domain + multiple path components
-    const didParts = doc.id.split(':');
+    const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(7); // did:webvh:scid:domain:path1:path2:path3
     expect(didParts[3]).toBe('example.com');
     expect(didParts[4]).toBe('api');
@@ -73,7 +73,7 @@ describe("Paths feature", () => {
     });
     
     // Should only contain domain, no additional path components
-    const didParts = doc.id.split(':');
+    const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(4); // did:webvh:scid:domain
     expect(didParts[3]).toBe('example.com');
   });
@@ -91,7 +91,7 @@ describe("Paths feature", () => {
     });
     
     // Should contain domain + path components with special characters
-    const didParts = doc.id.split(':');
+    const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(7); // did:webvh:scid:domain:path1:path2:path3
     expect(didParts[3]).toBe('example.com');
     expect(didParts[4]).toBe('path-with-dash');
@@ -112,7 +112,7 @@ describe("Paths feature", () => {
     });
     
     // Should contain encoded domain + path components
-    const didParts = doc.id.split(':');
+    const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(6); // did:webvh:scid:domain:path1:path2
     expect(didParts[3]).toBe('localhost%3A3000'); // domain should be encoded
     expect(didParts[4]).toBe('api');
@@ -132,7 +132,7 @@ describe("Paths feature", () => {
     });
     
     // Controller should match the DID ID
-    expect(doc.controller).toBe(doc.id);
+    expect(doc.controller).toBe(doc.id!);
     expect(doc.controller).toContain('example.com:api:v2');
   });
 
@@ -149,8 +149,8 @@ describe("Paths feature", () => {
     });
     
     // Verification method ID should include the paths in the DID
-    expect(doc.verificationMethod[0].id).toContain('example.com:secure:keys');
+    expect(doc.verificationMethod![0]!.id).toContain('example.com:secure:keys');
     // Verify the ID starts with the correct DID prefix
-    expect(doc.verificationMethod[0].id).toStartWith(doc.id + '#');
+    expect(doc.verificationMethod![0]!.id).toStartWith(doc.id! + '#');
   });
 }); 
