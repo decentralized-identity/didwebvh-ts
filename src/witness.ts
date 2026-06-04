@@ -84,9 +84,13 @@ export async function createWitnessProof(
   }
 
   return {
-    ...sanitizedProof,
+    id: sanitizedProof.id,
+    type: sanitizedProof.type ?? proofTemplate.type,
+    cryptosuite: sanitizedProof.cryptosuite ?? proofTemplate.cryptosuite,
     verificationMethod: sanitizedProof.verificationMethod,
-    proofValue: sanitizedProof.proofValue
+    created: sanitizedProof.created ?? proofTemplate.created,
+    proofValue: sanitizedProof.proofValue,
+    proofPurpose: sanitizedProof.proofPurpose ?? proofTemplate.proofPurpose,
   };
 }
 
