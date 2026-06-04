@@ -9,7 +9,12 @@ import {
   signWitnessProofEntries,
   signWitnessProofEntry,
 } from '../src/witness';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 describe('Witness Implementation Tests', async () => {
   let authKey: VerificationMethod;
@@ -33,7 +38,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 2,
         witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }, { id: `did:key:${witness2.publicKeyMultibase}` }],
@@ -81,7 +86,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -91,7 +96,7 @@ describe('Witness Implementation Tests', async () => {
       log: noWitnessDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [newAuthKey.publicKeyMultibase!],
-      verificationMethods: [newAuthKey],
+      verificationMethods: asPublicVerificationMethods(newAuthKey),
       witness: {
         threshold: 2,
         witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }, { id: `did:key:${witness2.publicKeyMultibase}` }],
@@ -130,7 +135,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -141,7 +146,7 @@ describe('Witness Implementation Tests', async () => {
       log: noWitnessDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [newAuthKey.publicKeyMultibase!],
-      verificationMethods: [newAuthKey],
+      verificationMethods: asPublicVerificationMethods(newAuthKey),
       verifier: testImplementation,
     });
 
@@ -185,7 +190,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 1,
         witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }],
@@ -203,7 +208,7 @@ describe('Witness Implementation Tests', async () => {
       log: created.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey2.publicKeyMultibase!],
-      verificationMethods: [authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey2),
       verifier: testImplementation,
       witnessProofs: [
         {
@@ -245,7 +250,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 1,
         witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }],
@@ -263,7 +268,7 @@ describe('Witness Implementation Tests', async () => {
       log: created.log,
       signer: createTestSigner(authKey),
       updateKeys: [`did:key:${authKey2.publicKeyMultibase}`],
-      verificationMethods: [authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey2),
       verifier: testImplementation,
       witnessProofs: [
         {
@@ -284,7 +289,7 @@ describe('Witness Implementation Tests', async () => {
         log: firstUpdate.log,
         signer: createTestSigner(authKey2),
         updateKeys: [authKey3.publicKeyMultibase!],
-        verificationMethods: [authKey3],
+        verificationMethods: asPublicVerificationMethods(authKey3),
         verifier: testImplementation,
         witnessProofs: [
           {
@@ -307,7 +312,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -322,7 +327,7 @@ describe('Witness Implementation Tests', async () => {
         log: created.log,
         signer: nonCompliantSigner,
         updateKeys: [authKey2.publicKeyMultibase!],
-        verificationMethods: [authKey2],
+        verificationMethods: asPublicVerificationMethods(authKey2),
         verifier: testImplementation,
       })
     ).rejects.toThrow('Unsupported verification method for DID log entry authorization');
@@ -345,7 +350,7 @@ describe('Witness Implementation Tests', async () => {
       log: initialDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 1,
         witnesses: [{ id: `did:key:${newWitness.publicKeyMultibase}` }],
@@ -388,7 +393,7 @@ describe('Witness Implementation Tests', async () => {
       log: initialDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: null,
       verifier: testImplementation,
       witnessProofs,
@@ -611,7 +616,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 1,
         witnesses: [{ id: witnessDid }],
@@ -623,7 +628,7 @@ describe('Witness Implementation Tests', async () => {
       log: didWithWitness.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
       witnessProofs: [
         {
@@ -664,7 +669,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 1,
         witnesses: [{ id: witnessDid }],
@@ -676,7 +681,7 @@ describe('Witness Implementation Tests', async () => {
       log: didWithWitness.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
       witnessProofs: [
         {
@@ -725,7 +730,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 1,
         witnesses: [{ id: witnessDid1 }, { id: witnessDid2 }],
@@ -766,7 +771,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 1,
         witnesses: [{ id: witnessDid }],
@@ -778,7 +783,7 @@ describe('Witness Implementation Tests', async () => {
       log: didWithWitness.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
       witnessProofs: [
         {
@@ -825,7 +830,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -836,7 +841,7 @@ describe('Witness Implementation Tests', async () => {
         log: noWitnessDID.log,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: [authKey],
+        verificationMethods: asPublicVerificationMethods(authKey),
         witness: {
           threshold: 2,
           witnesses: [{ id: duplicateWitnessId }, { id: duplicateWitnessId }],
@@ -851,7 +856,7 @@ describe('Witness Implementation Tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -859,7 +864,7 @@ describe('Witness Implementation Tests', async () => {
       log: noWitnessDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       witness: {
         threshold: 2,
         witnesses: [],

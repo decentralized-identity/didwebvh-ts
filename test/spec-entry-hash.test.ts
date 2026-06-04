@@ -2,7 +2,12 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { deriveHash } from '../src/utils';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 // didwebvh v1.0 §"Entry Hash Generation and Verification":
 //   "The versionId used in the input to the hash is a predecessor value to the
@@ -32,7 +37,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       created: '2024-01-01T00:00:00Z',
       verifier,
     });
@@ -43,7 +48,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
         log,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: [authKey],
+        verificationMethods: asPublicVerificationMethods(authKey),
         updated,
         verifier,
       });

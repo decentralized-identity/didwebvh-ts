@@ -2,7 +2,12 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { getBaseUrl, getFileUrl } from '../src/utils';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 describe('resolveDIDFromLog with verificationMethod', () => {
   let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
@@ -25,7 +30,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier: testImplementation,
     });
     fullLog = initialDID.log;
@@ -35,7 +40,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       log: fullLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1, authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey1, authKey2),
       updated: '2023-02-01T00:00:00Z',
       verifier: testImplementation,
     });
@@ -46,7 +51,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       log: fullLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1, authKey2, keyAgreementKey],
+      verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey),
       updated: '2023-03-01T00:00:00Z',
       verifier: testImplementation,
     });
@@ -57,7 +62,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       log: fullLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1, authKey2, keyAgreementKey, assertionKey],
+      verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey, assertionKey),
       updated: '2023-03-01T00:00:00Z',
       verifier: testImplementation,
     });

@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { createDID } from '../src/method';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 describe('Paths feature', () => {
   test('creates DID without paths (default behavior)', async () => {
@@ -10,7 +15,7 @@ describe('Paths feature', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -28,7 +33,7 @@ describe('Paths feature', () => {
       paths: ['api'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -47,7 +52,7 @@ describe('Paths feature', () => {
       paths: ['api', 'v1', 'users'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -68,7 +73,7 @@ describe('Paths feature', () => {
       paths: [],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -86,7 +91,7 @@ describe('Paths feature', () => {
       paths: ['path-with-dash', 'path_with_underscore', 'path.with.dots'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -107,7 +112,7 @@ describe('Paths feature', () => {
       paths: ['api', 'health'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -127,7 +132,7 @@ describe('Paths feature', () => {
       paths: ['api', 'v2'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -144,7 +149,7 @@ describe('Paths feature', () => {
       paths: ['secure', 'keys'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 

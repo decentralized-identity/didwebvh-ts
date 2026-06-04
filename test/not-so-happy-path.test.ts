@@ -2,7 +2,12 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import { type DIDLog, DidResolutionError, type VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 describe('Not So Happy Path Tests', () => {
   let authKey: VerificationMethod;
@@ -17,7 +22,7 @@ describe('Not So Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
   });
@@ -44,7 +49,7 @@ describe('Not So Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -52,7 +57,7 @@ describe('Not So Happy Path Tests', () => {
       log: log1,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -70,7 +75,7 @@ describe('Not So Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
     currentLog = log0;
@@ -80,7 +85,7 @@ describe('Not So Happy Path Tests', () => {
         log: currentLog,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: [authKey],
+        verificationMethods: asPublicVerificationMethods(authKey),
         verifier: testImplementation,
       });
       currentLog = nextLog;
@@ -104,7 +109,7 @@ describe('Not So Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
     currentLog = log0;
@@ -114,7 +119,7 @@ describe('Not So Happy Path Tests', () => {
         log: currentLog,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: [authKey],
+        verificationMethods: asPublicVerificationMethods(authKey),
         verifier: testImplementation,
       });
       currentLog = nextLog;
@@ -137,7 +142,7 @@ describe('Not So Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -145,7 +150,7 @@ describe('Not So Happy Path Tests', () => {
       log: log1,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -153,7 +158,7 @@ describe('Not So Happy Path Tests', () => {
       log: log2,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -184,7 +189,7 @@ describe('Not So Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 

@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { createDID } from '../src/method';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 type InputKind = 'domain' | 'address';
 
@@ -11,7 +16,7 @@ async function createFromInput(kind: InputKind, value: string) {
   const baseOptions = {
     signer: createTestSigner(authKey),
     updateKeys: [authKey.publicKeyMultibase!],
-    verificationMethods: [authKey],
+    verificationMethods: asPublicVerificationMethods(authKey),
     verifier,
   };
 

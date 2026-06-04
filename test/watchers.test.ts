@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 describe('Watcher Handling', () => {
   test('Create DID with watchers', async () => {
@@ -12,7 +17,7 @@ describe('Watcher Handling', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers,
       verifier,
     });
@@ -30,7 +35,7 @@ describe('Watcher Handling', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers,
       verifier,
     });
@@ -39,7 +44,7 @@ describe('Watcher Handling', () => {
       log: initial.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -56,7 +61,7 @@ describe('Watcher Handling', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers,
       verifier,
     });
@@ -65,7 +70,7 @@ describe('Watcher Handling', () => {
       log: initial.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers: null,
       verifier,
     });

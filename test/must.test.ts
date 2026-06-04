@@ -2,7 +2,12 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createWitnessProof } from '../src/witness';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 describe('did:webvh normative tests', async () => {
   let newDoc1: any;
@@ -18,7 +23,7 @@ describe('did:webvh normative tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       created: '2024-01-01T08:32:55Z',
       verifier: testImplementation,
     });
@@ -52,7 +57,7 @@ describe('did:webvh normative tests', async () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
       context: newDoc1['@context'],
-      verificationMethods: [authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey2),
       updated: '2024-02-01T08:32:55Z',
       verifier: testImplementation,
     });
@@ -124,7 +129,7 @@ describe('did:webvh normative witness tests', async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier: testImplementation,
       witness: {
         threshold: 2,
@@ -144,7 +149,7 @@ describe('did:webvh normative witness tests', async () => {
         domain: 'example.com',
         signer: createTestSigner(authKey1),
         updateKeys: [authKey1.publicKeyMultibase!],
-        verificationMethods: [authKey1],
+        verificationMethods: asPublicVerificationMethods(authKey1),
         verifier: testImplementation,
         witness: {
           threshold: 2,

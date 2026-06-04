@@ -1,9 +1,39 @@
 import { describe, expect, test } from 'bun:test';
 import { createDID, updateDID } from '../src/method';
 import { generateParallelDidWeb } from '../src/utils';
-import { createTestSigner, createTestVerifier, generateTestVerificationMethod } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  createTestVerifier,
+  generateTestVerificationMethod,
+} from './utils';
 
 describe('didDocument create pass-through', () => {
+  test('warns and strips secretKeyMultibase when createDID receives secret-bearing verificationMethods', async () => {
+    const authKey = await generateTestVerificationMethod();
+
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+
+    try {
+      const { doc } = await createDID({
+        domain: 'example.com',
+        signer: createTestSigner(authKey),
+        verifier: createTestVerifier(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: [authKey],
+      });
+
+      expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
+      expect((doc.verificationMethod ?? []).every((vm: any) => vm.secretKeyMultibase === undefined)).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
   test('creates DID from pass-through didDocument and replaces placeholders', async () => {
     const authKey = await generateTestVerificationMethod();
     const signer = createTestSigner(authKey);
@@ -83,6 +113,38 @@ describe('didDocument create pass-through', () => {
       })
     ).rejects.toThrow('alsoKnownAs is not an array');
   });
+
+  test('warns and strips secretKeyMultibase when updateDID receives secret-bearing verificationMethods', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const created = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      verifier: createTestVerifier(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+    });
+
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+
+    try {
+      const updated = await updateDID({
+        log: created.log,
+        signer: createTestSigner(authKey),
+        verifier: createTestVerifier(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: [authKey],
+      });
+
+      expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
+      expect((updated.doc.verificationMethod ?? []).every((vm: any) => vm.secretKeyMultibase === undefined)).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
 });
 
 describe('generateParallelDidWeb', () => {
@@ -93,7 +155,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -108,7 +170,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -123,7 +185,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       alsoKnownAsWeb: true,
     });
 
@@ -139,7 +201,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
     });
 
     expect(result.webDoc).toBeUndefined();
@@ -152,7 +214,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -174,7 +236,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -193,7 +255,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -212,7 +274,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -231,7 +293,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       alsoKnownAsWeb: true,
     });
 
@@ -248,7 +310,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       alsoKnownAsWeb: true,
     });
 
@@ -257,7 +319,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       alsoKnownAs: created.doc.alsoKnownAs,
     });
 

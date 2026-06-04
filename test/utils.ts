@@ -98,3 +98,11 @@ export function createTestSigner(verificationMethod: VerificationMethod): Signer
 export function createTestVerifier(verificationMethod: VerificationMethod): Verifier {
   return new TestCryptoImplementation({ verificationMethod });
 }
+
+// Helper to produce DID document-safe verification methods by stripping secret key material
+export function asPublicVerificationMethods(...verificationMethods: VerificationMethod[]): VerificationMethod[] {
+  return verificationMethods.map((verificationMethod) => {
+    const { secretKeyMultibase, ...publicVerificationMethod } = verificationMethod;
+    return publicVerificationMethod;
+  });
+}

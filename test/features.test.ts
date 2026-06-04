@@ -2,7 +2,12 @@ import { beforeAll, expect, test } from 'bun:test';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createDate, deriveNextKeyHash } from '../src/utils';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 let log: DIDLog;
 let authKey1: VerificationMethod,
@@ -25,7 +30,7 @@ beforeAll(async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     verifier: testImplementation,
   });
@@ -35,7 +40,7 @@ beforeAll(async () => {
     signer: createTestSigner(authKey1),
     updateKeys: [authKey2.publicKeyMultibase!],
     context: newDoc1['@context'],
-    verificationMethods: [authKey2],
+    verificationMethods: asPublicVerificationMethods(authKey2),
     updated: createDate(new Date('2021-02-01T08:32:55Z')),
     verifier: testImplementation,
   });
@@ -45,7 +50,7 @@ beforeAll(async () => {
     signer: createTestSigner(authKey2),
     updateKeys: [authKey3.publicKeyMultibase!],
     context: newDoc2['@context'],
-    verificationMethods: [authKey3],
+    verificationMethods: asPublicVerificationMethods(authKey3),
     updated: createDate(new Date('2021-03-01T08:32:55Z')),
     verifier: testImplementation,
   });
@@ -55,7 +60,7 @@ beforeAll(async () => {
     signer: createTestSigner(authKey3),
     updateKeys: [authKey4.publicKeyMultibase!],
     context: newDoc3['@context'],
-    verificationMethods: [authKey4],
+    verificationMethods: asPublicVerificationMethods(authKey4),
     updated: createDate(new Date('2021-04-01T08:32:55Z')),
     verifier: testImplementation,
   });
@@ -66,7 +71,7 @@ beforeAll(async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     portable: false, // Set portable to false
     verifier: testImplementation,
@@ -76,7 +81,7 @@ beforeAll(async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
-    verificationMethods: [authKey2],
+    verificationMethods: asPublicVerificationMethods(authKey2),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     portable: true, // Set portable to true
     verifier: testImplementation,
@@ -134,7 +139,7 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
 
@@ -143,7 +148,7 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey2.publicKeyMultibase!],
-    verificationMethods: [authKey2],
+    verificationMethods: asPublicVerificationMethods(authKey2),
     verifier: testImplementation,
   });
 
@@ -160,7 +165,7 @@ test('Require `nextKeyHashes` to continue if previously set', async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -172,7 +177,7 @@ test('Require `nextKeyHashes` to continue if previously set', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
 
@@ -186,7 +191,7 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -198,7 +203,7 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
 
@@ -213,7 +218,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -223,7 +228,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
 

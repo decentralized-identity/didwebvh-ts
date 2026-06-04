@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { createDID, updateDID } from '../src/method';
-import { createTestSigner, generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 describe('Happy Path Tests', () => {
   test('Create DID with single auth key', async () => {
@@ -11,7 +16,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -30,7 +35,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!],
-      verificationMethods: [authKey1, authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey1, authKey2),
       verifier,
     });
 
@@ -49,7 +54,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -58,7 +63,7 @@ describe('Happy Path Tests', () => {
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
-      verificationMethods: [authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey2),
       verifier,
     });
 
@@ -75,7 +80,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -85,7 +90,7 @@ describe('Happy Path Tests', () => {
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
-      verificationMethods: [authKey2, authKey3],
+      verificationMethods: asPublicVerificationMethods(authKey2, authKey3),
       verifier,
     });
 
@@ -103,7 +108,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -130,7 +135,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -143,7 +148,7 @@ describe('Happy Path Tests', () => {
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [assertionKey, keyAgreementKey],
+      verificationMethods: asPublicVerificationMethods(assertionKey, keyAgreementKey),
       verifier,
     });
 
@@ -161,7 +166,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -191,7 +196,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -216,7 +221,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -240,7 +245,7 @@ describe('Happy Path Tests', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
