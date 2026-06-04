@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
 import { DidResolutionError } from "../src/interfaces";
-import type { DIDLog, Signer, VerificationMethod } from "../src/interfaces";
+import type { DIDLog, Signer, VerificationMethod, DataIntegrityProofTemplate } from "../src/interfaces";
 import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
-import { parseDidKeyDid, parseDidKeyVerificationMethod } from "../src/utils";
+import { deriveHash, parseDidKeyDid, parseDidKeyVerificationMethod } from "../src/utils";
 import {
   countWitnessApprovals,
   createWitnessProof,
@@ -125,6 +125,60 @@ describe("Witness Implementation Tests", async () => {
     expect(resolved.meta?.witness?.threshold).toBe(2);
     expect(updatedDID.log).toHaveLength(2);
     expect(resolved.meta?.witness?.witnesses).toHaveLength(2);
+  });
+
+  test("Resolve DID rejects duplicate witness IDs in witness parameters", async () => {
+    const noWitnessDID = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      verifier: testImplementation
+    });
+
+    const duplicateWitnessId = `did:key:${witness1.publicKeyMultibase}`;
+    const newAuthKey = await generateTestVerificationMethod();
+
+    const updatedDID = await updateDID({
+      log: noWitnessDID.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [newAuthKey.publicKeyMultibase!],
+      verificationMethods: [newAuthKey],
+      verifier: testImplementation
+    });
+
+    const duplicateWitnessEntry = JSON.parse(JSON.stringify(updatedDID.log[1]));
+    duplicateWitnessEntry.parameters.witness = {
+      threshold: 2,
+      witnesses: [
+        { id: duplicateWitnessId },
+        { id: duplicateWitnessId }
+      ]
+    };
+
+    delete duplicateWitnessEntry.proof;
+    const logEntryHash = await deriveHash({
+      ...duplicateWitnessEntry,
+      versionId: updatedDID.log[0].versionId,
+    });
+    duplicateWitnessEntry.versionId = `2-${logEntryHash}`;
+
+    const signer = createTestSigner(authKey);
+    const proofTemplate: DataIntegrityProofTemplate = {
+      type: 'DataIntegrityProof',
+      cryptosuite: 'eddsa-jcs-2022',
+      verificationMethod: signer.getVerificationMethodId(),
+      created: duplicateWitnessEntry.versionTime,
+      proofPurpose: 'assertionMethod' as const,
+    };
+    const signedProof = await signer.sign({ document: duplicateWitnessEntry, proof: proofTemplate });
+    duplicateWitnessEntry.proof = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
+
+    const tamperedLog = [updatedDID.log[0], duplicateWitnessEntry];
+
+    expect(resolveDIDFromLog(tamperedLog, {
+      verifier: testImplementation
+    })).rejects.toThrow(`Duplicate witness id: ${duplicateWitnessId}`);
   });
 
   test("API e2e: create, update, witness, and resolve with raw multibase updateKeys", async () => {
@@ -406,12 +460,24 @@ describe("Witness Implementation Tests", async () => {
       }
     ];
 
-    await expect(
-      resolveDIDFromLog(initialDID.log, {
-        witnessProofs,
-        verifier: testImplementation
-      })
-    ).rejects.toThrow(`Witness threshold not met for version ${initialDID.log[0].versionId}`);
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "));
+    };
+
+    try {
+      await expect(
+        resolveDIDFromLog(initialDID.log, {
+          witnessProofs,
+          verifier: testImplementation
+        })
+      ).rejects.toThrow(`Witness threshold not met for version ${initialDID.log[0].versionId}`);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    expect(warnings.some((msg) => msg.includes("Invalid witness proof purpose"))).toBe(true);
   });
 
   test("parseDidKeyDid accepts a valid did:key DID", () => {
@@ -698,6 +764,58 @@ describe("Witness Implementation Tests", async () => {
     expect(resolved.meta.problemDetails!.type).toBe('https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID');
     expect(resolved.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
     expect(resolved.meta.problemDetails!.detail).toContain('Witness threshold not met');
+  });
+
+  test("Update DID rejects duplicate witness IDs", async () => {
+    const noWitnessDID = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      verifier: testImplementation
+    });
+
+    const duplicateWitnessId = `did:key:${witness1.publicKeyMultibase}`;
+
+    expect(updateDID({
+      log: noWitnessDID.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      witness: {
+        threshold: 2,
+        witnesses: [
+          { id: duplicateWitnessId },
+          { id: duplicateWitnessId }
+        ]
+      },
+      verifier: testImplementation
+    })).rejects.toThrow(`Duplicate witness id: ${duplicateWitnessId}`);
+  });
+
+  test("Update DID normalizes empty witness list to inactive state", async () => {
+    const noWitnessDID = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      verifier: testImplementation
+    });
+
+    const updatedDID = await updateDID({
+      log: noWitnessDID.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: [authKey],
+      witness: {
+        threshold: 2,
+        witnesses: []
+      },
+      verifier: testImplementation
+    });
+
+    expect(updatedDID.meta.witness).toEqual({});
+    expect(updatedDID.log[1].parameters.witness).toEqual({});
   });
 
   const createWitnessSigner = (verificationMethod: VerificationMethod) => {
