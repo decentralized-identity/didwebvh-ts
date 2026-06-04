@@ -1,11 +1,68 @@
 import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
 import { BASE_CONTEXT } from './constants';
-import type { CreateDIDInterface, DIDDoc, DIDLog, ServiceEndpoint, VerificationMethod, WitnessProofFileEntry } from './interfaces';
+import type { CreateDIDInterface, DIDDoc, DIDLog, ParsedDidKeyVerificationMethod, ServiceEndpoint, VerificationMethod, WitnessProofFileEntry } from './interfaces';
 import { resolveDIDFromLog } from './method';
 import { bufferToString, createBuffer } from './utils/buffer';
 import { createHash } from './utils/crypto';
-import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from './utils/multiformats';
+import { createMultihash, encodeBase58Btc, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
+
+const DID_KEY_PREFIX = 'did:key:';
+
+function validateDidKeyMultibase(keyMultibase: string): void {
+  if (!keyMultibase) {
+    throw new Error('Malformed did:key identifier');
+  }
+
+  try {
+    multibaseDecode(keyMultibase);
+  } catch (error: any) {
+    throw new Error(`Malformed did:key identifier: ${error.message}`);
+  }
+}
+
+export function parseDidKeyDid(input: string): { did: string; keyMultibase: string } {
+  if (typeof input !== 'string') {
+    throw new Error('did:key DID must be a string');
+  }
+
+  const match = input.match(/^did:key:([^#/?]+)$/);
+  if (!match) {
+    throw new Error('Malformed did:key DID');
+  }
+
+  const keyMultibase = match[1];
+  validateDidKeyMultibase(keyMultibase);
+
+  return {
+    did: `${DID_KEY_PREFIX}${keyMultibase}`,
+    keyMultibase,
+  };
+}
+
+export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerificationMethod {
+  if (typeof input !== 'string') {
+    throw new Error('did:key verificationMethod must be a string');
+  }
+
+  if (input.startsWith('#')) {
+    throw new Error('did:key verificationMethod must be an absolute DID URL');
+  }
+
+  const match = input.match(/^did:key:([^#/?]+)(?:#([^#/?]+))?$/);
+  if (!match) {
+    throw new Error('Malformed did:key verificationMethod');
+  }
+
+  const parsedDid = parseDidKeyDid(`${DID_KEY_PREFIX}${match[1]}`);
+  const fragment = match[2];
+
+  return {
+    did: parsedDid.did,
+    fragment,
+    keyMultibase: parsedDid.keyMultibase,
+  };
+}
 
 // Canonical address parser for strict parity with didwebvh-rs
 interface ParsedAddress {
@@ -701,7 +758,8 @@ export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefine
 export const resolveVM = async (vm: string) => {
   try {
     if (vm.startsWith('did:key:')) {
-      return {publicKeyMultibase: vm.split('did:key:')[1].split('#')[0]}
+      const parsedVerificationMethod = parseDidKeyVerificationMethod(vm);
+      return {publicKeyMultibase: parsedVerificationMethod.keyMultibase}
     }
     else if (vm.startsWith('did:webvh:')) {
       const url = getFileUrl(vm.split('#')[0]);

@@ -46,6 +46,23 @@ export interface ProblemDetails {
   detail: string;
 }
 
+export enum DidResolutionError {
+  NotFound = 'notFound',
+  InvalidDid = 'invalidDid',
+  LegacyNotFound = 'NOT_FOUND',
+  LegacyInvalidDid = 'INVALID_DID',
+  InvalidDidUrl = 'INVALID_DID_URL',
+  InvalidOptions = 'INVALID_OPTIONS',
+  RepresentationNotSupported = 'REPRESENTATION_NOT_SUPPORTED',
+  MethodNotSupported = 'METHOD_NOT_SUPPORTED',
+  UnsupportedPublicKeyType = 'UNSUPPORTED_PUBLIC_KEY_TYPE',
+  LegacyInvalidDidDocument = 'INVALID_DID_DOCUMENT',
+  InvalidPublicKey = 'INVALID_PUBLIC_KEY',
+  InvalidPublicKeyLength = 'INVALID_PUBLIC_KEY_LENGTH',
+  InvalidPublicKeyType = 'INVALID_PUBLIC_KEY_TYPE',
+  InternalError = 'INTERNAL_ERROR',
+}
+
 export interface DIDResolutionMeta {
   versionId: string;
   created: string;
@@ -59,7 +76,7 @@ export interface DIDResolutionMeta {
   deactivated: boolean;
   witness?: WitnessParameterResolution;
   watchers?: string[] | null;
-  error?: 'NOT_FOUND' | 'INVALID_DID' | 'INVALID_DID_URL' | 'INVALID_OPTIONS' | 'REPRESENTATION_NOT_SUPPORTED' | 'METHOD_NOT_SUPPORTED' | 'UNSUPPORTED_PUBLIC_KEY_TYPE' | 'INVALID_DID_DOCUMENT' | 'INVALID_PUBLIC_KEY' | 'INVALID_PUBLIC_KEY_LENGTH' | 'INVALID_PUBLIC_KEY_TYPE' | 'INTERNAL_ERROR';
+  error?: DidResolutionError;
   problemDetails?: ProblemDetails;
   latestVersionId?: string;
 }
@@ -91,6 +108,24 @@ export interface VerificationMethod {
 
 export interface WitnessEntry {
   id: string; // did:key DID
+}
+
+export interface ParsedDidKeyVerificationMethod {
+  did: string;
+  fragment?: string;
+  keyMultibase: string;
+}
+
+export interface WitnessSigningOptions {
+  versionId: string;
+  witnesses: WitnessEntry[];
+  witnessSignersByDid: Record<string, Signer>;
+  created?: string;
+}
+
+export interface WitnessSigningResult {
+  versionId: string;
+  proof: DataIntegrityProof[];
 }
 
 export interface WitnessParameter {
@@ -217,6 +252,7 @@ export interface ResolutionOptions {
   verificationMethod?: string;
   verifier?: Verifier;
   scid?: string;
+  fastResolve?: boolean;
 }
 
 export interface WitnessProofFileEntry {

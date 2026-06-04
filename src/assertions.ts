@@ -1,4 +1,4 @@
-import { createSCID, deriveNextKeyHash, resolveVM } from "./utils";
+import { createSCID, deriveNextKeyHash, parseDidKeyVerificationMethod, resolveVM } from "./utils";
 import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
 import { concatBuffers } from './utils/buffer';
@@ -7,30 +7,11 @@ import { validateWitnessParameter } from './witness';
 import { multibaseDecode } from "./utils/multiformats";
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
-  if (verificationMethod.startsWith('did:key:')) {
-    const keyParts = verificationMethod.split('did:key:')[1].split('#');
-    const key = keyParts[0];
-    
-    const authorized = updateKeys.some(updateKey => {
-      let updateKeyPart = updateKey;
-      if (updateKey.startsWith('did:key:')) {
-        updateKeyPart = updateKey.split('did:key:')[1].split('#')[0];
-      }
-      
-      return updateKeyPart === key;
-    });
-    
-    return authorized;
-  }
-  return false;
-};
+  const parsedVerificationMethod = parseDidKeyVerificationMethod(verificationMethod);
 
-const isWitnessAuthorized = (verificationMethod: string, witnesses: string[]): boolean => {
-  if (verificationMethod.startsWith('did:webvh:')) {
-    const didWithoutFragment = verificationMethod.split('#')[0];
-    return witnesses.includes(didWithoutFragment);
-  }
-  return false;
+  return updateKeys.some((updateKey) => {
+    return updateKey === parsedVerificationMethod.keyMultibase;
+  });
 };
 
 export const documentStateIsValid = async (
@@ -61,16 +42,12 @@ export const documentStateIsValid = async (
   for (let i = 0; i < proofs.length; i++) {
     const proof = proofs[i];
 
-    if (proof.verificationMethod.startsWith('did:key:')) {
-      if (!isKeyAuthorized(proof.verificationMethod, updateKeys)) {
-        throw new Error(`Key ${proof.verificationMethod} is not authorized to update.`);
-      }
-    } else if (proof.verificationMethod.startsWith('did:webvh:')) {
-      if (witness && witness.witnesses && witness.witnesses.length > 0 && !isWitnessAuthorized(proof.verificationMethod, witness.witnesses.map((w: {id: string}) => w.id))) {
-        throw new Error(`Key ${proof.verificationMethod} is not from an authorized witness.`);
-      }
-    } else {
-      throw new Error(`Unsupported verification method: ${proof.verificationMethod}`);
+    if (!proof.verificationMethod.startsWith('did:key:')) {
+      throw new Error(`Unsupported verification method for DID log entry authorization: ${proof.verificationMethod}`);
+    }
+
+    if (!isKeyAuthorized(proof.verificationMethod, updateKeys)) {
+      throw new Error(`Key ${proof.verificationMethod} is not authorized to update.`);
     }
     
     if (proof.type !== 'DataIntegrityProof') {

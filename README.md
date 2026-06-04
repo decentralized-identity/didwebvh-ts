@@ -55,49 +55,61 @@ If you ever need to refresh the build (for example after local code changes), re
 The following commands are defined in the `package.json` file:
 
 1. `dev`: Run the Elysia resolver example in development mode with debugging enabled.
+
    ```bash
    bun run dev
    ```
+
   This command runs: `bun --watch --inspect-wait ./examples/elysia-resolver.ts`
 
-2. `server`: Run the Elysia resolver example in watch mode for development.
+1. `server`: Run the Elysia resolver example in watch mode for development.
+
    ```bash
    bun run server
    ```
+
   This command runs: `bun --watch ./examples/elysia-resolver.ts`
 
-3. `test`: Run all tests.
+1. `test`: Run all tests.
+
    ```bash
    bun run test
    ```
 
-4. `test:watch`: Run tests in watch mode.
+2. `test:watch`: Run tests in watch mode.
+
    ```bash
    bun run test:watch
    ```
 
-5. `test:bail`: Run tests in watch mode with bail and verbose options.
+3. `test:bail`: Run tests in watch mode with bail and verbose options.
+
    ```bash
    bun run test:bail
    ```
 
-6. `test:log`: Run tests and save logs to a file.
+4. `test:log`: Run tests and save logs to a file.
+
    ```bash
    bun run test:log
    ```
 
-7. `cli`: Run the CLI tool.
+5. `cli`: Run the CLI tool.
+
    ```bash
    bun run cli
    ```
+
    The CLI accepts a `--watcher` option during create and update operations to specify one or more watcher URLs.
 
-8. `build`: Build the package.
+6. `build`: Build the package.
+
    ```bash
    bun run build
    ```
 
-9. `build:clean`: Clean the build directory.
+7. `build:clean`: Clean the build directory.
+
    ```bash
    bun run build:clean
    ```
@@ -142,11 +154,13 @@ For this to work, the `didwebvh-ts` package on npmjs.com must have a Trusted Pub
 The `didwebvh-ts` library provides the core functionality for resolving DIDs, but it does not include a built-in HTTP resolver. You can create your own resolver using your preferred web framework by following these steps:
 
 1. Import the `resolveDID` function from the `didwebvh-ts` library:
+
    ```typescript
    import { resolveDID } from 'didwebvh-ts';
    ```
 
 2. Create endpoints for resolving DIDs:
+
    ```typescript
    // Example using Express
    app.get('/resolve/:id', async (req, res) => {
@@ -166,12 +180,30 @@ The `didwebvh-ts` library provides the core functionality for resolving DIDs, bu
 
 For complete examples, see the [examples](./examples/) directory.
 
+### Resolution metadata notes (v1.0)
+
+For `did:webvh:1.0` resolution flows, resolver failures that invalidate the DID are surfaced using:
+
+- `meta.error = "invalidDid"`
+- `meta.problemDetails` populated with RFC9457-style fields (`type`, `title`, `detail`)
+
+Absence cases (for example missing DID log or missing DID URL resource) use:
+
+- `meta.error = "notFound"`
+
+When resolving a requested earlier version (for example with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `meta.error = "invalidDid"` if a later log entry fails verification.
+
 ## API Reference
 
 ### Core Functions
 
 - `resolveDID(did: string, options?: ResolutionOptions): Promise<{did: string, doc: any, meta: DIDResolutionMeta, controlled: boolean}>`
   Resolves a DID to its DID document.
+  For `v1.0`, `options.fastResolve` is an opt-in mode defaulting to `false` for full log parsing.
+
+- `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] }): Promise<{did: string, doc: any, meta: DIDResolutionMeta}>`
+  Resolves directly from an in-memory DID log.
+  For `v1.0`, `options.fastResolve` is an opt-in mode defaulting to `false` for full log parsing.
 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
   Creates a new DID.
@@ -188,6 +220,17 @@ For complete examples, see the [examples](./examples/) directory.
 
 - `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc`
   Generates the parallel `did:web` document defined by did:webvh v1.0 §3.7.10.
+
+### Witness Functions
+
+- `createWitnessProof(signer, versionId, verificationMethod, created?): Promise<DataIntegrityProof>`
+  Creates and signs one witness proof for a specific `versionId`.
+
+- `signWitnessProofEntry(options: WitnessSigningOptions): Promise<WitnessSigningResult>`
+  Signs one did-witness proof entry (`{ versionId, proof[] }`) for a single target version.
+
+- `signWitnessProofEntries(versionIds: string[], witnesses: WitnessEntry[], witnessSignersByDid: Record<string, WitnessSigner>, created?: string): Promise<WitnessSigningResult[]>`
+  Signs did-witness proof entries for multiple target versions.
 
 ### Cryptography Functions
 

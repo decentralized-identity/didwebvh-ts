@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { AbstractCrypto, createDocumentSigner } from "../src/cryptography";
 import { SigningInput, SigningOutput, SignerOptions, Verifier } from "../src/interfaces";
 import { documentStateIsValid } from "../src/assertions";
-import { verifyWitnessProofs } from "../src/witness";
+import { countVerifiedWitnessApprovals } from "../src/witness";
 import { MultibaseEncoding } from "../src/utils/multiformats";
 import { multibaseEncode } from "../src/utils/multiformats";
 
@@ -30,6 +30,7 @@ describe("Injectable Cryptography Tests", () => {
   let failingMockImplementation: MockCryptoImplementation;
   let testDoc: any;
   let testProof: any;
+  const updateKey = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
   beforeAll(() => {
     // Create a mock implementation that succeeds verification
@@ -37,7 +38,7 @@ describe("Injectable Cryptography Tests", () => {
       verificationMethod: {
         id: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
         type: "Multikey",
-        publicKeyMultibase: "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+        publicKeyMultibase: updateKey
       }
     });
 
@@ -46,7 +47,7 @@ describe("Injectable Cryptography Tests", () => {
       verificationMethod: {
         id: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
         type: "Multikey",
-        publicKeyMultibase: "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
+        publicKeyMultibase: updateKey
       }
     }, false);
 
@@ -86,7 +87,7 @@ describe("Injectable Cryptography Tests", () => {
 
     const result = await documentStateIsValid(
       signedDoc,
-      [mockImplementation.getVerificationMethodId()],
+      [updateKey],
       null,
       true,
       mockImplementation
@@ -104,10 +105,10 @@ describe("Injectable Cryptography Tests", () => {
       }
     };
 
-    await expect(
+    expect(
       documentStateIsValid(
         signedDoc,
-        [failingMockImplementation.getVerificationMethodId()],
+        [updateKey],
         null,
         true,
         failingMockImplementation
@@ -115,7 +116,7 @@ describe("Injectable Cryptography Tests", () => {
     ).rejects.toThrow("Proof 0 failed verification");
   });
 
-  test("Verify witness proofs with successful implementation", async () => {
+  test("Count verified witness approvals with successful implementation", async () => {
     const logEntry = {
       versionId: "test-version",
       versionTime: "2024-03-06T00:00:00Z",
@@ -138,11 +139,11 @@ describe("Injectable Cryptography Tests", () => {
       }]
     };
 
-    // Should not throw — mockImplementation.verify() returns true
-    await verifyWitnessProofs(logEntry, witnessProofs, witness, mockImplementation);
+    const approvals = await countVerifiedWitnessApprovals(logEntry, witnessProofs, witness, mockImplementation);
+    expect(approvals).toBe(1);
   });
 
-  test("Verify witness proofs with failing implementation", async () => {
+  test("Count verified witness approvals logs and skips invalid proofs", async () => {
     const logEntry = {
       versionId: "test-version",
       versionTime: "2024-03-06T00:00:00Z",
@@ -165,9 +166,20 @@ describe("Injectable Cryptography Tests", () => {
       }]
     };
 
-    expect(
-      verifyWitnessProofs(logEntry, witnessProofs, witness, failingMockImplementation)
-    ).rejects.toThrow("Invalid witness proof: Invalid witness proof signature");
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "));
+    };
+
+    try {
+      const approvals = await countVerifiedWitnessApprovals(logEntry, witnessProofs, witness, failingMockImplementation);
+      expect(approvals).toBe(0);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    expect(warnings.some((msg) => msg.includes("Invalid witness proof signature"))).toBe(true);
   });
 
   test("Require verifier implementation", async () => {
@@ -179,7 +191,7 @@ describe("Injectable Cryptography Tests", () => {
       }
     };
 
-    await expect(
+    expect(
       documentStateIsValid(signedDoc, [mockImplementation.getVerificationMethodId()], null, true)
     ).rejects.toThrow("Verifier implementation is required");
   });
@@ -207,8 +219,8 @@ describe("Injectable Cryptography Tests", () => {
       }]
     };
 
-    await expect(
-      verifyWitnessProofs(logEntry, witnessProofs, witness)
+    expect(
+      countVerifiedWitnessApprovals(logEntry, witnessProofs, witness)
     ).rejects.toThrow("Verifier implementation is required");
   });
 }); 
