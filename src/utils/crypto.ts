@@ -1,5 +1,7 @@
 /// <reference lib="dom" />
-import { sha256 } from '@noble/hashes/sha2';
+import { sha256 } from '@noble/hashes/sha2.js';
+
+const encoder = new TextEncoder();
 
 function arrayBufferToHex(buffer: ArrayBufferLike | Uint8Array): string {
   const view = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
@@ -9,7 +11,7 @@ function arrayBufferToHex(buffer: ArrayBufferLike | Uint8Array): string {
 }
 
 export async function createHash(data: string): Promise<Uint8Array> {
-  return sha256(data);
+  return sha256(encoder.encode(data));
 }
 
 export async function createHashHex(data: string): Promise<string> {

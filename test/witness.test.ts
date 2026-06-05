@@ -876,6 +876,21 @@ describe('Witness Implementation Tests', async () => {
     expect(updatedDID.log[1].parameters.witness).toEqual({});
   });
 
+  test('Accept witness signer output containing undefined fields', async () => {
+    const proof = await createWitnessProof(
+      async () => ({
+        proof: {
+          created: undefined,
+          proofValue: 'zInvalidButPresent',
+        },
+      }),
+      initialDID.log[0].versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    expect(proof.proofValue).toBe('zInvalidButPresent');
+  });
+
   const createWitnessSigner = (verificationMethod: VerificationMethod) => {
     const signer = createTestSigner(verificationMethod);
     return async (data: any, proofTemplate?: any) => {

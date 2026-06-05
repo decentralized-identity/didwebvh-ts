@@ -1,4 +1,3 @@
-import { canonicalize } from 'json-canonicalize';
 import type {
   DataIntegrityProofTemplate,
   Signer,
@@ -10,6 +9,7 @@ import type {
 } from './interfaces';
 import { createDate } from './utils';
 import { concatBuffers } from './utils/buffer';
+import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 
 /**
@@ -37,8 +37,8 @@ export const prepareDataForSigning = async (
   document: unknown,
   proof: DataIntegrityProofTemplate
 ): Promise<Uint8Array> => {
-  const dataHash = await createHash(canonicalize(document));
-  const proofHash = await createHash(canonicalize(proof));
+  const dataHash = await createHash(canonicalizeStrict(document));
+  const proofHash = await createHash(canonicalizeStrict(proof));
   return concatBuffers(proofHash, dataHash);
 };
 

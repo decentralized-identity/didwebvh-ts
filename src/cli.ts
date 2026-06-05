@@ -3,7 +3,6 @@
 import fs from 'node:fs';
 import { dirname } from 'node:path';
 import { sign as ed25519Sign, verify as ed25519Verify, generateKeyPair } from '@stablelib/ed25519';
-import { canonicalize } from 'json-canonicalize';
 import type {
   DIDLog,
   ServiceEndpoint,
@@ -22,6 +21,7 @@ import {
   writeVerificationMethodToEnv,
 } from './utils';
 import { bufferToString, concatBuffers, createBuffer } from './utils/buffer';
+import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats';
 
@@ -118,8 +118,8 @@ class CustomCryptoImplementation implements Signer, Verifier {
       throw new Error('Secret key not set on verification method');
     }
     const { document, proof } = input;
-    const dataHash = await createHash(canonicalize(document));
-    const proofHash = await createHash(canonicalize(proof));
+    const dataHash = await createHash(canonicalizeStrict(document));
+    const proofHash = await createHash(canonicalizeStrict(proof));
     const message = concatBuffers(proofHash, dataHash);
     const secretKey = multibaseDecode(this.verificationMethod.secretKeyMultibase).bytes.slice(2);
     const signature = ed25519Sign(secretKey, message);

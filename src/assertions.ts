@@ -1,7 +1,7 @@
-import { canonicalize } from 'json-canonicalize';
 import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces';
 import { createSCID, deriveNextKeyHash, parseDidKeyVerificationMethod, resolveVM } from './utils';
 import { concatBuffers } from './utils/buffer';
+import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { multibaseDecode } from './utils/multiformats';
 import { validateWitnessParameter } from './witness';
@@ -74,8 +74,8 @@ export const documentStateIsValid = async (
 
     const { proofValue, ...restProof } = proof;
     const signature = multibaseDecode(proofValue).bytes;
-    const dataHash = await createHash(canonicalize(rest));
-    const proofHash = await createHash(canonicalize(restProof));
+    const dataHash = await createHash(canonicalizeStrict(rest));
+    const proofHash = await createHash(canonicalizeStrict(restProof));
     const input = concatBuffers(proofHash, dataHash);
 
     const verified = await verifier.verify(signature, input, publicKey.slice(2));

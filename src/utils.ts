@@ -1,4 +1,3 @@
-import { canonicalize } from 'json-canonicalize';
 import { config } from './config';
 import { BASE_CONTEXT } from './constants';
 import type {
@@ -12,6 +11,7 @@ import type {
 } from './interfaces';
 import { resolveDIDFromLog } from './method';
 import { bufferToString, createBuffer } from './utils/buffer';
+import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
 
@@ -624,13 +624,13 @@ function setCachedHash(input: any, hash: string): void {
   }
 }
 
+// Input must be strict JSON-compatible and must not contain explicit undefined values.
 export async function deriveHash(input: any): Promise<string> {
   const cached = getCachedHash(input);
   if (cached) {
     return cached;
   }
-
-  const data = canonicalize(input);
+  const data = canonicalizeStrict(input);
   const hash = await createHash(data);
   const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
   const result = encodeBase58Btc(multihash);
