@@ -12,11 +12,11 @@ import { multibaseEncode } from './utils/multiformats';
 import { MultibaseEncoding } from './utils/multiformats';
 import { verify as ed25519Verify } from '@stablelib/ed25519';
 import { sign as ed25519Sign } from '@stablelib/ed25519';
-import { canonicalize } from 'json-canonicalize';
 import { concatBuffers } from './utils/buffer';
 import { createHash } from './utils/crypto';
 import { multibaseDecode } from './utils/multiformats';
 import { generateKeyPair } from '@stablelib/ed25519';
+import { canonicalizeStrict } from './utils/canonicalize';
 
 import { signWitnessProofEntries } from './witness';
 
@@ -101,8 +101,8 @@ class CustomCryptoImplementation implements Signer, Verifier {
       throw new Error('Verification method not set');
     }
     const { document, proof } = input;
-    const dataHash = await createHash(canonicalize(document));
-    const proofHash = await createHash(canonicalize(proof));
+    const dataHash = await createHash(canonicalizeStrict(document));
+    const proofHash = await createHash(canonicalizeStrict(proof));
     const message = concatBuffers(proofHash, dataHash);
     const secretKey = multibaseDecode(this.verificationMethod.secretKeyMultibase!).bytes.slice(2);
     const signature = ed25519Sign(secretKey, message);

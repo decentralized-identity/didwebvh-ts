@@ -1,10 +1,10 @@
 import { createSCID, deriveNextKeyHash, parseDidKeyVerificationMethod, resolveVM } from "./utils";
-import { canonicalize } from 'json-canonicalize';
 import { createHash } from './utils/crypto';
 import { concatBuffers } from './utils/buffer';
 import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces';
 import { validateWitnessParameter } from './witness';
 import { multibaseDecode } from "./utils/multiformats";
+import { canonicalizeStrict } from './utils/canonicalize';
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
   const parsedVerificationMethod = parseDidKeyVerificationMethod(verificationMethod);
@@ -72,8 +72,8 @@ export const documentStateIsValid = async (
 
     const {proofValue, ...restProof} = proof;
     const signature = multibaseDecode(proofValue).bytes;
-    const dataHash = await createHash(canonicalize(rest));
-    const proofHash = await createHash(canonicalize(restProof));
+    const dataHash = await createHash(canonicalizeStrict(rest));
+    const proofHash = await createHash(canonicalizeStrict(restProof));
     const input = concatBuffers(proofHash, dataHash);
 
     const verified = await verifier.verify(

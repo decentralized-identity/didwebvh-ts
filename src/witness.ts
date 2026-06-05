@@ -1,4 +1,4 @@
-import { canonicalize } from 'json-canonicalize';
+import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import type {
   DataIntegrityProof,
@@ -73,17 +73,24 @@ export async function createWitnessProof(
     ...signedData.proof
   };
 
-  if (!mergedProof.verificationMethod) {
+  // Strip undefined fields to keep the proof JSON-compatible.
+  const sanitizedProof = JSON.parse(JSON.stringify(mergedProof)) as Partial<DataIntegrityProof>;
+
+  if (!sanitizedProof.verificationMethod) {
     throw new Error('Witness proof is missing verificationMethod');
   }
-  if (!mergedProof.proofValue) {
+  if (!sanitizedProof.proofValue) {
     throw new Error('Witness proof is missing proofValue');
   }
 
   return {
-    ...mergedProof,
-    verificationMethod: mergedProof.verificationMethod,
-    proofValue: mergedProof.proofValue
+    id: sanitizedProof.id,
+    type: sanitizedProof.type ?? proofTemplate.type,
+    cryptosuite: sanitizedProof.cryptosuite ?? proofTemplate.cryptosuite,
+    verificationMethod: sanitizedProof.verificationMethod,
+    created: sanitizedProof.created ?? proofTemplate.created,
+    proofValue: sanitizedProof.proofValue,
+    proofPurpose: sanitizedProof.proofPurpose ?? proofTemplate.proofPurpose,
   };
 }
 
@@ -264,8 +271,10 @@ export async function countVerifiedWitnessApprovals(
         }
 
         const { proofValue, ...proofWithoutValue } = proof;
-        const canonicalizedData = canonicalize({ versionId: logEntry.versionId });
-        const canonicalizedProof = canonicalize(proofWithoutValue);
+        
+        // Create hashes
+        const canonicalizedData = canonicalizeStrict({ versionId: logEntry.versionId });
+        const canonicalizedProof = canonicalizeStrict(proofWithoutValue);
         const dataHash = await createHash(canonicalizedData);
         const proofHash = await createHash(canonicalizedProof);
         const input = concatBuffers(proofHash, dataHash);
