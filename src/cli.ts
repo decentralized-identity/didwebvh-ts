@@ -1,22 +1,29 @@
 #!/usr/bin/env node
 
-import { createDID, updateDID, deactivateDID, resolveDIDFromLog } from './method';
-import { fetchLogFromIdentifier, parseDidKeyDid, readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './utils';
-import { dirname } from 'path';
-import fs from 'fs';
-import { DIDLog, ServiceEndpoint, VerificationMethod, Verifier } from './interfaces';
-import { createBuffer } from './utils/buffer';
-import { bufferToString } from './utils/buffer';
-import { Signer, SigningInput, SigningOutput } from './interfaces';
-import { multibaseEncode } from './utils/multiformats';
-import { MultibaseEncoding } from './utils/multiformats';
-import { verify as ed25519Verify } from '@stablelib/ed25519';
-import { sign as ed25519Sign } from '@stablelib/ed25519';
-import { concatBuffers } from './utils/buffer';
-import { createHash } from './utils/crypto';
-import { multibaseDecode } from './utils/multiformats';
-import { generateKeyPair } from '@stablelib/ed25519';
+import fs from 'node:fs';
+import { dirname } from 'node:path';
+import { sign as ed25519Sign, verify as ed25519Verify, generateKeyPair } from '@stablelib/ed25519';
+import type {
+  DIDLog,
+  ServiceEndpoint,
+  Signer,
+  SigningInput,
+  SigningOutput,
+  VerificationMethod,
+  Verifier,
+} from './interfaces';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from './method';
+import {
+  fetchLogFromIdentifier,
+  parseDidKeyDid,
+  readLogFromDisk,
+  writeLogToDisk,
+  writeVerificationMethodToEnv,
+} from './utils';
+import { bufferToString, concatBuffers, createBuffer } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
+import { createHash } from './utils/crypto';
+import { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats';
 
 import { signWitnessProofEntries } from './witness';
 
@@ -71,7 +78,14 @@ function showHelp() {
   console.log(usage);
 }
 
-async function generateVerificationMethod(purpose: "authentication" | "assertionMethod" | "keyAgreement" | "capabilityInvocation" | "capabilityDelegation" = 'authentication'): Promise<VerificationMethod> {
+async function generateVerificationMethod(
+  purpose:
+    | 'authentication'
+    | 'assertionMethod'
+    | 'keyAgreement'
+    | 'capabilityInvocation'
+    | 'capabilityDelegation' = 'authentication'
+): Promise<VerificationMethod> {
   const keyPair = generateKeyPair();
   const publicKeyBytes = new Uint8Array([0xed, 0x01, ...keyPair.publicKey]);
   const secretKeyBytes = new Uint8Array([0x80, 0x26, ...keyPair.secretKey]);
@@ -79,35 +93,38 @@ async function generateVerificationMethod(purpose: "authentication" | "assertion
     type: 'Multikey',
     publicKeyMultibase: multibaseEncode(publicKeyBytes, MultibaseEncoding.BASE58_BTC),
     secretKeyMultibase: multibaseEncode(secretKeyBytes, MultibaseEncoding.BASE58_BTC),
-    purpose
+    purpose,
   };
 }
 class CustomCryptoImplementation implements Signer, Verifier {
   private verificationMethod?: VerificationMethod;
-  
+
   constructor(verificationMethod?: VerificationMethod) {
     this.verificationMethod = verificationMethod;
   }
-  
+
   getVerificationMethodId(): string {
     if (!this.verificationMethod) {
       throw new Error('Verification method not set');
     }
     return `did:key:${this.verificationMethod.publicKeyMultibase}#${this.verificationMethod.publicKeyMultibase}`;
   }
-  
+
   async sign(input: SigningInput): Promise<SigningOutput> {
     if (!this.verificationMethod) {
       throw new Error('Verification method not set');
+    }
+    if (!this.verificationMethod.secretKeyMultibase) {
+      throw new Error('Secret key not set on verification method');
     }
     const { document, proof } = input;
     const dataHash = await createHash(canonicalizeStrict(document));
     const proofHash = await createHash(canonicalizeStrict(proof));
     const message = concatBuffers(proofHash, dataHash);
-    const secretKey = multibaseDecode(this.verificationMethod.secretKeyMultibase!).bytes.slice(2);
+    const secretKey = multibaseDecode(this.verificationMethod.secretKeyMultibase).bytes.slice(2);
     const signature = ed25519Sign(secretKey, message);
     return {
-      proofValue: multibaseEncode(signature, MultibaseEncoding.BASE58_BTC)
+      proofValue: multibaseEncode(signature, MultibaseEncoding.BASE58_BTC),
     };
   }
 
@@ -122,20 +139,22 @@ function createCustomCrypto(verificationMethod?: VerificationMethod): Signer & V
 
 export async function handleCreate(args: string[]) {
   const options = parseOptions(args);
-  
+
   // Support both --address (new) and --domain (deprecated) options
-  const addressInput = (options['address'] || options['domain']) as string;
-  
+  const addressInput = (options.address || options.domain) as string;
+
   // Extract optional explicit paths (colon-delimited) from CLI args
   // If provided, these override any paths parsed from address input
-  const explicitPaths = options['paths'] as string[] | undefined;
-  
-  const output = options['output'] as string | undefined;
-  const portable = options['portable'] !== undefined;
+  const explicitPaths = options.paths as string[] | undefined;
+
+  const output = options.output as string | undefined;
+  const portable = options.portable !== undefined;
   const nextKeyHashes = options['next-key-hash'] as string[] | undefined;
-  const witnesses = options['witness'] as string[] | undefined;
-  const watchers = options['watcher'] as string[] | undefined;
-  const witnessThreshold = options['witness-threshold'] ? parseInt(options['witness-threshold'] as string) : witnesses?.length ?? 0;
+  const witnesses = options.witness as string[] | undefined;
+  const watchers = options.watcher as string[] | undefined;
+  const witnessThreshold = options['witness-threshold']
+    ? parseInt(options['witness-threshold'] as string, 10)
+    : (witnesses?.length ?? 0);
 
   if (!addressInput) {
     console.error('Address is required for create command (use --address or deprecated --domain)');
@@ -144,30 +163,35 @@ export async function handleCreate(args: string[]) {
 
   try {
     const authKey = await generateVerificationMethod();
-    const crypto = createCustomCrypto(authKey)
-    
+    if (!authKey.publicKeyMultibase) {
+      throw new Error('Generated verification method is missing publicKeyMultibase');
+    }
+    const crypto = createCustomCrypto(authKey);
+
     // Strip secret key from verification method for DID document (security)
     const publicAuthKey = {
       id: authKey.id,
       type: authKey.type,
       controller: authKey.controller,
       publicKeyMultibase: authKey.publicKeyMultibase,
-      purpose: authKey.purpose
+      purpose: authKey.purpose,
     };
-    
+
     // Use new address parameter for strict parsing and encoding
     const { did, doc, meta, log } = await createDID({
       address: addressInput,
       paths: explicitPaths,
       signer: crypto,
       verifier: crypto,
-      updateKeys: [authKey.publicKeyMultibase!],
+      updateKeys: [authKey.publicKeyMultibase],
       verificationMethods: [publicAuthKey],
       portable,
-      witness: witnesses?.length ? {
-        witnesses: witnesses.map(witness => ({id: witness})),
-        threshold: witnessThreshold
-      } : undefined,
+      witness: witnesses?.length
+        ? {
+            witnesses: witnesses.map((witness) => ({ id: witness })),
+            threshold: witnessThreshold,
+          }
+        : undefined,
       watchers: watchers ?? undefined,
       nextKeyHashes,
     });
@@ -187,12 +211,11 @@ export async function handleCreate(args: string[]) {
 
       // Save verification method to env
       await writeVerificationMethodToEnv({
-        ...authKey, 
-        controller: did, 
-        id: `${did}#${authKey.publicKeyMultibase?.slice(-8)}`
+        ...authKey,
+        controller: did,
+        id: `${did}#${authKey.publicKeyMultibase?.slice(-8)}`,
       });
       console.log(`DID verification method saved to env`);
-
     } else {
       // If no output specified, print to console
       console.log('DID Document:', JSON.stringify(doc, null, 2));
@@ -208,8 +231,8 @@ export async function handleCreate(args: string[]) {
 
 export async function handleResolve(args: string[]) {
   const options = parseOptions(args);
-  const didIdentifier = options['did'] as string;
-  const logFile = options['log'] as string;
+  const didIdentifier = options.did as string;
+  const logFile = options.log as string;
   const witnessFile = options['witness-file'] as string | undefined;
 
   if (!didIdentifier && !logFile) {
@@ -225,7 +248,7 @@ export async function handleResolve(args: string[]) {
       log = await fetchLogFromIdentifier(didIdentifier);
     }
 
-    let resolutionOptions: any = {};
+    const resolutionOptions: any = {};
     if (witnessFile) {
       const witnessProofs = JSON.parse(fs.readFileSync(witnessFile, 'utf8'));
       resolutionOptions.witnessProofs = witnessProofs;
@@ -250,15 +273,17 @@ export async function handleResolve(args: string[]) {
 
 export async function handleUpdate(args: string[]) {
   const options = parseOptions(args);
-  const logFile = options['log'] as string;
-  const output = options['output'] as string | undefined;
-  const witnesses = options['witness'] as string[] | undefined;
-  const witnessThreshold = options['witness-threshold'] ? parseInt(options['witness-threshold'] as string) : undefined;
-  const services = options['service'] ? parseServices(options['service'] as string[]) : undefined;
+  const logFile = options.log as string;
+  const output = options.output as string | undefined;
+  const witnesses = options.witness as string[] | undefined;
+  const witnessThreshold = options['witness-threshold']
+    ? parseInt(options['witness-threshold'] as string, 10)
+    : undefined;
+  const services = options.service ? parseServices(options.service as string[]) : undefined;
   const addVm = options['add-vm'] as string[] | undefined;
   const alsoKnownAs = options['also-known-as'] as string[] | undefined;
   const updateKey = options['update-key'] as string | undefined;
-  const watchers = options['watcher'] as string[] | undefined;
+  const watchers = options.watcher as string[] | undefined;
 
   if (!logFile) {
     console.error('Log file is required for update command');
@@ -270,55 +295,58 @@ export async function handleUpdate(args: string[]) {
     const { did, meta } = await resolveDIDFromLog(log, { verifier: createCustomCrypto() });
     // console.log('\nCurrent DID:', did);
     // console.log('Current meta:', meta);
-    
+
     // Get the verification method from environment
     const envVMs = JSON.parse(bufferToString(createBuffer(process.env.DID_VERIFICATION_METHODS || 'W10=', 'base64')));
-    
+
     let vm = envVMs.find((vm: any) => vm.controller === did);
-    
+
     if (!vm) {
       // Try to find VM by matching public key with current update keys
       vm = envVMs.find((vm: any) => meta.updateKeys.includes(vm.publicKeyMultibase));
     }
-    
+
     if (!vm && envVMs.length > 0) {
       // Fall back to first available VM with warning
       console.warn('Warning: No matching verification method found for DID or update keys. Using first available VM.');
       vm = envVMs[0];
     }
-    
+
     // console.log('\nFound VM:', vm);
-    
+
     if (!vm) {
       throw new Error('No verification method found in environment');
+    }
+    if (!vm.publicKeyMultibase) {
+      throw new Error('Verification method missing publicKeyMultibase');
     }
 
     // Create verification methods array
     const verificationMethods: VerificationMethod[] = [];
-    
+
     // If we're adding VMs, create a VM for each type
     if (addVm && addVm.length > 0) {
-      const vmId = `${did}#${vm.publicKeyMultibase!.slice(-8)}`;
-      
+      const vmId = `${did}#${vm.publicKeyMultibase?.slice(-8)}`;
+
       // Add a verification method for each type
       for (const vmType of addVm) {
         const newVM: VerificationMethod = {
           id: vmId,
-          type: "Multikey",
+          type: 'Multikey',
           controller: did,
           publicKeyMultibase: vm.publicKeyMultibase,
-          purpose: vmType as VerificationMethodType
+          purpose: vmType as VerificationMethodType,
         };
         verificationMethods.push(newVM);
       }
     } else {
       // For non-VM updates (services, alsoKnownAs), still need a VM with purpose
       verificationMethods.push({
-        id: `${did}#${vm.publicKeyMultibase!.slice(-8)}`,
-        type: "Multikey",
+        id: `${did}#${vm.publicKeyMultibase?.slice(-8)}`,
+        type: 'Multikey',
         controller: did,
         publicKeyMultibase: vm.publicKeyMultibase,
-        purpose: "assertionMethod"
+        purpose: 'assertionMethod',
       });
     }
 
@@ -327,15 +355,17 @@ export async function handleUpdate(args: string[]) {
       log,
       signer: crypto,
       verifier: crypto,
-      updateKeys: [vm.publicKeyMultibase!],
+      updateKeys: [vm.publicKeyMultibase],
       verificationMethods,
-      witness: witnesses?.length ? {
-        witnesses: witnesses.map(witness => ({id: witness})),
-        threshold: witnessThreshold ?? witnesses.length
-      } : undefined,
+      witness: witnesses?.length
+        ? {
+            witnesses: witnesses.map((witness) => ({ id: witness })),
+            threshold: witnessThreshold ?? witnesses.length,
+          }
+        : undefined,
       watchers: watchers ?? undefined,
       services,
-      alsoKnownAs
+      alsoKnownAs,
     });
 
     if (output) {
@@ -352,8 +382,8 @@ export async function handleUpdate(args: string[]) {
 
 export async function handleDeactivate(args: string[]) {
   const options = parseOptions(args);
-  const logFile = options['log'] as string;
-  const output = options['output'] as string | undefined;
+  const logFile = options.log as string;
+  const output = options.output as string | undefined;
 
   if (!logFile) {
     console.error('Log file is required for deactivate command');
@@ -364,7 +394,7 @@ export async function handleDeactivate(args: string[]) {
     // Read the current log to get the latest state
     const log = await readLogFromDisk(logFile);
     const { did, meta } = await resolveDIDFromLog(log, { verifier: createCustomCrypto() });
-    
+
     // Get the verification method from environment
     const envContent = fs.readFileSync('.env', 'utf8');
     const vmMatch = envContent.match(/DID_VERIFICATION_METHODS=(.+)/);
@@ -380,7 +410,7 @@ export async function handleDeactivate(args: string[]) {
 
     // Find VM that matches the current update key
     let vm = vms.find((v: any) => v.publicKeyMultibase === meta.updateKeys[0]);
-    
+
     if (!vm) {
       // If no matching VM found, use the first one and warn
       console.warn('Warning: No matching verification method found for current update key. Using first available VM.');
@@ -411,14 +441,10 @@ export async function handleDeactivate(args: string[]) {
 async function handleGenerateWitnessProof(args: string[]) {
   const options = parseOptions(args);
   const rawVersionIds = options['version-id'];
-  const versionIds = Array.isArray(rawVersionIds)
-    ? rawVersionIds
-    : rawVersionIds
-      ? [rawVersionIds]
-      : [];
+  const versionIds = Array.isArray(rawVersionIds) ? rawVersionIds : rawVersionIds ? [rawVersionIds] : [];
   const witnessDids = options['witness-did'] as string[] | undefined;
   const witnessSecrets = options['witness-secret'] as string[] | undefined;
-  const output = options['output'] as string;
+  const output = options.output as string;
 
   if (versionIds.length === 0) {
     console.error('At least one --version-id is required');
@@ -444,29 +470,30 @@ async function handleGenerateWitnessProof(args: string[]) {
       type: 'Multikey',
       publicKeyMultibase,
       secretKeyMultibase: secret,
-      purpose: 'authentication'
+      purpose: 'authentication',
     };
 
     witnessSignersByDid[normalizedDid] = createCustomCrypto(vm);
     witnesses.push({ id: normalizedDid });
   }
 
-  const witnessEntries = await signWitnessProofEntries(
-    versionIds,
-    witnesses,
-    witnessSignersByDid,
-  );
+  const witnessEntries = await signWitnessProofEntries(versionIds, witnesses, witnessSignersByDid);
 
   const witnessFileContent = witnessEntries.map((entry) => ({
     versionId: entry.versionId,
-    proof: entry.proof
+    proof: entry.proof,
   }));
 
   fs.writeFileSync(output, JSON.stringify(witnessFileContent, null, 2));
   console.log(`Witness proof file generated at ${output}`);
 }
 
-type VerificationMethodType = 'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation';
+type VerificationMethodType =
+  | 'authentication'
+  | 'assertionMethod'
+  | 'keyAgreement'
+  | 'capabilityInvocation'
+  | 'capabilityDelegation';
 
 function parseOptions(args: string[]): Record<string, string | string[] | undefined> {
   const options: Record<string, string | string[] | undefined> = {};
@@ -474,7 +501,16 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
     if (args[i].startsWith('--')) {
       const key = args[i].slice(2);
       if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
-        if (key === 'witness' || key === 'service' || key === 'also-known-as' || key === 'next-key-hash' || key === 'watcher' || key === 'witness-did' || key === 'witness-secret' || key === 'version-id') {
+        if (
+          key === 'witness' ||
+          key === 'service' ||
+          key === 'also-known-as' ||
+          key === 'next-key-hash' ||
+          key === 'watcher' ||
+          key === 'witness-did' ||
+          key === 'witness-secret' ||
+          key === 'version-id'
+        ) {
           options[key] = options[key] || [];
           (options[key] as string[]).push(args[++i]);
         } else if (key === 'add-vm') {
@@ -499,11 +535,13 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
 
 // Add this function to validate VerificationMethodType
 function isValidVerificationMethodType(type: string): type is VerificationMethodType {
-  return ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'].includes(type);
+  return ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'].includes(
+    type
+  );
 }
 
 function parseServices(services: string[]): ServiceEndpoint[] {
-  return services.map(service => {
+  return services.map((service) => {
     const [type, serviceEndpoint] = service.split(',');
     return { type, serviceEndpoint };
   });
@@ -533,16 +571,23 @@ export async function main() {
       case 'generate-witness-proof':
         await handleGenerateWitnessProof(args);
         break;
-      case 'generate-vm':
+      case 'generate-vm': {
         const vm = await generateVerificationMethod('authentication');
         const publicKeyMultibase = vm.publicKeyMultibase;
         const did = `did:key:${publicKeyMultibase}`;
-        console.log(JSON.stringify({
-          did,
-          publicKeyMultibase,
-          secretKeyMultibase: vm.secretKeyMultibase
-        }, null, 2));
+        console.log(
+          JSON.stringify(
+            {
+              did,
+              publicKeyMultibase,
+              secretKeyMultibase: vm.secretKeyMultibase,
+            },
+            null,
+            2
+          )
+        );
         break;
+      }
       case 'help':
         showHelp();
         break;
@@ -559,9 +604,8 @@ export async function main() {
 
 // Only run main if this file is being executed directly
 if (process.argv[1] === import.meta.path) {
-  main().catch(error => {
+  main().catch((error) => {
     console.error('Fatal error:', error);
     process.exit(1);
   });
 }
-

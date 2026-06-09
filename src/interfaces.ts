@@ -86,7 +86,7 @@ export interface DIDResolutionMeta {
 }
 
 export interface DIDDoc {
-  "@context"?: string | string[] | object | object[];
+  '@context'?: string | string[] | object | object[];
   id?: string;
   controller?: string | string[];
   alsoKnownAs?: string[];
@@ -111,7 +111,7 @@ export interface VerificationMethod {
 }
 
 export interface WitnessEntry {
-  id: string;  // did:key DID
+  id: string; // did:key DID
 }
 
 export interface ParsedDidKeyVerificationMethod {
@@ -262,4 +262,4 @@ export interface ResolutionOptions {
 export interface WitnessProofFileEntry {
   versionId: string;
   proof: DataIntegrityProof[];
-} 
+}

@@ -1,8 +1,16 @@
-import { createDate } from "./utils";
-import { createHash } from './utils/crypto';
-import type { DataIntegrityProofTemplate, VerificationMethod, SigningInput, SigningOutput, Signer, SignerOptions, Verifier } from './interfaces';
+import type {
+  DataIntegrityProofTemplate,
+  Signer,
+  SignerOptions,
+  SigningInput,
+  SigningOutput,
+  VerificationMethod,
+  Verifier,
+} from './interfaces';
+import { createDate } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
+import { createHash } from './utils/crypto';
 
 /**
  * Creates a proof object for a document
@@ -15,7 +23,7 @@ export const createProof = (verificationMethodId: string): DataIntegrityProofTem
     cryptosuite: 'eddsa-jcs-2022',
     verificationMethod: verificationMethodId,
     created: createDate(),
-    proofPurpose: 'assertionMethod'
+    proofPurpose: 'assertionMethod',
   };
 };
 
@@ -72,7 +80,7 @@ export abstract class AbstractCrypto implements Signer, Verifier {
     if (!this.verificationMethod) {
       throw new Error('Verification method not set');
     }
-    return this.useStaticId 
+    return this.useStaticId
       ? `did:key:${this.verificationMethod.publicKeyMultibase}#${this.verificationMethod.publicKeyMultibase}`
       : this.verificationMethod.id || '';
   }
@@ -103,19 +111,18 @@ export const createDocumentSigner = (signer: Signer, verificationMethodId: strin
  */
 export const createSigner = (vm: VerificationMethod, useStatic: boolean = true) => {
   console.warn('createSigner is deprecated. Use createDocumentSigner with your own Signer implementation instead.');
-  
+
   return async (doc: any) => {
     try {
-      const verificationMethodId = useStatic 
-        ? `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}` 
+      const verificationMethodId = useStatic
+        ? `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`
         : vm.id || '';
-      
+
       const proof = createProof(verificationMethodId);
-      
+
       // This is a placeholder for backward compatibility
       // Users should implement their own signing logic
       throw new Error('createSigner is deprecated. Implement your own Signer and use createDocumentSigner instead.');
-      
     } catch (e: any) {
       console.error(e);
       throw new Error(`Document signing failure: ${e.message || e}`);

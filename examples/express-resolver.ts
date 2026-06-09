@@ -1,8 +1,7 @@
-import express from 'express';
+import { verify } from '@stablelib/ed25519';
 import { resolveDID } from 'didwebvh-ts';
 import type { DIDDoc, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
-
-import { verify } from '@stablelib/ed25519';
+import express from 'express';
 
 class ExpressVerifier implements Verifier {
   private verificationMethodId: string;
@@ -31,48 +30,41 @@ class ExpressVerifier implements Verifier {
   getPublicKey(): Uint8Array {
     return this.publicKey;
   }
-  
+
   getPublicKeyMultibase(): string {
     return `z${Buffer.from(this.publicKey).toString('base64')}`;
   }
 }
 
-const expressVerifier = new ExpressVerifier(
-  'key-prod-1',
-  'did:example:123#key-1'
-);
+const expressVerifier = new ExpressVerifier('key-prod-1', 'did:example:123#key-1');
 
 const app = express();
-const port = process.env.PORT ? parseInt(process.env.PORT) : 8000;
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 
 const WELL_KNOWN_ALLOW_LIST = ['did.jsonl'];
 
 const getFile = async ({
-  params: {path, file}, 
+  params: { path, file },
   isRemote = false,
-  didDocument
+  didDocument,
 }: {
-  params: {path: string; file: string}, 
-  isRemote?: boolean,
-  didDocument?: DIDDoc
+  params: { path: string; file: string };
+  isRemote?: boolean;
+  didDocument?: DIDDoc;
 }) => {
   try {
     if (isRemote) {
       let serviceEndpoint;
-      
+
       if (file === 'whois') {
-        const whoisService = didDocument?.service?.find(
-          (s: any) => s.id === '#whois'
-        );
-        
+        const whoisService = didDocument?.service?.find((s: any) => s.id === '#whois');
+
         if (whoisService?.serviceEndpoint) {
           serviceEndpoint = whoisService.serviceEndpoint;
         }
       } else {
-        const filesService = didDocument?.service?.find(
-          (s: any) => s.id === '#files'
-        );
-        
+        const filesService = didDocument?.service?.find((s: any) => s.id === '#files');
+
         if (filesService?.serviceEndpoint) {
           serviceEndpoint = filesService.serviceEndpoint;
         }
@@ -81,14 +73,14 @@ const getFile = async ({
       if (!serviceEndpoint) {
         const cleanDomain = path.replace('.well-known/', '');
         serviceEndpoint = `https://${cleanDomain}`;
-        
+
         if (file === 'whois') {
           serviceEndpoint = `${serviceEndpoint}/whois.vp`;
         }
       }
       serviceEndpoint = serviceEndpoint.replace(/\/$/, '');
       const url = file === 'whois' ? serviceEndpoint : `${serviceEndpoint}/${file}`;
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         if (response.status === 404) {
@@ -101,7 +93,11 @@ const getFile = async ({
     if (file === 'whois') {
       file = 'whois.vp';
     }
-    const filePath = WELL_KNOWN_ALLOW_LIST.some(f => f === file) ? `./src/routes/.well-known/${file}` : path ? `./src/routes/${path}/${file}` : `./src/routes/${file}`;
+    const filePath = WELL_KNOWN_ALLOW_LIST.some((f) => f === file)
+      ? `./src/routes/.well-known/${file}`
+      : path
+        ? `./src/routes/${path}/${file}`
+        : `./src/routes/${file}`;
     return await Bun.file(filePath).text();
   } catch (e: unknown) {
     console.error(e);
@@ -118,46 +114,46 @@ app.get('/resolve/:id', async (req, res) => {
     const id = req.params.id;
     if (!id) {
       return res.status(400).json({
-        error: 'No id provided'
+        error: 'No id provided',
       });
     }
 
     const [didPart, ...pathParts] = id.split('/');
     if (pathParts.length === 0) {
       const options = {
-        versionNumber: req.query.versionNumber ? parseInt(req.query.versionNumber as string) : undefined,
+        versionNumber: req.query.versionNumber ? parseInt(req.query.versionNumber as string, 10) : undefined,
         versionId: req.query.versionId as string,
         versionTime: req.query.versionTime ? new Date(req.query.versionTime as string) : undefined,
         verificationMethod: req.query.verificationMethod as string,
-        verifier: expressVerifier
+        verifier: expressVerifier,
       };
-      
+
       console.log(`Resolving DID ${didPart} with HSM verifier`);
       const result = await resolveDID(didPart, options);
       return res.json(result);
     }
-    
-    const {did, doc, controlled} = await resolveDID(didPart, { verifier: expressVerifier });
-    
+
+    const { did, doc, controlled } = await resolveDID(didPart, { verifier: expressVerifier });
+
     const didParts = did.split(':');
     const domain = didParts[didParts.length - 1];
     const fileIdentifier = didParts[didParts.length - 2];
-    
+
     const fileContent = await getFile({
       params: {
         path: !controlled ? domain : fileIdentifier,
-        file: pathParts.join('/')
+        file: pathParts.join('/'),
       },
       isRemote: !controlled,
-      didDocument: doc
+      didDocument: doc,
     });
-    
+
     res.send(fileContent);
   } catch (error: unknown) {
     console.error('Error resolving identifier:', error);
     res.status(400).json({
       error: 'Resolution failed',
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
     });
   }
 });
@@ -168,15 +164,15 @@ app.get('/resolve/:id/*', async (req, res) => {
     const fileContent = await getFile({
       params: {
         path: pathParts.slice(0, -1).join('/'),
-        file: pathParts[pathParts.length - 1]
+        file: pathParts[pathParts.length - 1],
       },
-      isRemote: false
+      isRemote: false,
     });
     res.send(fileContent);
   } catch (error) {
     res.status(404).json({
       error: 'Failed to resolve File',
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
     });
   }
 });
@@ -187,19 +183,19 @@ app.get('/.well-known/*', async (req, res) => {
     const fileContent = await getFile({
       params: {
         path: '.well-known',
-        file
+        file,
       },
-      isRemote: false
+      isRemote: false,
     });
     res.send(fileContent);
   } catch (error) {
     res.status(404).json({
       error: 'Failed to resolve File',
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
     });
   }
 });
 
 app.listen(port, () => {
   console.log(`🔍 Resolver is running at http://localhost:${port}`);
-}); 
+});

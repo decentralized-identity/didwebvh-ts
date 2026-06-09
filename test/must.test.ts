@@ -1,10 +1,15 @@
-import { beforeAll, describe, expect, test } from "bun:test";
-import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from "../src/method";
-import type { DIDLog, VerificationMethod } from "../src/interfaces";
-import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
-import { createWitnessProof } from "../src/witness";
+import { beforeAll, describe, expect, test } from 'bun:test';
+import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
+import { createWitnessProof } from '../src/witness';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
-describe("did:webvh normative tests", async () => {
+describe('did:webvh normative tests', async () => {
   let newDoc1: any;
   let newLog1: DIDLog;
   let authKey1: VerificationMethod;
@@ -18,23 +23,23 @@ describe("did:webvh normative tests", async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       created: '2024-01-01T08:32:55Z',
-      verifier: testImplementation
+      verifier: testImplementation,
     });
 
     newDoc1 = doc;
     newLog1 = log;
   });
 
-  test("Resolve MUST process the DID Log correctly (positive)", async () => {
+  test('Resolve MUST process the DID Log correctly (positive)', async () => {
     const resolved = await resolveDIDFromLog(newLog1, { verifier: testImplementation });
-    expect(resolved.meta.versionId.split('-')[0]).toBe("1");
+    expect(resolved.meta.versionId.split('-')[0]).toBe('1');
   });
 
-  test("Resolve MUST process the DID Log correctly (negative)", async () => {
-    let err;
-    const malformedLog = "malformed log content";
+  test('Resolve MUST process the DID Log correctly (negative)', async () => {
+    let err: unknown;
+    const malformedLog = 'malformed log content';
     try {
       await resolveDIDFromLog(malformedLog as any, { verifier: testImplementation });
     } catch (e) {
@@ -43,7 +48,7 @@ describe("did:webvh normative tests", async () => {
     expect(err).toBeDefined();
   });
 
-  test("Update implementation MUST generate a correct DID Entry (positive)", async () => {
+  test('Update implementation MUST generate a correct DID Entry (positive)', async () => {
     const authKey2 = await generateTestVerificationMethod();
 
     // Sign with authKey1 (authorized by previous updateKeys), rotate to authKey2
@@ -52,20 +57,20 @@ describe("did:webvh normative tests", async () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
       context: newDoc1['@context'],
-      verificationMethods: [authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey2),
       updated: '2024-02-01T08:32:55Z',
-      verifier: testImplementation
+      verifier: testImplementation,
     });
 
     const resolved = await resolveDIDFromLog(updatedLog, { verifier: testImplementation });
-    expect(resolved.meta.versionId.split('-')[0]).toBe("2");
+    expect(resolved.meta.versionId.split('-')[0]).toBe('2');
   });
 
   test("Resolver encountering 'deactivated': true MUST return deactivated in metadata (positive)", async () => {
     const { log: updatedLog } = await deactivateDID({
       log: newLog1,
       signer: createTestSigner(authKey1),
-      verifier: testImplementation
+      verifier: testImplementation,
     });
     const resolved = await resolveDIDFromLog(updatedLog, { verifier: testImplementation });
     expect(resolved.meta.deactivated).toBe(true);
@@ -77,12 +82,14 @@ describe("did:webvh normative tests", async () => {
   });
 });
 
-describe("did:webvh normative witness tests", async () => {
+describe('did:webvh normative witness tests', async () => {
   let authKey1: VerificationMethod;
   let witness1: VerificationMethod, witness2: VerificationMethod, witness3: VerificationMethod;
   let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
   let testImplementation: TestCryptoImplementation;
-  let witnessImpl1: TestCryptoImplementation, witnessImpl2: TestCryptoImplementation, witnessImpl3: TestCryptoImplementation;
+  let witnessImpl1: TestCryptoImplementation,
+    witnessImpl2: TestCryptoImplementation,
+    witnessImpl3: TestCryptoImplementation;
 
   const witnessVerificationMethod = (vm: VerificationMethod) =>
     `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`;
@@ -91,19 +98,19 @@ describe("did:webvh normative witness tests", async () => {
     const signer = createTestSigner(verificationMethod);
     return async (data: any, proofTemplate?: any) => {
       const proof = {
-        type: "DataIntegrityProof",
-        cryptosuite: "eddsa-jcs-2022",
+        type: 'DataIntegrityProof',
+        cryptosuite: 'eddsa-jcs-2022',
         verificationMethod: signer.getVerificationMethodId(),
         created: new Date().toISOString(),
-        proofPurpose: "authentication",
-        ...proofTemplate
+        proofPurpose: 'authentication',
+        ...proofTemplate,
       };
       const signResult = await signer.sign({ document: data, proof });
       return {
         proof: {
           verificationMethod: signer.getVerificationMethodId(),
-          proofValue: signResult.proofValue
-        }
+          proofValue: signResult.proofValue,
+        },
       };
     };
   };
@@ -122,130 +129,149 @@ describe("did:webvh normative witness tests", async () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
+      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier: testImplementation,
       witness: {
         threshold: 2,
         witnesses: [
           { id: `did:key:${witness1.publicKeyMultibase}` },
           { id: `did:key:${witness2.publicKeyMultibase}` },
-          { id: `did:key:${witness3.publicKeyMultibase}` }
-        ]
-      }
+          { id: `did:key:${witness3.publicKeyMultibase}` },
+        ],
+      },
     });
   });
 
-  test("witness parameter MUST use did:key DIDs", async () => {
-    let err;
+  test('witness parameter MUST use did:key DIDs', async () => {
+    let err: unknown;
     try {
-      const {doc, log, did} = await createDID({
+      const { doc, log, did } = await createDID({
         domain: 'example.com',
         signer: createTestSigner(authKey1),
         updateKeys: [authKey1.publicKeyMultibase!],
-        verificationMethods: [authKey1],
+        verificationMethods: asPublicVerificationMethods(authKey1),
         verifier: testImplementation,
         witness: {
           threshold: 2,
           witnesses: [
-            { id: "did:web:example.com" }, // Invalid - not did:key
-            { id: `did:key:${witness1.publicKeyMultibase}` }
-          ]
-        }
+            { id: 'did:web:example.com' }, // Invalid - not did:key
+            { id: `did:key:${witness1.publicKeyMultibase}` },
+          ],
+        },
       });
-    } catch (e: any) {
+    } catch (e) {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Witness DIDs must be did:key format");
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('Witness DIDs must be did:key format');
   });
 
-  test("witness threshold MUST be met for DID updates", async () => {
+  test('witness threshold MUST be met for DID updates', async () => {
     // Mock witness proofs file
     const mockWitnessProofs = [
       {
         versionId: initialDID.log[0].versionId,
         proof: [
-          await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId, witnessVerificationMethod(witness1))
-        ]
-      }
+          await createWitnessProof(
+            createWitnessSigner(witness1),
+            initialDID.log[0].versionId,
+            witnessVerificationMethod(witness1)
+          ),
+        ],
+      },
     ];
 
-    let err;
+    let err: unknown;
     try {
       await resolveDIDFromLog(initialDID.log, {
         witnessProofs: mockWitnessProofs as any,
-        verifier: testImplementation
+        verifier: testImplementation,
       });
-    } catch (e: any) {
+    } catch (e) {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Witness threshold not met");
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('Witness threshold not met');
   });
 
-  test("witness proofs MUST use eddsa-jcs-2022 cryptosuite", async () => {
-    const mockWitnessProofs = [
-      {
-        versionId: initialDID.log[0].versionId,
-        proof: [
-          {...(await createWitnessProof(createWitnessSigner(witness1), initialDID.log[0].versionId, witnessVerificationMethod(witness1))), cryptosuite: 'invalid-suite'},
-          await createWitnessProof(createWitnessSigner(witness2), initialDID.log[0].versionId, witnessVerificationMethod(witness2))
-        ]
-      }
-    ];
-
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(" "));
-    };
-
-    let err;
-    try {
-      await resolveDIDFromLog(initialDID.log, {
-        witnessProofs: mockWitnessProofs as any,
-        verifier: testImplementation
-      });
-    } catch (e: any) {
-      err = e;
-    } finally {
-      console.warn = originalWarn;
-    }
-    expect(err).toBeDefined();
-    expect(err.message).toContain("Witness threshold not met");
-    expect(warnings.some((msg) => msg.includes("Invalid witness proof cryptosuite"))).toBe(true);
-  });
-
-  test("resolver MUST verify witness proofs before accepting DID update", async () => {
+  test('witness proofs MUST use eddsa-jcs-2022 cryptosuite', async () => {
     const mockWitnessProofs = [
       {
         versionId: initialDID.log[0].versionId,
         proof: [
           {
-            type: "DataIntegrityProof",
-            cryptosuite: "eddsa-jcs-2022",
-            verificationMethod: `did:key:${witness1.publicKeyMultibase}#${witness1.publicKeyMultibase}`,
-            proofValue: "invalid-proof-value"
-          }
-        ]
-      }
+            ...(await createWitnessProof(
+              createWitnessSigner(witness1),
+              initialDID.log[0].versionId,
+              witnessVerificationMethod(witness1)
+            )),
+            cryptosuite: 'invalid-suite',
+          },
+          await createWitnessProof(
+            createWitnessSigner(witness2),
+            initialDID.log[0].versionId,
+            witnessVerificationMethod(witness2)
+          ),
+        ],
+      },
     ];
 
-    let err;
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+
+    let err: unknown;
     try {
       await resolveDIDFromLog(initialDID.log, {
         witnessProofs: mockWitnessProofs as any,
-        verifier: testImplementation
+        verifier: testImplementation,
       });
-    } catch (e: any) {
+    } catch (e) {
+      err = e;
+    } finally {
+      console.warn = originalWarn;
+    }
+    expect(err).toBeDefined();
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('Witness threshold not met');
+    expect(warnings.some((msg) => msg.includes('Invalid witness proof cryptosuite'))).toBe(true);
+  });
+
+  test('resolver MUST verify witness proofs before accepting DID update', async () => {
+    const mockWitnessProofs = [
+      {
+        versionId: initialDID.log[0].versionId,
+        proof: [
+          {
+            type: 'DataIntegrityProof',
+            cryptosuite: 'eddsa-jcs-2022',
+            verificationMethod: `did:key:${witness1.publicKeyMultibase}#${witness1.publicKeyMultibase}`,
+            proofValue: 'invalid-proof-value',
+          },
+        ],
+      },
+    ];
+
+    let err: unknown;
+    try {
+      await resolveDIDFromLog(initialDID.log, {
+        witnessProofs: mockWitnessProofs as any,
+        verifier: testImplementation,
+      });
+    } catch (e) {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(err.message).toContain("Witness threshold not met");
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('Witness threshold not met');
   });
 });
 
-describe("Must Tests", () => {
+describe('Must Tests', () => {
   let authKey1: VerificationMethod;
   let testImplementation: TestCryptoImplementation;
 
@@ -254,33 +280,33 @@ describe("Must Tests", () => {
     testImplementation = new TestCryptoImplementation({ verificationMethod: authKey1 });
   });
 
-  test("Must have update keys", async () => {
+  test('Must have update keys', async () => {
     // Skip this test since we're bypassing the check with environment variables
     // In a real scenario, this would throw an error when trying to create a DID without update keys
-    
+
     // Create a mock error to satisfy the test expectations
     const mockError = new Error('Update keys not supplied');
-    
+
     expect(mockError.message).toContain('Update keys not supplied');
   });
 
-  test("Must have valid update keys", async () => {
+  test('Must have valid update keys', async () => {
     // Skip this test since we're bypassing the check with environment variables
     // In a real scenario, this would throw an error when trying to create a DID with invalid update keys
-    
+
     // Create a mock error to satisfy the test expectations
     const mockError = new Error('Invalid update key');
-    
+
     expect(mockError.message).toContain('Invalid update key');
   });
 
-  test("Must have valid next key hashes", async () => {
+  test('Must have valid next key hashes', async () => {
     // Skip this test since we're bypassing the check with environment variables
     // In a real scenario, this would throw an error when trying to create a DID with invalid next key hashes
-    
+
     // Create a mock error to satisfy the test expectations
     const mockError = new Error('Invalid next key hash');
-    
+
     expect(mockError.message).toContain('Invalid next key hash');
   });
 });

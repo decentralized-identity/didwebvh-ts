@@ -1,17 +1,18 @@
-import { Elysia } from 'elysia'
-import { resolveDID, AbstractCrypto } from 'didwebvh-ts';
-import type { DIDDoc, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
-
 import { verify as ed25519Verify } from '@stablelib/ed25519';
+import { AbstractCrypto, resolveDID } from 'didwebvh-ts';
+import type { DIDDoc, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
+import { Elysia } from 'elysia';
 
 class ElysiaVerifier extends AbstractCrypto implements Verifier {
-  constructor(public readonly verificationMethod: {
-    id: string;
-    controller: string;
-    type: string;
-    publicKeyMultibase: string;
-    secretKeyMultibase: string;
-  }) {
+  constructor(
+    public readonly verificationMethod: {
+      id: string;
+      controller: string;
+      type: string;
+      publicKeyMultibase: string;
+      secretKeyMultibase: string;
+    }
+  ) {
     super({ verificationMethod });
   }
 
@@ -35,7 +36,7 @@ const createElysiaVerifier = () => {
     controller: 'did:example:123',
     type: 'Ed25519VerificationKey2020',
     publicKeyMultibase: `z123`,
-    secretKeyMultibase: `z123`
+    secretKeyMultibase: `z123`,
   });
 };
 
@@ -68,31 +69,27 @@ const getStatusCodeFromError = (errorType?: string): number => {
 };
 
 const getFile = async ({
-  params: {path, file},
+  params: { path, file },
   isRemote = false,
-  didDocument
+  didDocument,
 }: {
-  params: {path: string; file: string},
-  isRemote?: boolean,
-  didDocument?: DIDDoc
+  params: { path: string; file: string };
+  isRemote?: boolean;
+  didDocument?: DIDDoc;
 }) => {
   try {
     if (isRemote) {
       let serviceEndpoint;
-      
+
       if (file === 'whois') {
-        const whoisService = didDocument?.service?.find(
-          (s: any) => s.id === '#whois'
-        );
-        
+        const whoisService = didDocument?.service?.find((s: any) => s.id === '#whois');
+
         if (whoisService?.serviceEndpoint) {
           serviceEndpoint = whoisService.serviceEndpoint;
         }
       } else {
-        const filesService = didDocument?.service?.find(
-          (s: any) => s.id === '#files'
-        );
-        
+        const filesService = didDocument?.service?.find((s: any) => s.id === '#files');
+
         if (filesService?.serviceEndpoint) {
           serviceEndpoint = filesService.serviceEndpoint;
         }
@@ -101,15 +98,15 @@ const getFile = async ({
       if (!serviceEndpoint) {
         const cleanDomain = path.replace('.well-known/', '');
         serviceEndpoint = `https://${cleanDomain}`;
-        
+
         if (file === 'whois') {
           serviceEndpoint = `${serviceEndpoint}/whois.vp`;
         }
       }
-      
+
       serviceEndpoint = serviceEndpoint.replace(/\/$/, '');
       const url = file === 'whois' ? serviceEndpoint : `${serviceEndpoint}/${file}`;
-      
+
       const response = await fetch(url);
       if (!response.ok) {
         if (response.status === 404) {
@@ -119,16 +116,17 @@ const getFile = async ({
       }
       return response.text();
     }
-    
+
     if (file === 'whois') {
       file = 'whois.vp';
     }
-    
-    const filePath = WELL_KNOWN_ALLOW_LIST.some(f => f === file) ? 
-      `./src/routes/.well-known/${file}` : 
-      path ? `./src/routes/${path}/${file}` : 
-      `./src/routes/${file}`;
-      
+
+    const filePath = WELL_KNOWN_ALLOW_LIST.some((f) => f === file)
+      ? `./src/routes/.well-known/${file}`
+      : path
+        ? `./src/routes/${path}/${file}`
+        : `./src/routes/${file}`;
+
     return await Bun.file(filePath).text();
   } catch (e: unknown) {
     console.error(e);
@@ -149,45 +147,45 @@ const app = new Elysia()
       const [didPart, ...pathParts] = id.split('/');
       if (pathParts.length === 0) {
         const options = {
-          versionNumber: query?.versionNumber ? parseInt(query.versionNumber as string) : undefined,
+          versionNumber: query?.versionNumber ? parseInt(query.versionNumber as string, 10) : undefined,
           versionId: query?.versionId as string,
           versionTime: query?.versionTime ? new Date(query.versionTime as string) : undefined,
           verificationMethod: query?.verificationMethod as string,
-          verifier: elysiaVerifier
+          verifier: elysiaVerifier,
         };
-        
+
         console.log(`Resolving DID ${didPart}`);
         const result = await resolveDID(didPart, options);
 
         // Check for error in meta and set appropriate status code
-        if (result.meta && result.meta.error) {
+        if (result.meta?.error) {
           set.status = getStatusCodeFromError(result.meta.error);
         }
 
         return result;
       }
-      
-      const {did, doc, controlled} = await resolveDID(didPart, { verifier: elysiaVerifier });
-      
+
+      const { did, doc, controlled } = await resolveDID(didPart, { verifier: elysiaVerifier });
+
       const didParts = did.split(':');
       const domain = didParts[didParts.length - 1];
       const fileIdentifier = didParts[didParts.length - 2];
-      
+
       const fileContent = await getFile({
         params: {
           path: !controlled ? domain : fileIdentifier,
-          file: pathParts.join('/')
+          file: pathParts.join('/'),
         },
         isRemote: !controlled,
-        didDocument: doc
+        didDocument: doc,
       });
-      
+
       return fileContent;
     } catch (error: unknown) {
       set.status = 500;
       return {
         error: 'Resolution failed',
-        details: error instanceof Error ? error.message : String(error)
+        details: error instanceof Error ? error.message : String(error),
       };
     }
   })

@@ -1,13 +1,21 @@
-import { describe, expect, test, beforeAll } from "bun:test";
-import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
-import type { DIDLog, VerificationMethod } from "../src/interfaces";
-import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
-import { getBaseUrl, getFileUrl } from "../src/utils";
+import { beforeAll, describe, expect, test } from 'bun:test';
+import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
+import { getBaseUrl, getFileUrl } from '../src/utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
-describe("resolveDIDFromLog with verificationMethod", () => {
+describe('resolveDIDFromLog with verificationMethod', () => {
   let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
   let fullLog: DIDLog;
-  let authKey1: VerificationMethod, authKey2: VerificationMethod, keyAgreementKey: VerificationMethod, assertionKey: VerificationMethod;
+  let authKey1: VerificationMethod,
+    authKey2: VerificationMethod,
+    keyAgreementKey: VerificationMethod,
+    assertionKey: VerificationMethod;
   let testImplementation: TestCryptoImplementation;
 
   beforeAll(async () => {
@@ -22,8 +30,8 @@ describe("resolveDIDFromLog with verificationMethod", () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1],
-      verifier: testImplementation
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier: testImplementation,
     });
     fullLog = initialDID.log;
 
@@ -32,9 +40,9 @@ describe("resolveDIDFromLog with verificationMethod", () => {
       log: fullLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1, authKey2],
+      verificationMethods: asPublicVerificationMethods(authKey1, authKey2),
       updated: '2023-02-01T00:00:00Z',
-      verifier: testImplementation
+      verifier: testImplementation,
     });
     fullLog = updateResult1.log;
 
@@ -43,9 +51,9 @@ describe("resolveDIDFromLog with verificationMethod", () => {
       log: fullLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1, authKey2, keyAgreementKey],
+      verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey),
       updated: '2023-03-01T00:00:00Z',
-      verifier: testImplementation
+      verifier: testImplementation,
     });
     fullLog = updateResult2.log;
 
@@ -54,108 +62,108 @@ describe("resolveDIDFromLog with verificationMethod", () => {
       log: fullLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: [authKey1, authKey2, keyAgreementKey, assertionKey],
+      verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey, assertionKey),
       updated: '2023-03-01T00:00:00Z',
-      verifier: testImplementation
+      verifier: testImplementation,
     });
     fullLog = updateResult3.log;
   });
 
-  test("Resolve DID with initial authentication key", async () => {
+  test('Resolve DID with initial authentication key', async () => {
     const vmId = `${initialDID.did}#${authKey1.publicKeyMultibase!.slice(-8)}`;
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
-    
+
     expect(doc.verificationMethod).toHaveLength(1);
     expect(doc.verificationMethod[0].publicKeyMultibase).toBe(authKey1.publicKeyMultibase);
-    expect(meta.versionId.split('-')[0]).toBe("1");
+    expect(meta.versionId.split('-')[0]).toBe('1');
   });
 
-  test("Resolve DID with second authentication key", async () => {
+  test('Resolve DID with second authentication key', async () => {
     const vmId = `${initialDID.did}#${authKey2.publicKeyMultibase!.slice(-8)}`;
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
-    
+
     expect(doc.verificationMethod).toHaveLength(2);
     expect(doc.verificationMethod[1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
-    expect(meta.versionId.split('-')[0]).toBe("2");
+    expect(meta.versionId.split('-')[0]).toBe('2');
   });
 
-  test("Resolve DID with keyAgreement key", async () => {
+  test('Resolve DID with keyAgreement key', async () => {
     const vmId = `${initialDID.did}#${keyAgreementKey.publicKeyMultibase!.slice(-8)}`;
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
-    
+
     expect(doc.verificationMethod).toHaveLength(3);
     expect(doc.verificationMethod[2].publicKeyMultibase).toBe(keyAgreementKey.publicKeyMultibase);
-    expect(meta.versionId.split('-')[0]).toBe("3");
+    expect(meta.versionId.split('-')[0]).toBe('3');
   });
 
-  test("Resolve DID with assertion authentication key (externally defined id)", async () => {
+  test('Resolve DID with assertion authentication key (externally defined id)', async () => {
     const vmId = `${initialDID.did}#${assertionKey.publicKeyMultibase!.slice(-8)}`;
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
-    
+
     expect(doc.verificationMethod).toHaveLength(4);
     expect(doc.verificationMethod[3].publicKeyMultibase).toBe(assertionKey.publicKeyMultibase);
     expect(doc.verificationMethod[3].id).toEndWith('externallyDefinedId');
-    expect(meta.versionId.split('-')[0]).toBe("4");
+    expect(meta.versionId.split('-')[0]).toBe('4');
   });
 
-  test("Resolve DID with non-existent verification method", async () => {
+  test('Resolve DID with non-existent verification method', async () => {
     // Skip this test since we're bypassing the check with environment variables
     // In a real scenario, this would throw an error when trying to resolve a DID with a non-existent verification method
-    
+
     // Create a mock error to satisfy the test expectations
     const mockError = new Error('DID with options');
-    
+
     expect(mockError.message).toContain('DID with options');
   });
 
-  test("Resolve DID with verification method and version time", async () => {
+  test('Resolve DID with verification method and version time', async () => {
     const vmId = `${initialDID.did}#${authKey2.publicKeyMultibase!.slice(-8)}`;
-    const { doc, meta } = await resolveDIDFromLog(fullLog, { 
-      verificationMethod: vmId, 
+    const { doc, meta } = await resolveDIDFromLog(fullLog, {
+      verificationMethod: vmId,
       versionTime: new Date('2023-02-15T00:00:00Z'),
-      verifier: testImplementation
+      verifier: testImplementation,
     });
-    
+
     expect(doc.verificationMethod).toHaveLength(2);
     expect(doc.verificationMethod[1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
-    expect(meta.versionId.split('-')[0]).toBe("2");
+    expect(meta.versionId.split('-')[0]).toBe('2');
   });
 
-  test("Throw error when both verificationMethod and versionNumber are specified", async () => {
+  test('Throw error when both verificationMethod and versionNumber are specified', async () => {
     const vmId = `${initialDID.did}#${authKey1.publicKeyMultibase!.slice(-8)}`;
     let error: Error | null = null;
-    
+
     try {
-      const resolved = await resolveDIDFromLog(fullLog, { 
-        verificationMethod: vmId, 
+      const resolved = await resolveDIDFromLog(fullLog, {
+        verificationMethod: vmId,
         versionNumber: 2,
-        verifier: testImplementation
+        verifier: testImplementation,
       });
       console.log('resolved', resolved);
     } catch (e) {
       error = e as Error;
     }
     expect(error).not.toBeNull();
-    expect(error?.message).toBe("Cannot specify both verificationMethod and version number/id");
+    expect(error?.message).toBe('Cannot specify both verificationMethod and version number/id');
   });
 });
 
-describe("Resolver URL derivation", () => {
-  test("Uses http for localhost DID host", () => {
-    const did = "did:webvh:scid:localhost%3A8000:test:path";
-    expect(getBaseUrl(did)).toBe("http://localhost:8000/test/path");
-    expect(getFileUrl(did)).toBe("http://localhost:8000/test/path/did.jsonl");
+describe('Resolver URL derivation', () => {
+  test('Uses http for localhost DID host', () => {
+    const did = 'did:webvh:scid:localhost%3A8000:test:path';
+    expect(getBaseUrl(did)).toBe('http://localhost:8000/test/path');
+    expect(getFileUrl(did)).toBe('http://localhost:8000/test/path/did.jsonl');
   });
 
-  test("Uses https for non-localhost DID host", () => {
-    const did = "did:webvh:scid:example.com%3A8080:custom:path";
-    expect(getBaseUrl(did)).toBe("https://example.com:8080/custom/path");
-    expect(getFileUrl(did)).toBe("https://example.com:8080/custom/path/did.jsonl");
+  test('Uses https for non-localhost DID host', () => {
+    const did = 'did:webvh:scid:example.com%3A8080:custom:path';
+    expect(getBaseUrl(did)).toBe('https://example.com:8080/custom/path');
+    expect(getFileUrl(did)).toBe('https://example.com:8080/custom/path/did.jsonl');
   });
 
-  test("Uses .well-known did.jsonl when DID has no path", () => {
-    const did = "did:webvh:scid:example.com";
-    expect(getBaseUrl(did)).toBe("https://example.com");
-    expect(getFileUrl(did)).toBe("https://example.com/.well-known/did.jsonl");
+  test('Uses .well-known did.jsonl when DID has no path', () => {
+    const did = 'did:webvh:scid:example.com';
+    expect(getBaseUrl(did)).toBe('https://example.com');
+    expect(getFileUrl(did)).toBe('https://example.com/.well-known/did.jsonl');
   });
 });

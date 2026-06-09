@@ -1,10 +1,10 @@
-export { resolveDID, resolveDIDFromLog, createDID, updateDID, deactivateDID } from './method';
-export { createDocumentSigner, prepareDataForSigning, createProof, createSigner, AbstractCrypto } from './cryptography';
-export {
-	createWitnessProof,
-	signWitnessProofEntry,
-	signWitnessProofEntries,
-} from './witness';
+export { AbstractCrypto, createDocumentSigner, createProof, createSigner, prepareDataForSigning } from './cryptography';
 export * from './interfaces';
+export { createDID, deactivateDID, resolveDID, resolveDIDFromLog, updateDID } from './method';
 export { generateParallelDidWeb, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils';
-export { multibaseEncode, multibaseDecode, MultibaseEncoding } from './utils/multiformats';
+export { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats';
+export {
+  createWitnessProof,
+  signWitnessProofEntries,
+  signWitnessProofEntry,
+} from './witness';

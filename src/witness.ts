@@ -1,21 +1,20 @@
-import { canonicalizeStrict } from './utils/canonicalize';
-import { createHash } from './utils/crypto';
 import type {
   DataIntegrityProof,
   DataIntegrityProofTemplate,
   DIDLogEntry,
   Signer,
   SigningInput,
+  Verifier,
   WitnessEntry,
+  WitnessParameterResolution,
   WitnessProofFileEntry,
   WitnessSigningOptions,
   WitnessSigningResult,
-  Verifier,
-  WitnessParameterResolution,
 } from './interfaces';
-import { parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from "./utils";
+import { fetchWitnessProofs, parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from './utils';
 import { concatBuffers } from './utils/buffer';
-import { fetchWitnessProofs } from './utils';
+import { canonicalizeStrict } from './utils/canonicalize';
+import { createHash } from './utils/crypto';
 import { multibaseDecode } from './utils/multiformats';
 
 function createWitnessProofSigner(signer: Signer) {
@@ -60,17 +59,17 @@ export async function createWitnessProof(
   created: string = new Date().toISOString()
 ): Promise<DataIntegrityProof> {
   const proofTemplate: DataIntegrityProofTemplate = {
-    type: "DataIntegrityProof",
-    cryptosuite: "eddsa-jcs-2022",
+    type: 'DataIntegrityProof',
+    cryptosuite: 'eddsa-jcs-2022',
     verificationMethod,
     created,
-    proofPurpose: "assertionMethod"
+    proofPurpose: 'assertionMethod',
   };
 
-  const signedData = await signer({versionId}, proofTemplate);
+  const signedData = await signer({ versionId }, proofTemplate);
   const mergedProof = {
     ...proofTemplate,
-    ...signedData.proof
+    ...signedData.proof,
   };
 
   // Strip undefined fields to keep the proof JSON-compatible.
@@ -102,9 +101,7 @@ export async function createWitnessProof(
  * @param options Witness signing options for one target version.
  * @returns A witness proof file entry for the target version.
  */
-export async function signWitnessProofEntry(
-  options: WitnessSigningOptions
-): Promise<WitnessSigningResult> {
+export async function signWitnessProofEntry(options: WitnessSigningOptions): Promise<WitnessSigningResult> {
   if (!options.versionId) {
     throw new Error('versionId is required');
   }
@@ -177,18 +174,23 @@ export function validateWitnessParameter(witness: WitnessParameterResolution): v
     throw new Error('Witness list cannot be empty');
   }
 
-  if (!witness.threshold || parseInt(witness.threshold.toString()) < 1 || parseInt(witness.threshold.toString()) > witness.witnesses.length) {
+  if (
+    !witness.threshold ||
+    parseInt(witness.threshold.toString(), 10) < 1 ||
+    parseInt(witness.threshold.toString(), 10) > witness.witnesses.length
+  ) {
     throw new Error('Witness threshold must be between 1 and the number of witnesses');
   }
 
   const ids = new Set<string>();
   for (const w of witness.witnesses) {
-    let parsedDid;
-    try {
-      parsedDid = parseDidKeyDid(w.id);
-    } catch {
-      throw new Error('Witness DIDs must be did:key format');
-    }
+    const parsedDid = (() => {
+      try {
+        return parseDidKeyDid(w.id);
+      } catch {
+        throw new Error('Witness DIDs must be did:key format');
+      }
+    })();
 
     if (ids.has(parsedDid.did)) {
       throw new Error(`Duplicate witness id: ${w.id}`);
@@ -261,7 +263,7 @@ export async function countVerifiedWitnessApprovals(
         }
 
         const vm = await resolveVM(proof.verificationMethod);
-        if (!vm || !vm.publicKeyMultibase) {
+        if (!vm?.publicKeyMultibase) {
           throw new Error(`Verification Method ${proof.verificationMethod} not found`);
         }
 
@@ -271,7 +273,7 @@ export async function countVerifiedWitnessApprovals(
         }
 
         const { proofValue, ...proofWithoutValue } = proof;
-        
+
         // Create hashes
         const canonicalizedData = canonicalizeStrict({ versionId: logEntry.versionId });
         const canonicalizedProof = canonicalizeStrict(proofWithoutValue);
@@ -280,11 +282,7 @@ export async function countVerifiedWitnessApprovals(
         const input = concatBuffers(proofHash, dataHash);
         const signature = multibaseDecode(proofValue).bytes;
 
-        const verified = await verifier.verify(
-          signature,
-          input,
-          publicKey.slice(2)
-        );
+        const verified = await verifier.verify(signature, input, publicKey.slice(2));
 
         if (!verified) {
           throw new Error('Invalid witness proof signature');
@@ -296,11 +294,8 @@ export async function countVerifiedWitnessApprovals(
         const message = error instanceof Error ? error.message : String(error);
         console.warn(
           `Ignoring invalid witness proof for version ${proofSet.versionId} ` +
-          `(verificationMethod: ${proof.verificationMethod}): ${message}`
+            `(verificationMethod: ${proof.verificationMethod}): ${message}`
         );
-
-        // Individual invalid proofs do not count toward threshold if other valid proofs remain.
-        continue;
       }
     }
   }
@@ -308,4 +303,4 @@ export async function countVerifiedWitnessApprovals(
   return approvals;
 }
 
-export { fetchWitnessProofs }; 
+export { fetchWitnessProofs };

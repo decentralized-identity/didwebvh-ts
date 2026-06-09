@@ -1,73 +1,78 @@
-import { describe, test, expect } from "bun:test";
-import { createDID, updateDID, resolveDIDFromLog } from "../src/method";
-import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from "./utils";
+import { describe, expect, test } from 'bun:test';
+import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
-describe("Watcher Handling", () => {
-  test("Create DID with watchers", async () => {
+describe('Watcher Handling', () => {
+  test('Create DID with watchers', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
-    const watchers = ["https://watcher.example.com"];
+    const watchers = ['https://watcher.example.com'];
 
     const { log } = await createDID({
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers,
-      verifier
+      verifier,
     });
 
     const resolved = await resolveDIDFromLog(log, { verifier });
     expect(resolved.meta.watchers).toEqual(watchers);
   });
 
-  test("Watchers persist across updates when not specified", async () => {
+  test('Watchers persist across updates when not specified', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
-    const watchers = ["https://watcher.example.com"];
+    const watchers = ['https://watcher.example.com'];
 
     const initial = await createDID({
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers,
-      verifier
+      verifier,
     });
 
     const updated = await updateDID({
       log: initial.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
-      verifier
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier,
     });
 
     const resolved = await resolveDIDFromLog(updated.log, { verifier });
     expect(resolved.meta.watchers).toEqual(watchers);
   });
 
-  test("Disable watchers with null", async () => {
+  test('Disable watchers with null', async () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
-    const watchers = ["https://watcher.example.com"];
+    const watchers = ['https://watcher.example.com'];
 
     const initial = await createDID({
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers,
-      verifier
+      verifier,
     });
 
     const updated = await updateDID({
       log: initial.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: [authKey],
+      verificationMethods: asPublicVerificationMethods(authKey),
       watchers: null,
-      verifier
+      verifier,
     });
 
     const resolved = await resolveDIDFromLog(updated.log, { verifier });

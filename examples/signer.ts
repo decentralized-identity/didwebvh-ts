@@ -1,16 +1,25 @@
-import { AbstractCrypto, createDID, multibaseDecode, multibaseEncode, MultibaseEncoding, prepareDataForSigning } from 'didwebvh-ts';
+import { generateKeyPair, sign, verify } from '@stablelib/ed25519';
+import {
+  AbstractCrypto,
+  createDID,
+  MultibaseEncoding,
+  multibaseDecode,
+  multibaseEncode,
+  prepareDataForSigning,
+} from 'didwebvh-ts';
 import type { Signer, SigningInput, SigningOutput, VerificationMethod, Verifier } from 'didwebvh-ts/types';
-import { base58btc } from "multiformats/bases/base58";
-import { verify, sign, generateKeyPair } from '@stablelib/ed25519';
+import { base58btc } from 'multiformats/bases/base58';
 
 class ExampleCrypto extends AbstractCrypto implements Verifier, Signer {
-  constructor(public readonly verificationMethod: {
-    id: string;
-    controller: string;
-    type: string;
-    publicKeyMultibase: string;
-    secretKeyMultibase?: string;
-  }) {
+  constructor(
+    public readonly verificationMethod: {
+      id: string;
+      controller: string;
+      type: string;
+      publicKeyMultibase: string;
+      secretKeyMultibase?: string;
+    }
+  ) {
     super({ verificationMethod });
   }
 
@@ -22,7 +31,7 @@ class ExampleCrypto extends AbstractCrypto implements Verifier, Signer {
       const { bytes: secretKey } = multibaseDecode(this.verificationMethod.secretKeyMultibase);
       const proof = sign(secretKey.slice(2), await prepareDataForSigning(input.document, input.proof));
       return {
-        proofValue: multibaseEncode(proof, MultibaseEncoding.BASE58_BTC)
+        proofValue: multibaseEncode(proof, MultibaseEncoding.BASE58_BTC),
       };
     } catch (error) {
       console.error('Ed25519 signing error:', error);
@@ -50,7 +59,7 @@ export async function generateEd25519VerificationMethod(): Promise<VerificationM
     type: 'Multikey',
     publicKeyMultibase: base58btc.encode(new Uint8Array([0xed, 0x01, ...publicKey])),
     secretKeyMultibase: base58btc.encode(new Uint8Array([0x80, 0x26, ...secretKey])),
-    purpose: 'assertionMethod'
+    purpose: 'assertionMethod',
   };
 }
 
@@ -60,9 +69,9 @@ export const createExampleCrypto = async (vm: VerificationMethod) => {
     controller: `did:key:${vm.publicKeyMultibase}`,
     type: 'Multikey',
     publicKeyMultibase: vm.publicKeyMultibase,
-    secretKeyMultibase: vm.secretKeyMultibase
+    secretKeyMultibase: vm.secretKeyMultibase,
   });
-}
+};
 
 const vm = await generateEd25519VerificationMethod();
 
@@ -73,7 +82,7 @@ const did = await createDID({
   signer: crypto,
   verifier: crypto,
   updateKeys: [`did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`],
-  verificationMethods: [vm]
-})
+  verificationMethods: [vm],
+});
 
 console.log(did);

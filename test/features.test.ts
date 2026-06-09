@@ -1,14 +1,19 @@
-import { beforeAll, expect, test} from "bun:test";
-import { createDID, resolveDIDFromLog, updateDID } from "../src/method";
-import { createDate, deriveNextKeyHash } from "../src/utils";
-import { generateTestVerificationMethod, createTestSigner, TestCryptoImplementation } from './utils';
-import type { DIDLog, VerificationMethod } from "../src/interfaces";
+import { beforeAll, expect, test } from 'bun:test';
+import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
+import { createDate, deriveNextKeyHash } from '../src/utils';
+import {
+  asPublicVerificationMethods,
+  createTestSigner,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from './utils';
 
 let log: DIDLog;
 let authKey1: VerificationMethod,
-    authKey2: VerificationMethod,
-    authKey3: VerificationMethod,
-    authKey4: VerificationMethod;
+  authKey2: VerificationMethod,
+  authKey3: VerificationMethod,
+  authKey4: VerificationMethod;
 let testImplementation: TestCryptoImplementation;
 
 let nonPortableDID: { did: string; doc: any; meta: any; log: DIDLog };
@@ -20,44 +25,44 @@ beforeAll(async () => {
   authKey3 = await generateTestVerificationMethod();
   authKey4 = await generateTestVerificationMethod();
   testImplementation = new TestCryptoImplementation({ verificationMethod: authKey1 });
-  
-  const {doc: newDoc1, log: newLog1} = await createDID({
+
+  const { doc: newDoc1, log: newLog1 } = await createDID({
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
-  const {doc: newDoc2, log: newLog2} = await updateDID({
+  const { doc: newDoc2, log: newLog2 } = await updateDID({
     log: newLog1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey2.publicKeyMultibase!],
     context: newDoc1['@context'],
-    verificationMethods: [authKey2],
+    verificationMethods: asPublicVerificationMethods(authKey2),
     updated: createDate(new Date('2021-02-01T08:32:55Z')),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
-  const {doc: newDoc3, log: newLog3} = await updateDID({
+  const { doc: newDoc3, log: newLog3 } = await updateDID({
     log: newLog2,
     signer: createTestSigner(authKey2),
     updateKeys: [authKey3.publicKeyMultibase!],
     context: newDoc2['@context'],
-    verificationMethods: [authKey3],
+    verificationMethods: asPublicVerificationMethods(authKey3),
     updated: createDate(new Date('2021-03-01T08:32:55Z')),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
-  const {doc: newDoc4, log: newLog4} = await updateDID({
+  const { doc: newDoc4, log: newLog4 } = await updateDID({
     log: newLog3,
     signer: createTestSigner(authKey3),
     updateKeys: [authKey4.publicKeyMultibase!],
     context: newDoc3['@context'],
-    verificationMethods: [authKey4],
+    verificationMethods: asPublicVerificationMethods(authKey4),
     updated: createDate(new Date('2021-04-01T08:32:55Z')),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
   log = newLog4;
@@ -66,76 +71,76 @@ beforeAll(async () => {
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     portable: false, // Set portable to false
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
   portableDID = await createDID({
     domain: 'example.com',
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
-    verificationMethods: [authKey2],
+    verificationMethods: asPublicVerificationMethods(authKey2),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     portable: true, // Set portable to true
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 });
 
-test("Resolve DID at time (first)", async () => {
+test('Resolve DID at time (first)', async () => {
   const resolved = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-01-15T08:32:55Z'),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
   expect(resolved.meta.versionId.split('-')[0]).toBe('1');
 });
 
-test("Resolve DID at time (second)", async () => {
+test('Resolve DID at time (second)', async () => {
   const resolved = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-02-15T08:32:55Z'),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
   expect(resolved.meta.versionId.split('-')[0]).toBe('2');
 });
 
-test("Resolve DID at time (third)", async () => {
+test('Resolve DID at time (third)', async () => {
   const resolved = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-03-15T08:32:55Z'),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
   expect(resolved.meta.versionId.split('-')[0]).toBe('3');
 });
 
-test("Resolve DID at time (last)", async () => {
+test('Resolve DID at time (last)', async () => {
   const resolved = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-04-15T08:32:55Z'),
-    verifier: testImplementation
+    verifier: testImplementation,
   });
   expect(resolved.meta.versionId.split('-')[0]).toBe('4');
 });
 
-test("Resolve DID at version", async () => {
+test('Resolve DID at version', async () => {
   const resolved = await resolveDIDFromLog(log, {
     versionId: log[0].versionId,
-    verifier: testImplementation
+    verifier: testImplementation,
   });
   expect(resolved.meta.versionId.split('-')[0]).toBe('1');
 });
 
-test("Resolve DID latest", async () => {
+test('Resolve DID latest', async () => {
   const resolved = await resolveDIDFromLog(log, { verifier: testImplementation });
   expect(resolved.meta.versionId.split('-')[0]).toBe('4');
 });
 
-test("Empty nextKeyHashes array should not enable prerotation", async () => {
+test('Empty nextKeyHashes array should not enable prerotation', async () => {
   // Create a DID without nextKeyHashes
   const { log: log1 } = await createDID({
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
-    verifier: testImplementation
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    verifier: testImplementation,
   });
 
   // Update with different updateKeys — no prerotation constraint
@@ -143,8 +148,8 @@ test("Empty nextKeyHashes array should not enable prerotation", async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey2.publicKeyMultibase!],
-    verificationMethods: [authKey2],
-    verifier: testImplementation
+    verificationMethods: asPublicVerificationMethods(authKey2),
+    verifier: testImplementation,
   });
 
   // Should resolve successfully — empty nextKeyHashes doesn't block key rotation
@@ -153,16 +158,16 @@ test("Empty nextKeyHashes array should not enable prerotation", async () => {
   expect(resolved.meta.prerotation).toBe(false);
 });
 
-test("Require `nextKeyHashes` to continue if previously set", async () => {
+test('Require `nextKeyHashes` to continue if previously set', async () => {
   // Create a DID with nextKeyHashes pointing to authKey2
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     nextKeyHashes: [nextKeyHash],
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
   // Update reusing authKey1 as updateKeys (NOT in nextKeyHashes).
@@ -172,25 +177,23 @@ test("Require `nextKeyHashes` to continue if previously set", async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
-    verifier: testImplementation
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    verifier: testImplementation,
   });
 
-  await expect(
-    resolveDIDFromLog(log2, { verifier: testImplementation })
-  ).rejects.toThrow('Invalid update key');
+  await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
 });
 
-test("updateKeys MUST be in previous nextKeyHashes when updating", async () => {
+test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
   // Create DID with nextKeyHashes pointing to authKey3
   const nextKeyHash = await deriveNextKeyHash(authKey3.publicKeyMultibase!);
   const { log: log1 } = await createDID({
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     nextKeyHashes: [nextKeyHash],
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
   // Update reusing authKey1 as updateKeys (NOT in nextKeyHashes).
@@ -200,26 +203,24 @@ test("updateKeys MUST be in previous nextKeyHashes when updating", async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
-    verifier: testImplementation
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    verifier: testImplementation,
   });
 
   // Resolution catches the invalid key
-  await expect(
-    resolveDIDFromLog(log2, { verifier: testImplementation })
-  ).rejects.toThrow('Invalid update key');
+  await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
 });
 
-test("updateKeys MUST be in nextKeyHashes when reading", async () => {
+test('updateKeys MUST be in nextKeyHashes when reading', async () => {
   // Create DID with nextKeyHashes pointing to authKey2
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
     domain: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
+    verificationMethods: asPublicVerificationMethods(authKey1),
     nextKeyHashes: [nextKeyHash],
-    verifier: testImplementation
+    verifier: testImplementation,
   });
 
   // Update with authKey1 as updateKeys (NOT in nextKeyHashes)
@@ -227,47 +228,44 @@ test("updateKeys MUST be in nextKeyHashes when reading", async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: [authKey1],
-    verifier: testImplementation
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    verifier: testImplementation,
   });
 
   // Resolution (reading) must catch the invalid key
-  await expect(
-    resolveDIDFromLog(log2, { verifier: testImplementation })
-  ).rejects.toThrow('Invalid update key');
+  await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
 });
 
-test("DID log with portable false should not resolve if moved", async () => {
+test('DID log with portable false should not resolve if moved', async () => {
   let err: any;
   try {
     const lastEntry = nonPortableDID.log[nonPortableDID.log.length - 1];
     const newTimestamp = createDate(new Date('2021-02-01T08:32:55Z'));
-    
+
     // Create a new document with the moved DID
     const newDoc = {
       ...nonPortableDID.doc,
-      id: nonPortableDID.did.replace('example.com', 'newdomain.com')
+      id: nonPortableDID.did.replace('example.com', 'newdomain.com'),
     };
 
     const newEntry = {
       versionId: `${nonPortableDID.log.length + 1}-test`,
       versionTime: newTimestamp,
-      parameters: { updateKeys: [authKey1.publicKeyMultibase]},
+      parameters: { updateKeys: [authKey1.publicKeyMultibase] },
       state: newDoc,
-      proof: [{
-        type: "DataIntegrityProof",
-        cryptosuite: "eddsa-jcs-2022",
-        verificationMethod: `did:key:${authKey1.publicKeyMultibase}`,
-        created: newTimestamp,
-        proofPurpose: "authentication",
-        proofValue: "badProofValue"
-      }]
+      proof: [
+        {
+          type: 'DataIntegrityProof',
+          cryptosuite: 'eddsa-jcs-2022',
+          verificationMethod: `did:key:${authKey1.publicKeyMultibase}`,
+          created: newTimestamp,
+          proofPurpose: 'authentication',
+          proofValue: 'badProofValue',
+        },
+      ],
     };
 
-    const badLog: DIDLog = [
-      ...nonPortableDID.log as any,
-      newEntry
-    ];
+    const badLog: DIDLog = [...(nonPortableDID.log as any), newEntry];
     await resolveDIDFromLog(badLog, { verifier: testImplementation });
   } catch (e) {
     err = e;
@@ -276,4 +274,3 @@ test("DID log with portable false should not resolve if moved", async () => {
   expect(err).toBeDefined();
   expect(err.message).toContain('Cannot move DID: portability is disabled');
 });
-

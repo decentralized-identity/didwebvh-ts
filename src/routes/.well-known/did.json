@@ -1,13 +1,8 @@
 {
-  "@context": [
-    "https://www.w3.org/ns/did/v1",
-    "https://w3id.org/security/multikey/v1"
-  ],
+  "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/security/multikey/v1"],
   "id": "did:web:localhost%3A8000",
   "controller": "did:web:localhost%3A8000",
-  "assertionMethod": [
-    "did:web:localhost%3A8000#4P6GVTpQ"
-  ],
+  "assertionMethod": ["did:web:localhost%3A8000#4P6GVTpQ"],
   "verificationMethod": [
     {
       "id": "did:web:localhost%3A8000#4P6GVTpQ",

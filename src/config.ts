@@ -1,4 +1,4 @@
-import { createBuffer, bufferToString } from './utils/buffer';
+import { bufferToString, createBuffer } from './utils/buffer';
 
 // Helper to safely access environment variables
 const isBrowser = typeof window !== 'undefined';
@@ -16,13 +16,13 @@ export const config = {
   // Helper functions
   getEnvValue,
   isBrowser,
-  
+
   // Environment checks
   isTestEnvironment: getEnvValue('NODE_ENV') === 'test',
-  
+
   // Feature flags
   logResolves: getEnvValue('LOG_RESOLVES') === 'true',
-  
+
   // Get verification methods from env
   getVerificationMethods: () => {
     const encoded = getEnvValue('DID_VERIFICATION_METHODS');
@@ -33,5 +33,5 @@ export const config = {
     } catch {
       return [];
     }
-  }
-}; 
+  },
+};
