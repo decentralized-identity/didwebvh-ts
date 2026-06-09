@@ -17,7 +17,7 @@ describe('canonicalization parity semantics', () => {
   });
 
   test('deriveHash accepts payloads with undefined object fields by stripping them', async () => {
-    await expect(deriveHash({ a: undefined } as any)).resolves.toEqual(await deriveHash({}));
+    await expect(deriveHash({ a: undefined })).resolves.toEqual(await deriveHash({}));
   });
 
   test('still rejects undefined values in arrays', () => {
