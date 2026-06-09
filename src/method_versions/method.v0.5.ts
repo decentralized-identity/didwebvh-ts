@@ -4,10 +4,12 @@ import type {
   CreateDIDInterface,
   DataIntegrityProof,
   DeactivateDIDInterface,
+  DIDDoc,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
   ResolutionOptions,
+  ServiceEndpoint,
   UpdateDIDInterface,
   WitnessProofFileEntry,
 } from '../interfaces';
@@ -36,7 +38,7 @@ const requireDidId = (id: string | undefined): string => {
 
 export const createDID = async (
   options: CreateDIDInterface
-): Promise<{ did: string; doc: any; meta: DIDResolutionMeta; log: DIDLog }> => {
+): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   if (!options.updateKeys) {
     throw new Error('Update keys not supplied');
   }
@@ -146,7 +148,7 @@ export const createDID = async (
 export const resolveDIDFromLog = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
-): Promise<{ did: string; doc: any; meta: DIDResolutionMeta }> => {
+): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta }> => {
   if (options.verificationMethod && (options.versionNumber || options.versionId)) {
     throw new Error('Cannot specify both verificationMethod and version number/id');
   }
@@ -155,7 +157,7 @@ export const resolveDIDFromLog = async (
   if (protocol !== PROTOCOL) {
     throw new Error(`'${protocol}' protocol unknown.`);
   }
-  let doc: any = {};
+  let doc: DIDDoc = {};
   let did = '';
   const meta: DIDResolutionMeta = {
     versionId: '',
@@ -174,9 +176,9 @@ export const resolveDIDFromLog = async (
   let host = '';
   let i = 0;
 
-  let resolvedDoc: any = null;
+  let resolvedDoc: DIDDoc | null = null;
   let resolvedMeta: DIDResolutionMeta | null = null;
-  let lastValidDoc: any = null;
+  let lastValidDoc: DIDDoc | null = null;
   let lastValidMeta: DIDResolutionMeta | null = null;
 
   try {
@@ -195,10 +197,10 @@ export const resolveDIDFromLog = async (
       if (version === '1') {
         meta.created = versionTime;
         newDoc = state;
-        host = newDoc.id.split(':').at(-1);
-        meta.scid = parameters.scid;
+        host = requireDidId(newDoc.id).split(':').at(-1) ?? '';
+        meta.scid = parameters.scid as string;
         meta.portable = parameters.portable ?? meta.portable;
-        meta.updateKeys = parameters.updateKeys;
+        meta.updateKeys = parameters.updateKeys as string[];
         meta.nextKeyHashes = parameters.nextKeyHashes || [];
         meta.prerotation = meta.nextKeyHashes.length > 0;
         meta.witness = parameters.witness || meta.witness;
@@ -233,13 +235,13 @@ export const resolveDIDFromLog = async (
         }
       } else {
         // version number > 1
-        const newHost = newDoc.id.split(':').at(-1);
+        const newHost = requireDidId(newDoc.id).split(':').at(-1) ?? '';
         if (!meta.portable && newHost !== host) {
           throw new Error('Cannot move DID: portability is disabled');
         } else if (newHost !== host) {
           host = newHost;
         }
-        const keys = meta.prerotation ? parameters.updateKeys : meta.updateKeys;
+        const keys = meta.prerotation ? (parameters.updateKeys as string[]) : meta.updateKeys;
         const verified = await documentStateIsValid(resolutionLog[i], keys, meta.witness, false, options.verifier);
         if (!verified) {
           throw new Error(`version ${meta.versionId} failed verification of the proof.`);
@@ -266,12 +268,17 @@ export const resolveDIDFromLog = async (
           meta.nextKeyHashes = [];
           meta.prerotation = false;
         }
+        const legacyParameters = parameters as typeof parameters & {
+          witnesses?: { id: string }[];
+          witnessThreshold?: string | number;
+        };
+
         if ('witness' in parameters) {
           meta.witness = parameters.witness;
-        } else if (parameters.witnesses) {
+        } else if (legacyParameters.witnesses) {
           meta.witness = {
-            witnesses: parameters.witnesses,
-            threshold: parameters.witnessThreshold || parameters.witnesses.length.toString(),
+            witnesses: legacyParameters.witnesses,
+            threshold: legacyParameters.witnessThreshold || legacyParameters.witnesses.length.toString(),
           };
         }
         if ('watchers' in parameters) {
@@ -280,13 +287,13 @@ export const resolveDIDFromLog = async (
       }
       // Optimized: Use efficient cloning instead of clone() function
       doc = deepClone(newDoc);
-      did = doc.id;
+      did = requireDidId(doc.id);
 
       // Add default services if they don't exist
       doc.service = Array.isArray(doc.service) ? doc.service : [];
       const baseUrl = getBaseUrl(did);
 
-      if (!doc.service.some((s: any) => s.id === '#files')) {
+      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#files')) {
         doc.service.push({
           id: '#files',
           type: 'relativeRef',
@@ -294,7 +301,7 @@ export const resolveDIDFromLog = async (
         });
       }
 
-      if (!doc.service.some((s: any) => s.id === '#whois')) {
+      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#whois')) {
         doc.service.push({
           '@context': 'https://identity.foundation/linked-vp/contexts/v1',
           id: '#whois',
@@ -375,12 +382,12 @@ export const resolveDIDFromLog = async (
     finalMeta.witness.threshold = finalMeta.witness.threshold?.toString() || '0';
   }
 
-  return { did: finalDoc.id, doc: finalDoc, meta: finalMeta };
+  return { did: requireDidId(finalDoc.id), doc: finalDoc, meta: finalMeta };
 };
 
 export const updateDID = async (
-  options: UpdateDIDInterface & { services?: any[]; domain?: string; updated?: string }
-): Promise<{ did: string; doc: any; meta: DIDResolutionMeta; log: DIDLog }> => {
+  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string; updated?: string }
+): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
   const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs }))
@@ -485,7 +492,7 @@ export const updateDID = async (
   const didId = requireDidId(prelimEntry.state.id);
 
   return {
-    did: didId,
+    did: requireDidId(prelimEntry.state.id),
     doc: prelimEntry.state,
     meta,
     log: [...log, prelimEntry],
@@ -494,7 +501,7 @@ export const updateDID = async (
 
 export const deactivateDID = async (
   options: DeactivateDIDInterface & { updateKeys?: string[] }
-): Promise<{ did: string; doc: any; meta: DIDResolutionMeta; log: DIDLog }> => {
+): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
   const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier })).meta;
@@ -549,7 +556,7 @@ export const deactivateDID = async (
   const didId = requireDidId(prelimEntry.state.id);
 
   return {
-    did: didId,
+    did: requireDidId(prelimEntry.state.id),
     doc: prelimEntry.state,
     meta,
     log: [...log, prelimEntry],

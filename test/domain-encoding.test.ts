@@ -30,7 +30,7 @@ async function createFromInput(kind: InputKind, value: string) {
   return createDID({
     ...baseOptions,
     address: value,
-  } as any);
+  });
 }
 
 describe('Strict address input validation and parsing', () => {

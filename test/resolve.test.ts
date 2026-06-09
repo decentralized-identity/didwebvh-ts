@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { getBaseUrl, getFileUrl } from '../src/utils';
 import {
@@ -10,7 +10,7 @@ import {
 } from './utils';
 
 describe('resolveDIDFromLog with verificationMethod', () => {
-  let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
+  let initialDID: CreateDIDResult;
   let fullLog: DIDLog;
   let authKey1: VerificationMethod,
     authKey2: VerificationMethod,
@@ -74,7 +74,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(1);
-    expect(doc.verificationMethod[0].publicKeyMultibase).toBe(authKey1.publicKeyMultibase);
+    expect(doc.verificationMethod![0].publicKeyMultibase).toBe(authKey1.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('1');
   });
 
@@ -83,7 +83,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(2);
-    expect(doc.verificationMethod[1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
+    expect(doc.verificationMethod![1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('2');
   });
 
@@ -92,7 +92,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(3);
-    expect(doc.verificationMethod[2].publicKeyMultibase).toBe(keyAgreementKey.publicKeyMultibase);
+    expect(doc.verificationMethod![2].publicKeyMultibase).toBe(keyAgreementKey.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('3');
   });
 
@@ -101,8 +101,8 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(4);
-    expect(doc.verificationMethod[3].publicKeyMultibase).toBe(assertionKey.publicKeyMultibase);
-    expect(doc.verificationMethod[3].id).toEndWith('externallyDefinedId');
+    expect(doc.verificationMethod![3].publicKeyMultibase).toBe(assertionKey.publicKeyMultibase);
+    expect(doc.verificationMethod![3].id).toEndWith('externallyDefinedId');
     expect(meta.versionId.split('-')[0]).toBe('4');
   });
 
@@ -125,7 +125,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     });
 
     expect(doc.verificationMethod).toHaveLength(2);
-    expect(doc.verificationMethod[1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
+    expect(doc.verificationMethod![1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('2');
   });
 

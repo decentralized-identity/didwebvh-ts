@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { type DIDLog, DidResolutionError, type VerificationMethod } from '../src/interfaces';
+import { type CreateDIDResult, type DIDLog, DidResolutionError, type VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import {
@@ -12,7 +12,7 @@ import {
 describe('Not So Happy Path Tests', () => {
   let authKey: VerificationMethod;
   let testImplementation: TestCryptoImplementation;
-  let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
+  let initialDID: CreateDIDResult;
 
   beforeAll(async () => {
     authKey = await generateTestVerificationMethod();

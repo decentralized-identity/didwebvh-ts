@@ -75,10 +75,12 @@ export async function createWitnessProof(
   // Strip undefined fields to keep the proof JSON-compatible.
   const sanitizedProof = JSON.parse(JSON.stringify(mergedProof)) as Partial<DataIntegrityProof>;
 
-  if (!sanitizedProof.verificationMethod) {
+  const verificationMethodValue = mergedProof.verificationMethod;
+  if (!verificationMethodValue) {
     throw new Error('Witness proof is missing verificationMethod');
   }
-  if (!sanitizedProof.proofValue) {
+  const proofValue = mergedProof.proofValue;
+  if (!proofValue) {
     throw new Error('Witness proof is missing proofValue');
   }
 
@@ -86,9 +88,9 @@ export async function createWitnessProof(
     id: sanitizedProof.id,
     type: sanitizedProof.type ?? proofTemplate.type,
     cryptosuite: sanitizedProof.cryptosuite ?? proofTemplate.cryptosuite,
-    verificationMethod: sanitizedProof.verificationMethod,
+    verificationMethod: verificationMethodValue,
     created: sanitizedProof.created ?? proofTemplate.created,
-    proofValue: sanitizedProof.proofValue,
+    proofValue,
     proofPurpose: sanitizedProof.proofPurpose ?? proofTemplate.proofPurpose,
   };
 }
