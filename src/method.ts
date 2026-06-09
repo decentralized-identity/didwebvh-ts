@@ -4,6 +4,7 @@ import type {
   DeactivateDIDInterface,
   DIDLog,
   ResolutionOptions,
+  ServiceEndpoint,
   UpdateDIDInterface,
   UpdateDIDResult,
   WitnessProofFileEntry,
@@ -28,9 +29,12 @@ function getWebvhVersionFromLog(log: DIDLog): string {
   return LATEST_VERSION;
 }
 
-function getWebvhVersionFromOptions(options: any): string {
-  if (options?.method) {
-    return getWebvhVersionFromMethod(options.method);
+function getWebvhVersionFromOptions(options?: unknown): string {
+  if (typeof options === 'object' && options && 'method' in options) {
+    const method = (options as { method?: unknown }).method;
+    if (typeof method === 'string') {
+      return getWebvhVersionFromMethod(method);
+    }
   }
   return LATEST_VERSION;
 }
@@ -80,7 +84,7 @@ export const resolveDID = async (
     maybeWriteTestLog(result.did, log);
 
     return { ...result, controlled };
-  } catch (e: any) {
+  } catch (e) {
     let errorType: DidResolutionError = DidResolutionError.InvalidDid;
     const message = e instanceof Error ? e.message : String(e);
     if (/not found/i.test(message) || /404/.test(message)) {
@@ -141,7 +145,7 @@ export const resolveDIDFromLog = async (
  * @returns The updated DID, resolved document, and DID log.
  */
 export const updateDID = async (
-  options: UpdateDIDInterface & { services?: any[]; domain?: string; updated?: string }
+  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string; updated?: string }
 ): Promise<UpdateDIDResult> => {
   const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);
   const result = version === '0.5' ? await v0_5.updateDID(options) : await v1.updateDID(options);
