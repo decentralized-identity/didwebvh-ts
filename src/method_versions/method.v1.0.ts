@@ -28,6 +28,7 @@ import {
   generateParallelDidWeb,
   getBaseUrl,
   parseCanonicalAddress,
+  parseDidWebvhIdentifier,
   replaceCreateDidPlaceholders,
   replaceValueInObject,
   validateCreateDidDocument,
@@ -239,11 +240,12 @@ export const resolveDIDFromLog = async (
       previousVersionTime = currentVersionTime;
       meta.updated = versionTime;
       let newDoc = state;
+      const parsedStateDid = parseDidWebvhIdentifier(requireDidId(newDoc.id), `version '${version}' state.id`);
 
       if (version === '1') {
         meta.created = versionTime;
         newDoc = state;
-        host = requireDidId(newDoc.id).split(':').at(-1) ?? '';
+        host = parsedStateDid.locationKey;
         meta.scid = parameters.scid as string;
         if (options.scid && options.scid !== meta.scid) {
           throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${meta.scid}'`);
@@ -270,6 +272,10 @@ export const resolveDIDFromLog = async (
             throw new Error(`SCID '${meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
           }
 
+          if (parsedStateDid.scid !== meta.scid) {
+            throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
+          }
+
           // Optimized: Direct object manipulation instead of JSON stringify/parse
           const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
 
@@ -287,11 +293,15 @@ export const resolveDIDFromLog = async (
         }
       } else {
         // version number > 1
-        const newHost = requireDidId(newDoc.id).split(':').at(-1) ?? '';
-        if (!meta.portable && newHost !== host) {
+        if (parsedStateDid.scid !== meta.scid) {
+          throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
+        }
+
+        const newLocation = parsedStateDid.locationKey;
+        if (!meta.portable && newLocation !== host) {
           throw new Error('Cannot move DID: portability is disabled');
-        } else if (newHost !== host) {
-          host = newHost;
+        } else if (newLocation !== host) {
+          host = newLocation;
         }
 
         // Hash chain — ALWAYS runs (cheap), even in fast-resolve
@@ -490,6 +500,8 @@ export const updateDID = async (
 ): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
+  const lastEntryDid = requireDidId(lastEntry.state.id);
+  const parsedLastEntryDid = parseDidWebvhIdentifier(lastEntryDid, 'last entry state.id');
   const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs }))
     .meta;
   if (lastMeta.deactivated) {
@@ -530,9 +542,10 @@ export const updateDID = async (
 
   const { doc } = await createDIDDoc({
     ...options,
-    controller: options.controller || lastEntry.state.id || '',
+    controller: options.controller || lastEntryDid,
     context: options.context || lastEntry.state['@context'],
-    domain: options.domain ?? lastEntry.state.id?.split(':').at(-1) ?? '',
+    domain: options.domain ?? parsedLastEntryDid.didDomainComponent,
+    paths: parsedLastEntryDid.paths,
     updateKeys: options.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });

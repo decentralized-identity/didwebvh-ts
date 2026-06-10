@@ -1,5 +1,5 @@
 import { config } from './config';
-import { BASE_CONTEXT } from './constants';
+import { BASE_CONTEXT, METHOD } from './constants';
 import type {
   CreateDIDInterface,
   DIDDoc,
@@ -79,6 +79,13 @@ interface ParsedAddress {
   canonicalPort?: number;
   didDomainComponent: string;
   paths?: string[];
+}
+
+export interface ParsedDidWebvhIdentifier {
+  scid: string;
+  didDomainComponent: string;
+  paths?: string[];
+  locationKey: string;
 }
 
 function isIPAddress(host: string): boolean {
@@ -232,6 +239,31 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     canonicalHost: host,
     canonicalPort: port,
     didDomainComponent,
+  };
+}
+
+export function parseDidWebvhIdentifier(did: string, context: string): ParsedDidWebvhIdentifier {
+  const parsedAddress = parseCanonicalAddress(did);
+  const didParts = did.split(':');
+
+  if (didParts.length < 4 || didParts[0] !== 'did' || didParts[1] !== METHOD) {
+    throw new Error(`${context} must be a valid did:webvh identifier`);
+  }
+
+  const scid = didParts[2];
+  if (!scid) {
+    throw new Error(`${context} must include SCID segment`);
+  }
+
+  const locationKey = parsedAddress.paths?.length
+    ? `${parsedAddress.didDomainComponent}:${parsedAddress.paths.join(':')}`
+    : parsedAddress.didDomainComponent;
+
+  return {
+    scid,
+    didDomainComponent: parsedAddress.didDomainComponent,
+    paths: parsedAddress.paths,
+    locationKey,
   };
 }
 
