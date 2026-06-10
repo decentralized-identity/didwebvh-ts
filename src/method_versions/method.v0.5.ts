@@ -23,6 +23,7 @@ import {
   getBaseUrl,
   parseCanonicalAddress,
   replaceValueInObject,
+  validateMethodSpecificPathSegments,
 } from '../utils';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
@@ -56,6 +57,7 @@ export const createDID = async (
   const parsed = parseCanonicalAddress(addressInput);
   const didDomainComponent = parsed.didDomainComponent;
   const allPaths = [...(parsed.paths || []), ...(options.paths || [])];
+  validateMethodSpecificPathSegments(allPaths, 'createDID path segments');
   const path = allPaths.length > 0 ? allPaths.join(':') : undefined;
   const controller = `did:${METHOD}:${PLACEHOLDER}:${didDomainComponent}${path ? `:${path}` : ''}`;
   const createdDate = createDate(options.created);

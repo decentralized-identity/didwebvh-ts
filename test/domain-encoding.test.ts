@@ -120,6 +120,24 @@ describe('Strict address input validation and parsing', () => {
     );
   });
 
+  test('Rejects did:webvh input containing dot-segment path traversal', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com:..:secrets')).rejects.toThrow(
+      'did:webvh identifier must not contain dot-segments'
+    );
+  });
+
+  test('Rejects did:webvh input containing percent-encoded traversal segment', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com:%2E%2E:secrets')).rejects.toThrow(
+      'did:webvh identifier must not contain dot-segments'
+    );
+  });
+
+  test('Rejects did:webvh input containing decoded slash within one path segment', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com:a%2Fb')).rejects.toThrow(
+      'did:webvh identifier must not contain decoded slash within a single path segment'
+    );
+  });
+
   test('Rejects double-encoded separator', async () => {
     expect(createFromInput('domain', 'example.com%253A8080')).rejects.toThrow();
   });

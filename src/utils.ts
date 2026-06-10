@@ -134,6 +134,25 @@ function parseEncodedPortComponent(value: string): { host: string; port?: number
   return { host, port: portNum };
 }
 
+export function validateMethodSpecificPathSegments(pathSegments: string[], context: string): void {
+  for (const segment of pathSegments) {
+    let decodedSegment: string;
+    try {
+      decodedSegment = decodeURIComponent(segment);
+    } catch {
+      throw new Error(`${context} contains invalid percent-encoding in path segment '${segment}'`);
+    }
+
+    if (decodedSegment === '.' || decodedSegment === '..') {
+      throw new Error(`${context} must not contain dot-segments`);
+    }
+
+    if (decodedSegment.includes('/')) {
+      throw new Error(`${context} must not contain decoded slash within a single path segment`);
+    }
+  }
+}
+
 export function parseCanonicalAddress(input: string): ParsedAddress {
   if (!input || typeof input !== 'string') {
     throw new Error('Address input must be a non-empty string');
@@ -157,6 +176,8 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     if (hasFragmentOrQuery(domainPart) || pathParts.some((segment) => hasFragmentOrQuery(segment))) {
       throw new Error('did:webvh identifier must not include query or fragment components');
     }
+
+    validateMethodSpecificPathSegments(pathParts, 'did:webvh identifier');
 
     // Detect double encoding
     if (isDoubleEncoded(domainPart)) {
@@ -213,6 +234,8 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
             pathParts.push(p);
           });
       }
+
+      validateMethodSpecificPathSegments(pathParts, 'URL pathname');
 
       return {
         canonicalHost: host,
@@ -605,21 +628,11 @@ export const getBaseUrl = (id: string) => {
     throw new Error('did:webvh identifier must not include query or fragment components');
   }
 
-  const parts = id.split(':');
-  if (!id.startsWith('did:webvh:') || parts.length < 4) {
-    throw new Error(`${id} is not a valid did:webvh identifier`);
-  }
-
-  const remainder = decodeURIComponent(parts.slice(3).join('/'));
-  const protocol = remainder.includes('localhost') ? 'http' : 'https';
-
-  const [hostPart, ...pathParts] = remainder.split('/');
-  let [host, port] = decodeURIComponent(hostPart).split(':');
-
-  host = toASCII(host.normalize('NFC'));
-
-  const normalizedHost = port ? `${host}:${port}` : host;
-  const path = pathParts.join('/');
+  const parsed = parseCanonicalAddress(id);
+  const protocol = parsed.canonicalHost === 'localhost' ? 'http' : 'https';
+  const host = toASCII(parsed.canonicalHost.normalize('NFC'));
+  const normalizedHost = parsed.canonicalPort ? `${host}:${parsed.canonicalPort}` : host;
+  const path = parsed.paths?.join('/') ?? '';
 
   return `${protocol}://${normalizedHost}${path ? `/${path}` : ''}`;
 };

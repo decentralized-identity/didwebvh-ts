@@ -158,4 +158,36 @@ describe('Paths feature', () => {
     // Verify the ID starts with the correct DID prefix
     expect(doc.verificationMethod![0]!.id).toStartWith(`${doc.id!}#`);
   });
+
+  test('rejects dot-segment in explicit paths array', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+
+    await expect(
+      createDID({
+        domain: 'example.com',
+        paths: ['api', '..', 'secrets'],
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier,
+      })
+    ).rejects.toThrow('createDID path segments must not contain dot-segments');
+  });
+
+  test('rejects encoded slash inside a single explicit path segment', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+
+    await expect(
+      createDID({
+        domain: 'example.com',
+        paths: ['api', 'a%2Fb'],
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier,
+      })
+    ).rejects.toThrow('createDID path segments must not contain decoded slash within a single path segment');
+  });
 });

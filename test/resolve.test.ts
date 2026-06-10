@@ -176,4 +176,16 @@ describe('Resolver URL derivation', () => {
       'did:webvh identifier must not include query or fragment components'
     );
   });
+
+  test('Rejects DID identifier containing traversal-style path segments', () => {
+    expect(() => getBaseUrl('did:webvh:scid:example.com:..:secret')).toThrow(
+      'did:webvh identifier must not contain dot-segments'
+    );
+    expect(() => getBaseUrl('did:webvh:scid:example.com:%2E%2E:secret')).toThrow(
+      'did:webvh identifier must not contain dot-segments'
+    );
+    expect(() => getBaseUrl('did:webvh:scid:example.com:a%2Fb')).toThrow(
+      'did:webvh identifier must not contain decoded slash within a single path segment'
+    );
+  });
 });
