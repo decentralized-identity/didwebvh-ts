@@ -69,9 +69,8 @@ describe('Strict address input validation and parsing', () => {
     expect(doc.id).toMatch(/^did:webvh:[^:]+:example\.com:custom:path$/);
   });
 
-  test('Accepts localhost HTTP URL with path and port', async () => {
-    const { doc } = await createFromInput('address', 'http://localhost:8000/test');
-    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000:test$/);
+  test('Rejects localhost HTTP URL with path and port', async () => {
+    expect(createFromInput('address', 'http://localhost:8000/test')).rejects.toThrow('HTTP is not allowed; use HTTPS');
   });
 
   test('Accepts localhost HTTPS URL with path and port', async () => {

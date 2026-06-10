@@ -150,10 +150,10 @@ describe('resolveDIDFromLog with verificationMethod', () => {
 });
 
 describe('Resolver URL derivation', () => {
-  test('Uses http for localhost DID host', () => {
+  test('Uses https for localhost DID host', () => {
     const did = 'did:webvh:scid:localhost%3A8000:test:path';
-    expect(getBaseUrl(did)).toBe('http://localhost:8000/test/path');
-    expect(getFileUrl(did)).toBe('http://localhost:8000/test/path/did.jsonl');
+    expect(getBaseUrl(did)).toBe('https://localhost:8000/test/path');
+    expect(getFileUrl(did)).toBe('https://localhost:8000/test/path/did.jsonl');
   });
 
   test('Uses https for non-localhost DID host', () => {

@@ -17,6 +17,8 @@ import { createMultihash, encodeBase58Btc, MultihashAlgorithm, multibaseDecode }
 
 const DID_KEY_PREFIX = 'did:key:';
 
+// did:key parsing helpers
+
 function validateDidKeyMultibase(keyMultibase: string): void {
   if (!keyMultibase) {
     throw new Error('Malformed did:key identifier');
@@ -114,6 +116,47 @@ function decodeHostComponent(host: string): string {
   }
 }
 
+function parsePortNumber(rawPort: string): number {
+  const portNum = parseInt(rawPort, 10);
+  if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+    throw new Error(`Invalid port number: ${rawPort}`);
+  }
+  return portNum;
+}
+
+function toOptionalPaths(pathSegments: string[]): string[] | undefined {
+  return pathSegments.length > 0 ? pathSegments : undefined;
+}
+
+function toDidDomainComponent(host: string, port?: number): string {
+  return port ? `${host}%3A${port}` : host;
+}
+
+function toParsedAddress(host: string, port?: number, paths: string[] = []): ParsedAddress {
+  return {
+    canonicalHost: host,
+    canonicalPort: port,
+    didDomainComponent: toDidDomainComponent(host, port),
+    paths: toOptionalPaths(paths),
+  };
+}
+
+function parseRawHostPort(input: string): { host: string; port?: number } {
+  if (!input.includes(':')) {
+    return { host: input };
+  }
+
+  const parts = input.split(':');
+  if (parts.length !== 2) {
+    throw new Error('Invalid host:port format');
+  }
+
+  return {
+    host: parts[0],
+    port: parsePortNumber(parts[1]),
+  };
+}
+
 function parseEncodedPortComponent(value: string): { host: string; port?: number } {
   const encodedSeparator = /%3a/i;
   if (!encodedSeparator.test(value)) {
@@ -126,12 +169,7 @@ function parseEncodedPortComponent(value: string): { host: string; port?: number
   }
 
   const [host, rawPort] = parts;
-  const portNum = parseInt(rawPort, 10);
-  if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
-    throw new Error(`Invalid port number: ${rawPort}`);
-  }
-
-  return { host, port: portNum };
+  return { host, port: parsePortNumber(rawPort) };
 }
 
 export function validateMethodSpecificPathSegments(pathSegments: string[], context: string): void {
@@ -169,7 +207,6 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
       throw new Error('Invalid did:webvh identifier: must contain SCID (or {SCID} placeholder) and domain');
     }
 
-    const scid = parts[0];
     const domainPart = parts[1];
     const pathParts = parts.slice(2);
 
@@ -193,22 +230,15 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
       throw new Error('IP addresses are not allowed as hosts');
     }
 
-    const canonicalDomainPart = port ? `${host}%3A${port}` : host;
-
-    return {
-      canonicalHost: host,
-      canonicalPort: port,
-      didDomainComponent: canonicalDomainPart,
-      paths: pathParts.length > 0 ? pathParts : undefined,
-    };
+    return toParsedAddress(host, port, pathParts);
   }
 
-  // Parse URL form: HTTPS everywhere, with localhost-only HTTP for local testing.
+  // Parse URL form: HTTPS everywhere.
   if (input.startsWith('https://') || input.startsWith('http://')) {
     try {
       const url = new URL(input);
-      if (url.protocol === 'http:' && url.hostname !== 'localhost') {
-        throw new Error('HTTP is only allowed for localhost; use HTTPS for non-local hosts');
+      if (url.protocol === 'http:') {
+        throw new Error('HTTP is not allowed; use HTTPS');
       }
       if (url.hash || url.search) {
         throw new Error('URL input must not include query or fragment components');
@@ -220,29 +250,11 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
         throw new Error('IP addresses are not allowed as hosts');
       }
 
-      let didDomainComponent = host;
-      if (port) {
-        didDomainComponent += `%3A${port}`;
-      }
-
-      const pathParts: string[] = [];
-      if (url.pathname && url.pathname !== '/') {
-        url.pathname
-          .split('/')
-          .filter((p) => p.length > 0)
-          .forEach((p) => {
-            pathParts.push(p);
-          });
-      }
+      const pathParts = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter((p) => p.length > 0) : [];
 
       validateMethodSpecificPathSegments(pathParts, 'URL pathname');
 
-      return {
-        canonicalHost: host,
-        canonicalPort: port,
-        didDomainComponent,
-        paths: pathParts.length > 0 ? pathParts : undefined,
-      };
+      return toParsedAddress(host, port, pathParts);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (message.includes('not allowed')) throw e;
@@ -256,48 +268,19 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     throw new Error('Domain is double-encoded (detected %25)');
   }
 
-  let host = input;
-  let port: number | undefined;
-
   if (hasFragmentOrQuery(input)) {
     throw new Error('Domain input must not include query or fragment components');
   }
 
-  // Check if pre-encoded with %3A
-  if (/%3a/i.test(input)) {
-    const parsedPort = parseEncodedPortComponent(input);
-    host = parsedPort.host;
-    port = parsedPort.port;
-  } else if (input.includes(':')) {
-    // Raw host:port form
-    const parts = input.split(':');
-    if (parts.length !== 2) {
-      throw new Error('Invalid host:port format');
-    }
-    host = parts[0];
-    const portNum = parseInt(parts[1], 10);
-    if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
-      throw new Error(`Invalid port number: ${parts[1]}`);
-    }
-    port = portNum;
-  }
-
-  host = decodeHostComponent(host);
+  const hostAndPort = /%3a/i.test(input) ? parseEncodedPortComponent(input) : parseRawHostPort(input);
+  const host = decodeHostComponent(hostAndPort.host);
+  const port = hostAndPort.port;
 
   if (isIPAddress(host)) {
     throw new Error('IP addresses are not allowed as hosts');
   }
 
-  let didDomainComponent = host;
-  if (port) {
-    didDomainComponent += `%3A${port}`;
-  }
-
-  return {
-    canonicalHost: host,
-    canonicalPort: port,
-    didDomainComponent,
-  };
+  return toParsedAddress(host, port);
 }
 
 export function parseDidWebvhIdentifier(did: string, context: string): ParsedDidWebvhIdentifier {
@@ -324,6 +307,40 @@ export function parseDidWebvhIdentifier(did: string, context: string): ParsedDid
     locationKey,
   };
 }
+
+// URL and DID document helper utilities
+
+const toASCII = (domain: string): string => {
+  try {
+    return new URL(`https://${domain}`).hostname;
+  } catch {
+    return domain;
+  }
+};
+
+export const getBaseUrl = (id: string) => {
+  if (hasFragmentOrQuery(id)) {
+    throw new Error('did:webvh identifier must not include query or fragment components');
+  }
+
+  const parsed = parseCanonicalAddress(id);
+  const protocol = 'https';
+  const host = toASCII(parsed.canonicalHost.normalize('NFC'));
+  const normalizedHost = parsed.canonicalPort ? `${host}:${parsed.canonicalPort}` : host;
+  const path = parsed.paths?.join('/') ?? '';
+
+  return `${protocol}://${normalizedHost}${path ? `/${path}` : ''}`;
+};
+
+export const getFileUrl = (id: string) => {
+  const baseUrl = getBaseUrl(id);
+  const domainEndIndex = baseUrl.indexOf('/', baseUrl.indexOf('://') + 3);
+
+  if (domainEndIndex !== -1) {
+    return `${baseUrl}/did.jsonl`;
+  }
+  return `${baseUrl}/.well-known/did.jsonl`;
+};
 
 type ProcessVersionsLike = { node?: string; bun?: string };
 
@@ -397,15 +414,6 @@ const getFS = async (): Promise<FsModule> => {
   })();
 
   return fsImportPromise;
-};
-
-const toASCII = (domain: string): string => {
-  try {
-    const scheme = domain.includes('localhost') ? 'http' : 'https';
-    return new URL(`${scheme}://${domain}`).hostname;
-  } catch {
-    return domain;
-  }
 };
 
 export const DID_PLACEHOLDER = '{DID}';
@@ -509,16 +517,19 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
   };
 }
 
+// Filesystem and log IO helpers
+
+function parseDidLogText(text: string): DIDLog {
+  return text.split('\n').map((line) => JSON.parse(line));
+}
+
 export const readLogFromDisk = async (path: string): Promise<DIDLog> => {
   const fs = await getFS();
   return readLogFromString(fs.readFileSync(path, 'utf8'));
 };
 
 export const readLogFromString = (str: string): DIDLog => {
-  return str
-    .trim()
-    .split('\n')
-    .map((l) => JSON.parse(l));
+  return parseDidLogText(str.trim());
 };
 
 export const writeLogToDisk = async (path: string, log: DIDLog) => {
@@ -623,30 +634,6 @@ export function deepClone<T>(obj: T): T {
   return cloned as T;
 }
 
-export const getBaseUrl = (id: string) => {
-  if (hasFragmentOrQuery(id)) {
-    throw new Error('did:webvh identifier must not include query or fragment components');
-  }
-
-  const parsed = parseCanonicalAddress(id);
-  const protocol = parsed.canonicalHost === 'localhost' ? 'http' : 'https';
-  const host = toASCII(parsed.canonicalHost.normalize('NFC'));
-  const normalizedHost = parsed.canonicalPort ? `${host}:${parsed.canonicalPort}` : host;
-  const path = parsed.paths?.join('/') ?? '';
-
-  return `${protocol}://${normalizedHost}${path ? `/${path}` : ''}`;
-};
-
-export const getFileUrl = (id: string) => {
-  const baseUrl = getBaseUrl(id);
-  const domainEndIndex = baseUrl.indexOf('/', baseUrl.indexOf('://') + 3);
-
-  if (domainEndIndex !== -1) {
-    return `${baseUrl}/did.jsonl`;
-  }
-  return `${baseUrl}/.well-known/did.jsonl`;
-};
-
 export async function fetchLogFromIdentifier(identifier: string, controlled: boolean = false): Promise<DIDLog> {
   try {
     if (controlled) {
@@ -667,7 +654,7 @@ export async function fetchLogFromIdentifier(identifier: string, controlled: boo
         if (!text) {
           return [];
         }
-        return text.split('\n').map((line) => JSON.parse(line));
+        return parseDidLogText(text);
       } catch (error) {
         throw new Error(`Error reading local DID log: ${error}`);
       }
@@ -683,7 +670,7 @@ export async function fetchLogFromIdentifier(identifier: string, controlled: boo
     if (!text) {
       throw new Error(`DID log not found for ${identifier}`);
     }
-    return text.split('\n').map((line) => JSON.parse(line));
+    return parseDidLogText(text);
   } catch (error) {
     console.error('Error fetching DID log:', error);
     throw error;

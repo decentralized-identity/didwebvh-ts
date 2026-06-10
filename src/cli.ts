@@ -41,7 +41,7 @@ Commands:
   generate-vm Generate a new verification method keypair
 
 Options:
-  --address [address]       Address for the DID (host, host:port, http://localhost, https://url, or did:webvh form) (required for create)
+  --address [address]       Address for the DID (host, host:port, https://url, or did:webvh form) (required for create)
   --domain [domain]         DEPRECATED: Use --address instead. Domain for the DID (backwards compatibility).
   --log [file]              Path to the DID log file (required for resolve, update, deactivate)
   --output [file]           Path to save the updated DID log (optional for create, update, deactivate)
