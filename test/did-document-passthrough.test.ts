@@ -28,7 +28,7 @@ describe('didDocument create pass-through', () => {
       });
 
       expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
-      expect((doc.verificationMethod ?? []).every((vm: any) => vm.secretKeyMultibase === undefined)).toBe(true);
+      expect((doc.verificationMethod ?? []).every((vm) => vm.secretKeyMultibase === undefined)).toBe(true);
     } finally {
       console.warn = originalWarn;
     }
@@ -107,7 +107,7 @@ describe('didDocument create pass-through', () => {
         updateKeys: [authKey.publicKeyMultibase!],
         didDocument: {
           id: '{DID}',
-          alsoKnownAs: 'did:example:not-array' as any,
+          alsoKnownAs: 'did:example:not-array' as unknown as string[],
         },
         alsoKnownAsWeb: true,
       })
@@ -140,7 +140,7 @@ describe('didDocument create pass-through', () => {
       });
 
       expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
-      expect((updated.doc.verificationMethod ?? []).every((vm: any) => vm.secretKeyMultibase === undefined)).toBe(true);
+      expect((updated.doc.verificationMethod ?? []).every((vm) => vm.secretKeyMultibase === undefined)).toBe(true);
     } finally {
       console.warn = originalWarn;
     }

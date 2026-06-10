@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { getBaseUrl, getFileUrl } from '../src/utils';
 import {
@@ -10,7 +10,7 @@ import {
 } from './utils';
 
 describe('resolveDIDFromLog with verificationMethod', () => {
-  let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
+  let initialDID: CreateDIDResult;
   let fullLog: DIDLog;
   let authKey1: VerificationMethod,
     authKey2: VerificationMethod,
@@ -30,6 +30,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
+      created: '2023-01-01T00:00:00Z',
       verificationMethods: asPublicVerificationMethods(authKey1),
       verifier: testImplementation,
     });
@@ -41,7 +42,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1, authKey2),
-      updated: '2023-02-01T00:00:00Z',
+      updated: '2023-02-01T00:00:01Z',
       verifier: testImplementation,
     });
     fullLog = updateResult1.log;
@@ -52,7 +53,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey),
-      updated: '2023-03-01T00:00:00Z',
+      updated: '2023-03-01T00:00:02Z',
       verifier: testImplementation,
     });
     fullLog = updateResult2.log;
@@ -63,7 +64,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey, assertionKey),
-      updated: '2023-03-01T00:00:00Z',
+      updated: '2023-03-01T00:00:03Z',
       verifier: testImplementation,
     });
     fullLog = updateResult3.log;
@@ -74,7 +75,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(1);
-    expect(doc.verificationMethod[0].publicKeyMultibase).toBe(authKey1.publicKeyMultibase);
+    expect(doc.verificationMethod![0].publicKeyMultibase).toBe(authKey1.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('1');
   });
 
@@ -83,7 +84,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(2);
-    expect(doc.verificationMethod[1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
+    expect(doc.verificationMethod![1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('2');
   });
 
@@ -92,7 +93,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(3);
-    expect(doc.verificationMethod[2].publicKeyMultibase).toBe(keyAgreementKey.publicKeyMultibase);
+    expect(doc.verificationMethod![2].publicKeyMultibase).toBe(keyAgreementKey.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('3');
   });
 
@@ -101,8 +102,8 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     const { doc, meta } = await resolveDIDFromLog(fullLog, { verificationMethod: vmId, verifier: testImplementation });
 
     expect(doc.verificationMethod).toHaveLength(4);
-    expect(doc.verificationMethod[3].publicKeyMultibase).toBe(assertionKey.publicKeyMultibase);
-    expect(doc.verificationMethod[3].id).toEndWith('externallyDefinedId');
+    expect(doc.verificationMethod![3].publicKeyMultibase).toBe(assertionKey.publicKeyMultibase);
+    expect(doc.verificationMethod![3].id).toEndWith('externallyDefinedId');
     expect(meta.versionId.split('-')[0]).toBe('4');
   });
 
@@ -125,7 +126,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     });
 
     expect(doc.verificationMethod).toHaveLength(2);
-    expect(doc.verificationMethod[1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
+    expect(doc.verificationMethod![1].publicKeyMultibase).toBe(authKey2.publicKeyMultibase);
     expect(meta.versionId.split('-')[0]).toBe('2');
   });
 
@@ -149,10 +150,10 @@ describe('resolveDIDFromLog with verificationMethod', () => {
 });
 
 describe('Resolver URL derivation', () => {
-  test('Uses http for localhost DID host', () => {
+  test('Uses https for localhost DID host', () => {
     const did = 'did:webvh:scid:localhost%3A8000:test:path';
-    expect(getBaseUrl(did)).toBe('http://localhost:8000/test/path');
-    expect(getFileUrl(did)).toBe('http://localhost:8000/test/path/did.jsonl');
+    expect(getBaseUrl(did)).toBe('https://localhost:8000/test/path');
+    expect(getFileUrl(did)).toBe('https://localhost:8000/test/path/did.jsonl');
   });
 
   test('Uses https for non-localhost DID host', () => {
@@ -165,5 +166,26 @@ describe('Resolver URL derivation', () => {
     const did = 'did:webvh:scid:example.com';
     expect(getBaseUrl(did)).toBe('https://example.com');
     expect(getFileUrl(did)).toBe('https://example.com/.well-known/did.jsonl');
+  });
+
+  test('Rejects DID identifier containing fragment or query contamination', () => {
+    expect(() => getBaseUrl('did:webvh:scid:example.com#frag')).toThrow(
+      'did:webvh identifier must not include query or fragment components'
+    );
+    expect(() => getBaseUrl('did:webvh:scid:example.com?query=1')).toThrow(
+      'did:webvh identifier must not include query or fragment components'
+    );
+  });
+
+  test('Rejects DID identifier containing traversal-style path segments', () => {
+    expect(() => getBaseUrl('did:webvh:scid:example.com:..:secret')).toThrow(
+      'did:webvh identifier must not contain dot-segments'
+    );
+    expect(() => getBaseUrl('did:webvh:scid:example.com:%2E%2E:secret')).toThrow(
+      'did:webvh identifier must not contain dot-segments'
+    );
+    expect(() => getBaseUrl('did:webvh:scid:example.com:a%2Fb')).toThrow(
+      'did:webvh identifier must not contain decoded slash within a single path segment'
+    );
   });
 });

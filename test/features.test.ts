@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from 'bun:test';
-import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, DIDLogEntry, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createDate, deriveNextKeyHash } from '../src/utils';
 import {
@@ -16,8 +16,8 @@ let authKey1: VerificationMethod,
   authKey4: VerificationMethod;
 let testImplementation: TestCryptoImplementation;
 
-let nonPortableDID: { did: string; doc: any; meta: any; log: DIDLog };
-let portableDID: { did: string; doc: any; meta: any; log: DIDLog };
+let nonPortableDID: CreateDIDResult;
+let portableDID: CreateDIDResult;
 
 beforeAll(async () => {
   authKey1 = await generateTestVerificationMethod();
@@ -237,7 +237,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
 });
 
 test('DID log with portable false should not resolve if moved', async () => {
-  let err: any;
+  let err: unknown;
   try {
     const lastEntry = nonPortableDID.log[nonPortableDID.log.length - 1];
     const newTimestamp = createDate(new Date('2021-02-01T08:32:55Z'));
@@ -248,16 +248,16 @@ test('DID log with portable false should not resolve if moved', async () => {
       id: nonPortableDID.did.replace('example.com', 'newdomain.com'),
     };
 
-    const newEntry = {
+    const newEntry: DIDLogEntry = {
       versionId: `${nonPortableDID.log.length + 1}-test`,
       versionTime: newTimestamp,
-      parameters: { updateKeys: [authKey1.publicKeyMultibase] },
+      parameters: { updateKeys: [authKey1.publicKeyMultibase!] },
       state: newDoc,
       proof: [
         {
           type: 'DataIntegrityProof',
           cryptosuite: 'eddsa-jcs-2022',
-          verificationMethod: `did:key:${authKey1.publicKeyMultibase}`,
+          verificationMethod: `did:key:${authKey1.publicKeyMultibase!}`,
           created: newTimestamp,
           proofPurpose: 'authentication',
           proofValue: 'badProofValue',
@@ -265,12 +265,13 @@ test('DID log with portable false should not resolve if moved', async () => {
       ],
     };
 
-    const badLog: DIDLog = [...(nonPortableDID.log as any), newEntry];
+    const badLog: DIDLog = [...nonPortableDID.log, newEntry];
     await resolveDIDFromLog(badLog, { verifier: testImplementation });
   } catch (e) {
     err = e;
   }
 
   expect(err).toBeDefined();
-  expect(err.message).toContain('Cannot move DID: portability is disabled');
+  expect(err).toBeInstanceOf(Error);
+  expect((err as Error).message).toContain('Cannot move DID: portability is disabled');
 });

@@ -12,7 +12,7 @@ const ENV_FILE = join(process.cwd(), '.env');
 
 // Create a verifier for resolving CLI-created DIDs.
 // TestCryptoImplementation.verify() does generic ed25519 verification
-// using the public key from the proof, so any instance works.
+// using the public key from the proof, so a generic instance works.
 let verifier: TestCryptoImplementation;
 let savedEnv: string | null = null;
 

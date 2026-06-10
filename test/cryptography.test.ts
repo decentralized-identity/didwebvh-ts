@@ -1,7 +1,14 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { documentStateIsValid } from '../src/assertions';
 import { AbstractCrypto, createDocumentSigner } from '../src/cryptography';
-import type { SignerOptions, SigningInput, SigningOutput, Verifier } from '../src/interfaces';
+import type {
+  DataIntegrityProofTemplate,
+  DIDLogEntry,
+  SignerOptions,
+  SigningInput,
+  SigningOutput,
+  Verifier,
+} from '../src/interfaces';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
 import { countVerifiedWitnessApprovals } from '../src/witness';
 
@@ -27,8 +34,8 @@ class MockCryptoImplementation extends AbstractCrypto implements Verifier {
 describe('Injectable Cryptography Tests', () => {
   let mockImplementation: MockCryptoImplementation;
   let failingMockImplementation: MockCryptoImplementation;
-  let testDoc: any;
-  let testProof: any;
+  let testDoc: { id: string; name: string };
+  let testProof: DataIntegrityProofTemplate;
   const updateKey = 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK';
 
   beforeAll(() => {
@@ -79,12 +86,17 @@ describe('Injectable Cryptography Tests', () => {
   });
 
   test('Verify document with successful implementation', async () => {
-    const signedDoc = {
-      ...testDoc,
-      proof: {
-        ...testProof,
-        proofValue: 'z4PJ7iFV3syhMEHAfwQJuSqyGCHzTH5kJqAGCKnXyyb7vGCmqzpbCHMjK4SfgGkFrXjzWtGmMmPqXEEZYDvbpjTQH',
-      },
+    const signedDoc: DIDLogEntry = {
+      versionId: '1-test',
+      versionTime: '2024-03-06T00:00:00Z',
+      parameters: {},
+      state: testDoc,
+      proof: [
+        {
+          ...testProof,
+          proofValue: 'z4PJ7iFV3syhMEHAfwQJuSqyGCHzTH5kJqAGCKnXyyb7vGCmqzpbCHMjK4SfgGkFrXjzWtGmMmPqXEEZYDvbpjTQH',
+        },
+      ],
     };
 
     const result = await documentStateIsValid(signedDoc, [updateKey], null, true, mockImplementation);
@@ -93,12 +105,17 @@ describe('Injectable Cryptography Tests', () => {
   });
 
   test('Verify document with failing implementation', async () => {
-    const signedDoc = {
-      ...testDoc,
-      proof: {
-        ...testProof,
-        proofValue: 'z4PJ7iFV3syhMEHAfwQJuSqyGCHzTH5kJqAGCKnXyyb7vGCmqzpbCHMjK4SfgGkFrXjzWtGmMmPqXEEZYDvbpjTQH',
-      },
+    const signedDoc: DIDLogEntry = {
+      versionId: '1-test',
+      versionTime: '2024-03-06T00:00:00Z',
+      parameters: {},
+      state: testDoc,
+      proof: [
+        {
+          ...testProof,
+          proofValue: 'z4PJ7iFV3syhMEHAfwQJuSqyGCHzTH5kJqAGCKnXyyb7vGCmqzpbCHMjK4SfgGkFrXjzWtGmMmPqXEEZYDvbpjTQH',
+        },
+      ],
     };
 
     expect(documentStateIsValid(signedDoc, [updateKey], null, true, failingMockImplementation)).rejects.toThrow(
@@ -190,12 +207,17 @@ describe('Injectable Cryptography Tests', () => {
   });
 
   test('Require verifier implementation', async () => {
-    const signedDoc = {
-      ...testDoc,
-      proof: {
-        ...testProof,
-        proofValue: 'z4PJ7iFV3syhMEHAfwQJuSqyGCHzTH5kJqAGCKnXyyb7vGCmqzpbCHMjK4SfgGkFrXjzWtGmMmPqXEEZYDvbpjTQH',
-      },
+    const signedDoc: DIDLogEntry = {
+      versionId: '1-test',
+      versionTime: '2024-03-06T00:00:00Z',
+      parameters: {},
+      state: testDoc,
+      proof: [
+        {
+          ...testProof,
+          proofValue: 'z4PJ7iFV3syhMEHAfwQJuSqyGCHzTH5kJqAGCKnXyyb7vGCmqzpbCHMjK4SfgGkFrXjzWtGmMmPqXEEZYDvbpjTQH',
+        },
+      ],
     };
 
     expect(documentStateIsValid(signedDoc, [mockImplementation.getVerificationMethodId()], null, true)).rejects.toThrow(
