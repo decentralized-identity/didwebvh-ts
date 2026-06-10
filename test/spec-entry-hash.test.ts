@@ -96,7 +96,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
   });
 
   test('log is resolvable end-to-end (hash chain + signatures)', async () => {
-    const resolved = await resolveDIDFromLog(log, { verifier, fastResolve: false });
+    const resolved = await resolveDIDFromLog(log, { verifier });
     expect(resolved.meta.versionId).toBe(log[log.length - 1].versionId);
   });
 });

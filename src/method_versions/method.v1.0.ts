@@ -181,7 +181,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
 
 export const resolveDIDFromLog = async (
   log: DIDLog,
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[]; fastResolve?: boolean } = {}
+  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta }> => {
   if (options.verificationMethod && (options.versionNumber || options.versionId)) {
     throw new Error('Cannot specify both verificationMethod and version number/id');
@@ -215,12 +215,6 @@ export const resolveDIDFromLog = async (
   let previousVersionTime: Date | undefined;
   const resolutionNow = new Date();
   const requiredWitnessChecks: RequiredWitnessCheck[] = [];
-
-  // Fast resolution is opt-in; full verification is the default conformant path.
-  const fastResolve = options.fastResolve ?? false;
-  const isFirstEntry = (idx: number) => idx === 0;
-  const isLastFewEntries = (idx: number) => idx >= resolutionLog.length - 10; // Verify last 10 entries
-  const shouldVerifyEntry = (idx: number) => !fastResolve || isFirstEntry(idx) || isLastFewEntries(idx);
 
   try {
     while (i < resolutionLog.length) {
@@ -259,39 +253,37 @@ export const resolveDIDFromLog = async (
         meta.witness = parameters.witness || meta.witness;
         meta.watchers = parameters.watchers ?? null;
 
-        if (shouldVerifyEntry(i)) {
-          // Optimized: Use efficient object manipulation instead of JSON stringify/parse
-          const logEntry = {
-            versionId: PLACEHOLDER,
-            versionTime: meta.created,
-            parameters: replaceValueInObject(parameters, meta.scid, PLACEHOLDER),
-            state: replaceValueInObject(newDoc, meta.scid, PLACEHOLDER),
-          };
+        // Optimized: Use efficient object manipulation instead of JSON stringify/parse
+        const logEntry = {
+          versionId: PLACEHOLDER,
+          versionTime: meta.created,
+          parameters: replaceValueInObject(parameters, meta.scid, PLACEHOLDER),
+          state: replaceValueInObject(newDoc, meta.scid, PLACEHOLDER),
+        };
 
-          const logEntryHash = await deriveHash(logEntry);
-          meta.previousLogEntryHash = logEntryHash;
-          if (!(await scidIsFromHash(meta.scid, logEntryHash))) {
-            throw new Error(`SCID '${meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
-          }
+        const logEntryHash = await deriveHash(logEntry);
+        meta.previousLogEntryHash = logEntryHash;
+        if (!(await scidIsFromHash(meta.scid, logEntryHash))) {
+          throw new Error(`SCID '${meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
+        }
 
-          if (parsedStateDid.scid !== meta.scid) {
-            throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
-          }
+        if (parsedStateDid.scid !== meta.scid) {
+          throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
+        }
 
-          // Optimized: Direct object manipulation instead of JSON stringify/parse
-          const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
+        // Optimized: Direct object manipulation instead of JSON stringify/parse
+        const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
 
-          const logEntryHash2 = await deriveHash(prelimEntry);
-          const verified = await documentStateIsValid(
-            { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
-            meta.updateKeys,
-            meta.witness,
-            false,
-            options.verifier
-          );
-          if (!verified) {
-            throw new Error(`version ${meta.versionId} failed verification of the proof.`);
-          }
+        const logEntryHash2 = await deriveHash(prelimEntry);
+        const verified = await documentStateIsValid(
+          { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
+          meta.updateKeys,
+          meta.witness,
+          false,
+          options.verifier
+        );
+        if (!verified) {
+          throw new Error(`version ${meta.versionId} failed verification of the proof.`);
         }
       } else {
         // version number > 1
@@ -313,17 +305,15 @@ export const resolveDIDFromLog = async (
           throw new Error(`Hash chain broken at '${meta.versionId}'`);
         }
 
-        if (shouldVerifyEntry(i)) {
-          // Signature verification — expensive, skipped for middle entries in fast-resolve
-          const keys = meta.prerotation ? (parameters.updateKeys as string[]) : meta.updateKeys;
-          const verified = await documentStateIsValid(resolutionLog[i], keys, meta.witness, false, options.verifier);
-          if (!verified) {
-            throw new Error(`version ${meta.versionId} failed verification of the proof.`);
-          }
+        // Signature verification
+        const keys = meta.prerotation ? (parameters.updateKeys as string[]) : meta.updateKeys;
+        const verified = await documentStateIsValid(resolutionLog[i], keys, meta.witness, false, options.verifier);
+        if (!verified) {
+          throw new Error(`version ${meta.versionId} failed verification of the proof.`);
+        }
 
-          if (meta.prerotation) {
-            await newKeysAreInNextKeys(parameters.updateKeys ?? [], meta.nextKeyHashes ?? []);
-          }
+        if (meta.prerotation) {
+          await newKeysAreInNextKeys(parameters.updateKeys ?? [], meta.nextKeyHashes ?? []);
         }
 
         if (parameters.updateKeys) {
@@ -373,28 +363,25 @@ export const resolveDIDFromLog = async (
       doc = deepClone(newDoc);
       did = requireDidId(doc.id);
 
-      // Only add default services for entries we need to process
-      if (shouldVerifyEntry(i) || i === resolutionLog.length - 1) {
-        // Add default services if they don't exist
-        doc.service = Array.isArray(doc.service) ? doc.service : [];
-        const baseUrl = getBaseUrl(did);
+      // Add default services if they don't exist
+      doc.service = Array.isArray(doc.service) ? doc.service : [];
+      const baseUrl = getBaseUrl(did);
 
-        if (!doc.service.some((s: ServiceEndpoint) => s.id === '#files')) {
-          doc.service.push({
-            id: '#files',
-            type: 'relativeRef',
-            serviceEndpoint: baseUrl,
-          });
-        }
+      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#files')) {
+        doc.service.push({
+          id: '#files',
+          type: 'relativeRef',
+          serviceEndpoint: baseUrl,
+        });
+      }
 
-        if (!doc.service.some((s: ServiceEndpoint) => s.id === '#whois')) {
-          doc.service.push({
-            '@context': 'https://identity.foundation/linked-vp/contexts/v1',
-            id: '#whois',
-            type: 'LinkedVerifiablePresentation',
-            serviceEndpoint: `${baseUrl}/whois.vp`,
-          });
-        }
+      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#whois')) {
+        doc.service.push({
+          '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+          id: '#whois',
+          type: 'LinkedVerifiablePresentation',
+          serviceEndpoint: `${baseUrl}/whois.vp`,
+        });
       }
 
       if (options.verificationMethod && findVerificationMethod(doc, options.verificationMethod)) {
