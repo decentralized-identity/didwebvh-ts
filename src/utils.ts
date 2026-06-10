@@ -102,9 +102,45 @@ function isDoubleEncoded(value: string): boolean {
   return value.includes('%25');
 }
 
+function hasFragmentOrQuery(value: string): boolean {
+  return value.includes('#') || value.includes('?');
+}
+
+function decodeHostComponent(host: string): string {
+  try {
+    return decodeURIComponent(host);
+  } catch {
+    throw new Error(`Invalid percent-encoding in host: ${host}`);
+  }
+}
+
+function parseEncodedPortComponent(value: string): { host: string; port?: number } {
+  const encodedSeparator = /%3a/i;
+  if (!encodedSeparator.test(value)) {
+    return { host: value };
+  }
+
+  const parts = value.split(encodedSeparator);
+  if (parts.length !== 2) {
+    throw new Error('Invalid pre-encoded port separator');
+  }
+
+  const [host, rawPort] = parts;
+  const portNum = parseInt(rawPort, 10);
+  if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
+    throw new Error(`Invalid port number: ${rawPort}`);
+  }
+
+  return { host, port: portNum };
+}
+
 export function parseCanonicalAddress(input: string): ParsedAddress {
   if (!input || typeof input !== 'string') {
     throw new Error('Address input must be a non-empty string');
+  }
+
+  if (hasFragmentOrQuery(input) && !input.startsWith('http://') && !input.startsWith('https://')) {
+    throw new Error('Address input must not include query or fragment components');
   }
 
   // Parse did:webvh form
@@ -118,33 +154,30 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     const domainPart = parts[1];
     const pathParts = parts.slice(2);
 
+    if (hasFragmentOrQuery(domainPart) || pathParts.some((segment) => hasFragmentOrQuery(segment))) {
+      throw new Error('did:webvh identifier must not include query or fragment components');
+    }
+
     // Detect double encoding
     if (isDoubleEncoded(domainPart)) {
       throw new Error('Domain is double-encoded (detected %25)');
     }
 
     // Extract port from domain if %3A-encoded
-    let host = domainPart;
-    let port: number | undefined;
-
-    if (domainPart.includes('%3A')) {
-      const [h, p] = domainPart.split('%3A');
-      host = h;
-      const portNum = parseInt(p, 10);
-      if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
-        throw new Error(`Invalid port number: ${p}`);
-      }
-      port = portNum;
-    }
+    const parsedPort = parseEncodedPortComponent(domainPart);
+    const host = decodeHostComponent(parsedPort.host);
+    const port = parsedPort.port;
 
     if (isIPAddress(host)) {
       throw new Error('IP addresses are not allowed as hosts');
     }
 
+    const canonicalDomainPart = port ? `${host}%3A${port}` : host;
+
     return {
       canonicalHost: host,
       canonicalPort: port,
-      didDomainComponent: domainPart,
+      didDomainComponent: canonicalDomainPart,
       paths: pathParts.length > 0 ? pathParts : undefined,
     };
   }
@@ -155,6 +188,9 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
       const url = new URL(input);
       if (url.protocol === 'http:' && url.hostname !== 'localhost') {
         throw new Error('HTTP is only allowed for localhost; use HTTPS for non-local hosts');
+      }
+      if (url.hash || url.search) {
+        throw new Error('URL input must not include query or fragment components');
       }
       const host = url.hostname;
       const port = url.port ? parseInt(url.port, 10) : undefined;
@@ -200,18 +236,15 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
   let host = input;
   let port: number | undefined;
 
+  if (hasFragmentOrQuery(input)) {
+    throw new Error('Domain input must not include query or fragment components');
+  }
+
   // Check if pre-encoded with %3A
-  if (input.includes('%3A')) {
-    const parts = input.split('%3A');
-    if (parts.length !== 2) {
-      throw new Error('Invalid pre-encoded port separator');
-    }
-    host = parts[0];
-    const portNum = parseInt(parts[1], 10);
-    if (Number.isNaN(portNum) || portNum <= 0 || portNum > 65535) {
-      throw new Error(`Invalid port number: ${parts[1]}`);
-    }
-    port = portNum;
+  if (/%3a/i.test(input)) {
+    const parsedPort = parseEncodedPortComponent(input);
+    host = parsedPort.host;
+    port = parsedPort.port;
   } else if (input.includes(':')) {
     // Raw host:port form
     const parts = input.split(':');
@@ -225,6 +258,8 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     }
     port = portNum;
   }
+
+  host = decodeHostComponent(host);
 
   if (isIPAddress(host)) {
     throw new Error('IP addresses are not allowed as hosts');
@@ -566,6 +601,10 @@ export function deepClone<T>(obj: T): T {
 }
 
 export const getBaseUrl = (id: string) => {
+  if (hasFragmentOrQuery(id)) {
+    throw new Error('did:webvh identifier must not include query or fragment components');
+  }
+
   const parts = id.split(':');
   if (!id.startsWith('did:webvh:') || parts.length < 4) {
     throw new Error(`${id} is not a valid did:webvh identifier`);

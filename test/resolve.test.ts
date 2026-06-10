@@ -167,4 +167,13 @@ describe('Resolver URL derivation', () => {
     expect(getBaseUrl(did)).toBe('https://example.com');
     expect(getFileUrl(did)).toBe('https://example.com/.well-known/did.jsonl');
   });
+
+  test('Rejects DID identifier containing fragment or query contamination', () => {
+    expect(() => getBaseUrl('did:webvh:scid:example.com#frag')).toThrow(
+      'did:webvh identifier must not include query or fragment components'
+    );
+    expect(() => getBaseUrl('did:webvh:scid:example.com?query=1')).toThrow(
+      'did:webvh identifier must not include query or fragment components'
+    );
+  });
 });

@@ -49,6 +49,11 @@ describe('Strict address input validation and parsing', () => {
     expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000$/);
   });
 
+  test('Accepts pre-encoded host%3aport with lowercase separator and canonicalizes output', async () => {
+    const { doc } = await createFromInput('domain', 'localhost%3a8000');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000$/);
+  });
+
   test('Accepts https URL address input', async () => {
     const { doc } = await createFromInput('address', 'https://example.com/');
     expect(doc.id).toMatch(/^did:webvh:[^:]+:example\.com$/);
@@ -93,6 +98,26 @@ describe('Strict address input validation and parsing', () => {
 
   test('Rejects IPv4 host input', async () => {
     expect(createFromInput('domain', '192.168.1.10')).rejects.toThrow();
+  });
+
+  test('Rejects encoded IPv4 host input', async () => {
+    expect(createFromInput('domain', '127%2E0%2E0%2E1')).rejects.toThrow('IP addresses are not allowed as hosts');
+  });
+
+  test('Rejects lowercase encoded-port IP host input', async () => {
+    expect(createFromInput('domain', '127.0.0.1%3a8080')).rejects.toThrow('IP addresses are not allowed as hosts');
+  });
+
+  test('Rejects did:webvh input containing fragment contamination', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com#frag')).rejects.toThrow(
+      'Address input must not include query or fragment components'
+    );
+  });
+
+  test('Rejects did:webvh input containing query contamination', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com?query=1')).rejects.toThrow(
+      'Address input must not include query or fragment components'
+    );
   });
 
   test('Rejects double-encoded separator', async () => {
