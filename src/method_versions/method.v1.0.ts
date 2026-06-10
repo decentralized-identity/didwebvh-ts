@@ -32,6 +32,11 @@ import {
   replaceValueInObject,
   validateCreateDidDocument,
 } from '../utils';
+import {
+  createNextVersionTime,
+  parseUtcIso8601VersionTime,
+  validateUtcIso8601NotInFuture,
+} from '../utils/iso8601-datetime';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
 const VERSION = '1.0';
@@ -64,6 +69,9 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   const allPaths = [...(parsed.paths || []), ...(options.paths || [])];
   const path = allPaths.length > 0 ? allPaths.join(':') : undefined;
   const controller = `did:${METHOD}:${PLACEHOLDER}:${didDomainComponent}${path ? `:${path}` : ''}`;
+  if (options.created) {
+    validateUtcIso8601NotInFuture(options.created, 'createDID created');
+  }
   const createdDate = createDate(options.created);
 
   // Safety guard: Strip secret keys from verification methods before creating DID document
@@ -201,6 +209,8 @@ export const resolveDIDFromLog = async (
   let lastValidMeta: DIDResolutionMeta | null = null;
   let i = 0;
   let host = '';
+  let previousVersionTime: Date | undefined;
+  const resolutionNow = new Date();
   const requiredWitnessChecks: RequiredWitnessCheck[] = [];
 
   // Fast resolution is opt-in; full verification is the default conformant path.
@@ -218,9 +228,15 @@ export const resolveDIDFromLog = async (
         throw new Error(`version '${version}' in log doesn't match expected '${i + 1}'.`);
       }
       meta.versionId = versionId;
-      if (versionTime) {
-        // TODO check timestamps make sense
+      if (!versionTime) {
+        throw new Error(`version '${version}' is missing versionTime`);
       }
+
+      const currentVersionTime = parseUtcIso8601VersionTime(versionTime, `version '${version}' versionTime`);
+      if (previousVersionTime && currentVersionTime.getTime() <= previousVersionTime.getTime()) {
+        throw new Error(`versionTime for version '${version}' must be greater than previous entry time`);
+      }
+      previousVersionTime = currentVersionTime;
       meta.updated = versionTime;
       let newDoc = state;
 
@@ -402,6 +418,10 @@ export const resolveDIDFromLog = async (
       i++;
     }
 
+    if (previousVersionTime && previousVersionTime.getTime() >= resolutionNow.getTime()) {
+      throw new Error('versionTime of the last entry must be earlier than current time');
+    }
+
     if (requiredWitnessChecks.length > 0) {
       if (!options.witnessProofs) {
         options.witnessProofs = await fetchWitnessProofs(did);
@@ -476,7 +496,7 @@ export const updateDID = async (
     throw new Error('Cannot update deactivated DID');
   }
   const versionNumber = log.length + 1;
-  const createdDate = createDate(options.updated);
+  const createdDate = createNextVersionTime(lastMeta.updated, options.updated, createDate);
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
   const witnessInput = options.witness;
   const witness = witnessInput?.witnesses?.length
@@ -588,7 +608,7 @@ export const deactivateDID = async (
     throw new Error('DID already deactivated');
   }
   const versionNumber = log.length + 1;
-  const createdDate = createDate();
+  const createdDate = createNextVersionTime(lastMeta.updated, undefined, createDate);
   const params = {
     updateKeys: options.updateKeys ?? lastMeta.updateKeys,
     deactivated: true,

@@ -30,6 +30,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       domain: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
+      created: '2023-01-01T00:00:00Z',
       verificationMethods: asPublicVerificationMethods(authKey1),
       verifier: testImplementation,
     });
@@ -41,7 +42,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1, authKey2),
-      updated: '2023-02-01T00:00:00Z',
+      updated: '2023-02-01T00:00:01Z',
       verifier: testImplementation,
     });
     fullLog = updateResult1.log;
@@ -52,7 +53,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey),
-      updated: '2023-03-01T00:00:00Z',
+      updated: '2023-03-01T00:00:02Z',
       verifier: testImplementation,
     });
     fullLog = updateResult2.log;
@@ -63,7 +64,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1, authKey2, keyAgreementKey, assertionKey),
-      updated: '2023-03-01T00:00:00Z',
+      updated: '2023-03-01T00:00:03Z',
       verifier: testImplementation,
     });
     fullLog = updateResult3.log;
