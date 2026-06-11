@@ -1,5 +1,6 @@
 import { beforeAll, expect, test } from 'bun:test';
 import type { CreateDIDResult, DIDLog, DIDLogEntry, VerificationMethod } from '../src/interfaces';
+import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createDate, deriveNextKeyHash } from '../src/utils';
 import {
@@ -130,6 +131,30 @@ test('Resolve DID at version', async () => {
 
 test('Resolve DID latest', async () => {
   const resolved = await resolveDIDFromLog(log, { verifier: testImplementation });
+  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+});
+
+test('Explicit versionId miss returns notFound without latest fallback', async () => {
+  const resolved = await resolveDIDFromLog(log, {
+    versionId: '999-non-existent-version-id',
+    verifier: testImplementation,
+  });
+
+  expect(resolved.doc).toBeNull();
+  expect(resolved.meta.error).toBe(DidResolutionError.NotFound);
+  expect(resolved.meta.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
+  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+});
+
+test('Explicit versionTime miss returns notFound without latest fallback', async () => {
+  const resolved = await resolveDIDFromLog(log, {
+    versionTime: new Date('2020-12-01T00:00:00Z'),
+    verifier: testImplementation,
+  });
+
+  expect(resolved.doc).toBeNull();
+  expect(resolved.meta.error).toBe(DidResolutionError.NotFound);
+  expect(resolved.meta.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
   expect(resolved.meta.versionId.split('-')[0]).toBe('4');
 });
 

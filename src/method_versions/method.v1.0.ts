@@ -478,6 +478,26 @@ export const resolveDIDFromLog = async (
   }
 
   if (!resolvedDoc) {
+    if (hasExplicitHistoricalSelector) {
+      if (!lastValidMeta || !lastValidDid) {
+        throw new Error('DID resolution failed: No valid result available for explicit selector');
+      }
+
+      return {
+        did: lastValidDid,
+        doc: null,
+        meta: {
+          ...lastValidMeta,
+          error: DidResolutionError.NotFound,
+          problemDetails: {
+            type: 'https://w3id.org/security#NOT_FOUND',
+            title: 'The requested DID version was not found.',
+            detail: 'The supplied explicit version selector did not match any entry in the DID log.',
+          },
+        },
+      };
+    }
+
     resolvedMeta = lastValidMeta;
     resolvedDid = lastValidDid;
     if (resolvedMeta && !(resolvedMeta.deactivated && !hasExplicitHistoricalSelector)) {
