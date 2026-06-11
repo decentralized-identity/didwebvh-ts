@@ -882,6 +882,9 @@ export const resolveVM = async (vm: string) => {
         .split('\n')
         .map((l) => JSON.parse(l));
       const { doc } = await resolveDIDFromLog(logEntries, { verificationMethod: vm });
+      if (!doc) {
+        throw new Error(`Verification method ${vm} not found`);
+      }
       return findVerificationMethod(doc, vm);
     }
     throw new Error(`Verification method ${vm} not found`);

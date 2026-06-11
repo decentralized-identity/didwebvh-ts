@@ -182,7 +182,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
 export const resolveDIDFromLog = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
-): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta }> => {
+): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
   if (options.verificationMethod && (options.versionNumber || options.versionId)) {
     throw new Error('Cannot specify both verificationMethod and version number/id');
   }
@@ -194,7 +194,9 @@ export const resolveDIDFromLog = async (
   let did = '';
   let doc: DIDDoc | null = null;
   let resolvedDoc: DIDDoc | null = null;
+  let resolvedDid: string | null = null;
   let lastValidDoc: DIDDoc | null = null;
+  let lastValidDid: string | null = null;
   const meta: DIDResolutionMeta = {
     versionId: '',
     created: '',
@@ -389,6 +391,7 @@ export const resolveDIDFromLog = async (
       if (options.verificationMethod && findVerificationMethod(doc, options.verificationMethod)) {
         if (!resolvedDoc) {
           resolvedDoc = deepClone(doc);
+          resolvedDid = did;
           resolvedMeta = { ...meta };
         }
       }
@@ -396,6 +399,7 @@ export const resolveDIDFromLog = async (
       if (options.versionNumber === parseInt(version, 10) || options.versionId === meta.versionId) {
         if (!resolvedDoc) {
           resolvedDoc = deepClone(doc);
+          resolvedDid = did;
           resolvedMeta = { ...meta };
         }
       }
@@ -403,17 +407,20 @@ export const resolveDIDFromLog = async (
         if (resolutionLog[i + 1] && options.versionTime < new Date(resolutionLog[i + 1].versionTime)) {
           if (!resolvedDoc) {
             resolvedDoc = deepClone(doc);
+            resolvedDid = did;
             resolvedMeta = { ...meta };
           }
         } else if (!resolutionLog[i + 1]) {
           if (!resolvedDoc) {
             resolvedDoc = deepClone(doc);
+            resolvedDid = did;
             resolvedMeta = { ...meta };
           }
         }
       }
 
       lastValidDoc = deepClone(doc);
+      lastValidDid = did;
       lastValidMeta = { ...meta };
 
       i++;
@@ -467,12 +474,27 @@ export const resolveDIDFromLog = async (
   }
 
   if (!resolvedDoc) {
-    resolvedDoc = lastValidDoc;
     resolvedMeta = lastValidMeta;
+    resolvedDid = lastValidDid;
+    if (resolvedMeta && !(resolvedMeta.deactivated && !hasExplicitHistoricalSelector)) {
+      resolvedDoc = lastValidDoc;
+    }
   }
 
   if (!resolvedMeta) {
     throw new Error('DID resolution failed: No valid metadata found');
+  }
+
+  if (!resolvedDid) {
+    throw new Error('DID resolution failed: No valid identifier found');
+  }
+
+  if (resolvedMeta.deactivated && !hasExplicitHistoricalSelector) {
+    return {
+      did: resolvedDid,
+      doc: null,
+      meta: resolvedMeta,
+    };
   }
 
   if (!resolvedDoc) {
@@ -480,7 +502,7 @@ export const resolveDIDFromLog = async (
   }
 
   return {
-    did: requireDidId(resolvedDoc.id),
+    did: resolvedDid,
     doc: resolvedDoc,
     meta: resolvedMeta,
   };
