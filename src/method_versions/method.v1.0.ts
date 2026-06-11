@@ -43,6 +43,13 @@ import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParam
 
 const VERSION = '1.0';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
+const METHOD_PARAMETER_KEYS = {
+  nextKeyHashes: 'nextKeyHashes',
+  witness: 'witness',
+  watchers: 'watchers',
+} as const;
+
+const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
 
 const requireDidId = (id: string | undefined): string => {
   if (!id) {
@@ -326,19 +333,16 @@ export const resolveDIDFromLog = async (
         if (parameters.deactivated === true) {
           meta.deactivated = true;
         }
-        if (parameters.nextKeyHashes && parameters.nextKeyHashes.length > 0) {
-          meta.nextKeyHashes = parameters.nextKeyHashes;
-          meta.prerotation = true;
-        } else {
-          meta.nextKeyHashes = [];
-          meta.prerotation = false;
+        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.nextKeyHashes)) {
+          meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
+          meta.prerotation = meta.nextKeyHashes.length > 0;
         }
         const legacyParameters = parameters as typeof parameters & {
           witnesses?: { id: string }[];
           witnessThreshold?: string | number;
         };
 
-        if ('witness' in parameters) {
+        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.witness)) {
           meta.witness = parameters.witness;
         } else if (legacyParameters.witnesses) {
           meta.witness = {
@@ -349,7 +353,7 @@ export const resolveDIDFromLog = async (
         if (meta.witness?.witnesses?.length) {
           validateWitnessParameter(meta.witness);
         }
-        if ('watchers' in parameters) {
+        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.watchers)) {
           meta.watchers = parameters.watchers ?? null;
         }
       }
@@ -523,6 +527,7 @@ export const updateDID = async (
   const versionNumber = log.length + 1;
   const createdDate = createNextVersionTime(lastMeta.updated, options.updated, createDate);
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
+  const resolvedNextKeyHashes = options.nextKeyHashes ?? lastMeta.nextKeyHashes ?? [];
   const witnessInput = options.witness;
   const witness = witnessInput?.witnesses?.length
     ? {
@@ -532,7 +537,7 @@ export const updateDID = async (
     : {};
   const params = {
     updateKeys: options.updateKeys ?? [],
-    nextKeyHashes: options.nextKeyHashes ?? [],
+    ...(options.nextKeyHashes !== undefined ? { nextKeyHashes: options.nextKeyHashes } : {}),
     witness,
     watchers: watchersValue ?? [],
   };
@@ -607,7 +612,7 @@ export const updateDID = async (
     ...lastMeta,
     versionId: prelimEntry.versionId,
     updated: prelimEntry.versionTime,
-    prerotation: (params.nextKeyHashes?.length ?? 0) > 0,
+    prerotation: resolvedNextKeyHashes.length > 0,
     ...params,
   };
 

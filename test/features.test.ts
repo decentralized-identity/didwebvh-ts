@@ -184,6 +184,59 @@ test('Require `nextKeyHashes` to continue if previously set', async () => {
   await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
 });
 
+test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey2),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey2),
+    verifier: testImplementation,
+  });
+
+  expect('nextKeyHashes' in log2[1].parameters).toBe(false);
+
+  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(resolved.meta.prerotation).toBe(true);
+  expect(resolved.meta.nextKeyHashes).toEqual([nextKeyHash]);
+});
+
+test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey2),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    nextKeyHashes: [],
+    verificationMethods: asPublicVerificationMethods(authKey2),
+    verifier: testImplementation,
+  });
+
+  expect(log2[1].parameters.nextKeyHashes).toEqual([]);
+
+  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(resolved.meta.prerotation).toBe(false);
+  expect(resolved.meta.nextKeyHashes).toEqual([]);
+});
+
 test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
   // Create DID with nextKeyHashes pointing to authKey3
   const nextKeyHash = await deriveNextKeyHash(authKey3.publicKeyMultibase!);
