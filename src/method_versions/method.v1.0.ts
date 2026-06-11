@@ -1,5 +1,16 @@
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import { METHOD, PLACEHOLDER } from '../constants';
+import {
+  CONTEXT_LINKED_VP,
+  ERROR_TYPE_INVALID_DID,
+  ERROR_TYPE_NOT_FOUND,
+  METHOD,
+  METHOD_PARAMETER_KEYS,
+  METHOD_PROTOCOL_V1_0,
+  PLACEHOLDER,
+  SERVICE_TYPE_LINKED_VP,
+  SERVICE_TYPE_RELATIVE_REF,
+  ServiceFragment,
+} from '../constants';
 import type {
   CreateDIDInterface,
   CreateDIDResult,
@@ -31,6 +42,7 @@ import {
   parseDidWebvhIdentifier,
   replaceCreateDidPlaceholders,
   replaceValueInObject,
+  serviceFragmentExists,
   validateCreateDidDocument,
   validateMethodSpecificPathSegments,
 } from '../utils';
@@ -40,14 +52,6 @@ import {
   validateUtcIso8601NotInFuture,
 } from '../utils/iso8601-datetime';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
-
-const VERSION = '1.0';
-const PROTOCOL = `did:${METHOD}:${VERSION}`;
-const METHOD_PARAMETER_KEYS = {
-  nextKeyHashes: 'nextKeyHashes',
-  witness: 'witness',
-  watchers: 'watchers',
-} as const;
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
 
@@ -131,7 +135,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
     versionId: PLACEHOLDER,
     versionTime: createdDate,
     parameters: {
-      method: PROTOCOL,
+      method: METHOD_PROTOCOL_V1_0,
       ...params,
     },
     state: doc,
@@ -195,7 +199,7 @@ export const resolveDIDFromLog = async (
   }
   const resolutionLog = log.map((l) => deepClone(l));
   const protocol = resolutionLog[0]?.parameters?.method;
-  if (protocol !== PROTOCOL) {
+  if (protocol !== METHOD_PROTOCOL_V1_0) {
     throw new Error(`'${protocol}' is not a supported method version.`);
   }
   let did = '';
@@ -375,19 +379,19 @@ export const resolveDIDFromLog = async (
       doc.service = Array.isArray(doc.service) ? doc.service : [];
       const baseUrl = getBaseUrl(did);
 
-      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#files')) {
+      if (!serviceFragmentExists(doc.service, ServiceFragment.Files, did)) {
         doc.service.push({
           id: '#files',
-          type: 'relativeRef',
+          type: SERVICE_TYPE_RELATIVE_REF,
           serviceEndpoint: baseUrl,
         });
       }
 
-      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#whois')) {
+      if (!serviceFragmentExists(doc.service, ServiceFragment.Whois, did)) {
         doc.service.push({
-          '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+          '@context': CONTEXT_LINKED_VP,
           id: '#whois',
-          type: 'LinkedVerifiablePresentation',
+          type: SERVICE_TYPE_LINKED_VP,
           serviceEndpoint: `${baseUrl}/whois.vp`,
         });
       }
@@ -470,7 +474,7 @@ export const resolveDIDFromLog = async (
       const message = e instanceof Error ? e.message : String(e);
       resolvedMeta.error = DidResolutionError.InvalidDid;
       resolvedMeta.problemDetails = {
-        type: 'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID',
+        type: ERROR_TYPE_INVALID_DID,
         title: 'The resolved DID is invalid.',
         detail: message,
       };
@@ -490,7 +494,7 @@ export const resolveDIDFromLog = async (
           ...lastValidMeta,
           error: DidResolutionError.NotFound,
           problemDetails: {
-            type: 'https://w3id.org/security#NOT_FOUND',
+            type: ERROR_TYPE_NOT_FOUND,
             title: 'The requested DID version was not found.',
             detail: 'The supplied explicit version selector did not match any entry in the DID log.',
           },

@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from 'bun:test';
-import type { CreateDIDResult, DIDLog, DIDLogEntry, VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, DIDLogEntry, ServiceEndpoint, VerificationMethod } from '../src/interfaces';
 import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createDate, deriveNextKeyHash } from '../src/utils';
@@ -352,4 +352,52 @@ test('DID log with portable false should not resolve if moved', async () => {
   expect(err).toBeDefined();
   expect(err).toBeInstanceOf(Error);
   expect((err as Error).message).toContain('Cannot move DID: portability is disabled');
+});
+
+test('Absolute service IDs prevent implicit service duplication', async () => {
+  // Create a DID with a custom service using absolute ID form
+  const customDidDocument = {
+    '@context': ['https://www.w3.org/ns/did/v1'],
+    id: 'did:webvh:{SCID}:example.com',
+    controller: ['did:webvh:{SCID}:example.com'],
+    service: [
+      {
+        id: 'did:webvh:{SCID}:example.com#files', // Absolute form with placeholder
+        type: 'relativeRef',
+        serviceEndpoint: 'https://custom.example.com',
+      },
+    ],
+  };
+
+  const { log: createdLog, doc: createdDoc } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: customDidDocument,
+    verifier: testImplementation,
+  });
+
+  // Resolve the created DID
+  const result = await resolveDIDFromLog(createdLog, { verifier: testImplementation });
+  const resolvedDid = result.did;
+
+  // Verify that the implicit #files service was NOT added (only custom service exists)
+  const filesServices = (result.doc?.service || []).filter((s: ServiceEndpoint) => {
+    const id = s.id || '';
+    return id.endsWith('#files');
+  });
+
+  expect(filesServices.length).toBe(1);
+  expect(filesServices[0].id).toBe(`${resolvedDid}#files`);
+  expect(filesServices[0].serviceEndpoint).toBe('https://custom.example.com');
+
+  // Verify #whois was still added as implicit service
+  const whoisServices = (result.doc?.service || []).filter((s: ServiceEndpoint) => {
+    const id = s.id || '';
+    return id.endsWith('#whois');
+  });
+
+  expect(whoisServices.length).toBe(1);
+  expect(whoisServices[0].id).toBe('#whois');
 });

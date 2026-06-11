@@ -1,5 +1,11 @@
 import { config } from './config';
-import { BASE_CONTEXT, METHOD } from './constants';
+import {
+  BASE_CONTEXT,
+  CONTEXT_LINKED_VP,
+  METHOD,
+  SERVICE_TYPE_LINKED_VP,
+  SERVICE_TYPE_RELATIVE_REF,
+} from './constants';
 import type {
   CreateDIDInterface,
   DIDDoc,
@@ -469,6 +475,20 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
   };
 }
 
+/**
+ * Check if a service with the given fragment exists in the service array.
+ * Matches both fragment form (e.g., '#files') and absolute form (e.g., 'did:webvh:...#files').
+ */
+export function serviceFragmentExists(services: ServiceEndpoint[], fragment: string, did: string): boolean {
+  const fragmentForm = `#${fragment}`;
+  const absoluteForm = `${did}#${fragment}`;
+
+  return services.some((s: ServiceEndpoint) => {
+    const serviceId = s.id || '';
+    return serviceId === fragmentForm || serviceId === absoluteForm;
+  });
+}
+
 export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc {
   let webDoc = deepClone(didwebvhDoc);
 
@@ -481,16 +501,16 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
   if (!existingServiceIds.some((id: string) => id.endsWith('#files'))) {
     implicitServices.push({
       id: '#files',
-      type: 'relativeRef',
+      type: SERVICE_TYPE_RELATIVE_REF,
       serviceEndpoint: httpsBase,
     });
   }
 
   if (!existingServiceIds.some((id: string) => id.endsWith('#whois'))) {
     implicitServices.push({
-      '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+      '@context': CONTEXT_LINKED_VP,
       id: '#whois',
-      type: 'LinkedVerifiablePresentation',
+      type: SERVICE_TYPE_LINKED_VP,
       serviceEndpoint: `${httpsBase}whois.vp`,
     });
   }
