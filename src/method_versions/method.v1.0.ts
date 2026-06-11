@@ -211,6 +211,8 @@ export const resolveDIDFromLog = async (
   let resolvedMeta: DIDResolutionMeta | null = null;
   let lastValidMeta: DIDResolutionMeta | null = null;
   let i = 0;
+  const hasExplicitHistoricalSelector =
+    options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
   let host = '';
   let previousVersionTime: Date | undefined;
   const resolutionNow = new Date();
@@ -453,7 +455,7 @@ export const resolveDIDFromLog = async (
     if (!resolvedDoc) {
       throw e;
     }
-    if (resolvedMeta) {
+    if (resolvedMeta && !hasExplicitHistoricalSelector) {
       const message = e instanceof Error ? e.message : String(e);
       resolvedMeta.error = DidResolutionError.InvalidDid;
       resolvedMeta.problemDetails = {

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { type CreateDIDResult, type DIDLog, DidResolutionError, type VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import {
@@ -127,7 +127,7 @@ describe('Not So Happy Path Tests', () => {
     await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow();
   });
 
-  test('Error metadata on later-entry failure', async () => {
+  test('Historical selector remains successful when a later entry fails', async () => {
     // Create a 3-entry log
     const { log: log1 } = await createDID({
       domain: 'example.com',
@@ -153,25 +153,21 @@ describe('Not So Happy Path Tests', () => {
       verifier: testImplementation,
     });
 
-    // Tamper with entry 3 (index 2) to cause a hash chain break
+    // Tamper with entry 3 (index 2) to cause a hash chain break.
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
     tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
 
-    // Request version 1 — it should resolve, but with error metadata
-    // because entry 3 fails verification
+    // Request version 1 — it should resolve successfully even though
+    // entry 3 fails verification.
     const result = await resolveDIDFromLog(tamperedLog, {
       versionNumber: 1,
       verifier: testImplementation,
     });
 
     expect(result.doc).not.toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
-    expect(result.meta.problemDetails).toBeDefined();
-    expect(result.meta.problemDetails!.type).toBe(
-      'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID'
-    );
-    expect(result.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
-    expect(result.meta.problemDetails!.detail).toContain('Hash chain broken');
+    expect(result.meta.versionId.split('-')[0]).toBe('1');
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
   });
 
   test('Protocol version rejection in v1.0', async () => {
