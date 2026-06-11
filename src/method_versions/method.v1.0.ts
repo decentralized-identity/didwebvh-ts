@@ -230,6 +230,7 @@ export const resolveDIDFromLog = async (
   let previousVersionTime: Date | undefined;
   const resolutionNow = new Date();
   const requiredWitnessChecks: RequiredWitnessCheck[] = [];
+  let witnessThresholdFailure = false;
 
   try {
     while (i < resolutionLog.length) {
@@ -460,6 +461,7 @@ export const resolveDIDFromLog = async (
         const threshold = parseInt((check.witness.threshold ?? 0).toString(), 10);
 
         if (approvals < threshold) {
+          witnessThresholdFailure = true;
           throw new Error(
             `Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`
           );
@@ -470,7 +472,7 @@ export const resolveDIDFromLog = async (
     if (!resolvedDoc) {
       throw e;
     }
-    if (resolvedMeta && !hasExplicitHistoricalSelector) {
+    if (resolvedMeta && (!hasExplicitHistoricalSelector || witnessThresholdFailure)) {
       const message = e instanceof Error ? e.message : String(e);
       resolvedMeta.error = DidResolutionError.InvalidDid;
       resolvedMeta.problemDetails = {
