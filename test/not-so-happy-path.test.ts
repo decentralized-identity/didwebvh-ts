@@ -127,7 +127,7 @@ describe('Not So Happy Path Tests', () => {
     await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow();
   });
 
-  test('Historical selector remains successful when a later entry fails', async () => {
+  test('Historical versionNumber selector remains successful when a later entry fails', async () => {
     // Create a 3-entry log
     const { log: log1 } = await createDID({
       domain: 'example.com',
@@ -166,6 +166,88 @@ describe('Not So Happy Path Tests', () => {
 
     expect(result.doc).not.toBeNull();
     expect(result.meta.versionId.split('-')[0]).toBe('1');
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Historical versionId selector remains successful when a later entry fails', async () => {
+    const { log: log1 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log2 } = await updateDID({
+      log: log1,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log3 } = await updateDID({
+      log: log2,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
+    tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
+
+    const result = await resolveDIDFromLog(tamperedLog, {
+      versionId: log1[0].versionId,
+      verifier: testImplementation,
+    });
+
+    expect(result.doc).not.toBeNull();
+    expect(result.meta.versionId).toBe(log1[0].versionId);
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Historical versionTime selector remains successful when a later entry fails', async () => {
+    const { log: log1 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log2 } = await updateDID({
+      log: log1,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log3 } = await updateDID({
+      log: log2,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
+    tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
+
+    const firstVersionTime = new Date(log1[0].versionTime);
+    const secondVersionTime = new Date(log2[1].versionTime);
+    const midpointTime = new Date((firstVersionTime.getTime() + secondVersionTime.getTime()) / 2);
+
+    const result = await resolveDIDFromLog(tamperedLog, {
+      versionTime: midpointTime,
+      verifier: testImplementation,
+    });
+
+    expect(result.doc).not.toBeNull();
+    expect(result.meta.versionId).toBe(log1[0].versionId);
     expect(result.meta.error).toBeUndefined();
     expect(result.meta.problemDetails).toBeUndefined();
   });
