@@ -8,6 +8,7 @@ export const METHOD_PROTOCOL_V1_0 = `did:${METHOD}:${METHOD_VERSION_1_0}`;
 
 // Method parameter keys
 export const METHOD_PARAMETER_KEYS = {
+  updateKeys: 'updateKeys',
   nextKeyHashes: 'nextKeyHashes',
   witness: 'witness',
   watchers: 'watchers',

@@ -202,6 +202,7 @@ test('Require `nextKeyHashes` to continue if previously set', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
+    nextKeyHashes: [],
     verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
@@ -302,6 +303,7 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
+    nextKeyHashes: [],
     verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
@@ -327,6 +329,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
+    nextKeyHashes: [],
     verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });

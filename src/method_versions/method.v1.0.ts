@@ -333,8 +333,8 @@ export const resolveDIDFromLog = async (
           await newKeysAreInNextKeys(parameters.updateKeys ?? [], meta.nextKeyHashes ?? []);
         }
 
-        if (parameters.updateKeys) {
-          meta.updateKeys = parameters.updateKeys;
+        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.updateKeys)) {
+          meta.updateKeys = parameters.updateKeys ?? [];
         }
         if (parameters.deactivated === true) {
           meta.deactivated = true;
