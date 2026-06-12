@@ -235,6 +235,27 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
   expect(resolved.meta.nextKeyHashes).toEqual([nextKeyHash]);
 });
 
+test('Omitted updateKeys is rejected while pre-rotation is active', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  await expect(
+    updateDID({
+      log,
+      signer: createTestSigner(authKey2),
+      verificationMethods: asPublicVerificationMethods(authKey2),
+      verifier: testImplementation,
+    })
+  ).rejects.toThrow('updateKeys must be provided while pre-rotation is active');
+});
+
 test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({

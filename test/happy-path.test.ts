@@ -261,4 +261,64 @@ describe('Happy Path Tests', () => {
     expect(meta.nextKeyHashes).toHaveLength(1);
     expect(meta.nextKeyHashes[0]).toBe(nextKeyHash);
   });
+
+  test('Sparse update preserves prior DID document state', async () => {
+    const authKey1 = await generateTestVerificationMethod();
+    const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
+
+    const { log: initialLog } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      alsoKnownAs: ['did:example:one'],
+      services: [
+        {
+          id: '#svc',
+          type: 'LinkedDomains',
+          serviceEndpoint: 'https://example.com',
+        },
+      ],
+      verifier,
+    });
+
+    const { doc: updatedDoc } = await updateDID({
+      log: initialLog,
+      signer: createTestSigner(authKey1),
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    expect(updatedDoc.alsoKnownAs).toEqual(['did:example:one']);
+    expect(updatedDoc.service).toEqual([
+      {
+        id: '#svc',
+        type: 'LinkedDomains',
+        serviceEndpoint: 'https://example.com',
+      },
+    ]);
+  });
+
+  test('Omitted updateKeys stay omitted in update parameters', async () => {
+    const authKey1 = await generateTestVerificationMethod();
+    const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
+
+    const { log: initialLog } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    const { log: updatedLog, meta } = await updateDID({
+      log: initialLog,
+      signer: createTestSigner(authKey1),
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    expect('updateKeys' in updatedLog[1].parameters).toBe(false);
+    expect(meta.updateKeys).toEqual([authKey1.publicKeyMultibase!]);
+  });
 });
