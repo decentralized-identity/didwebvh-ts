@@ -5,12 +5,14 @@ import { dirname } from 'node:path';
 import { sign as ed25519Sign, verify as ed25519Verify, generateKeyPair } from '@stablelib/ed25519';
 import type {
   DIDLog,
+  ResolutionOptions,
   ServiceEndpoint,
   Signer,
   SigningInput,
   SigningOutput,
   VerificationMethod,
   Verifier,
+  WitnessProofFileEntry,
 } from './interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from './method';
 import {
@@ -39,7 +41,7 @@ Commands:
   generate-vm Generate a new verification method keypair
 
 Options:
-  --address [address]       Address for the DID (host, host:port, http://localhost, https://url, or did:webvh form) (required for create)
+  --address [address]       Address for the DID (host, host:port, https://url, or did:webvh form) (required for create)
   --domain [domain]         DEPRECATED: Use --address instead. Domain for the DID (backwards compatibility).
   --log [file]              Path to the DID log file (required for resolve, update, deactivate)
   --output [file]           Path to save the updated DID log (optional for create, update, deactivate)
@@ -78,6 +80,23 @@ function showHelp() {
   console.log(usage);
 }
 
+function requirePublicKeyMultibase(value: { publicKeyMultibase?: string }): string {
+  if (!value.publicKeyMultibase) throw new Error('Expected verification method to include publicKeyMultibase');
+  return value.publicKeyMultibase;
+}
+
+function parseExplicitPaths(pathsOption: string | string[] | undefined): string[] | undefined {
+  if (!pathsOption) return undefined;
+
+  const rawParts = Array.isArray(pathsOption) ? pathsOption : [pathsOption];
+  const paths = rawParts
+    .flatMap((part) => part.split(':'))
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return paths.length > 0 ? paths : undefined;
+}
+
 async function generateVerificationMethod(
   purpose:
     | 'authentication'
@@ -107,7 +126,8 @@ class CustomCryptoImplementation implements Signer, Verifier {
     if (!this.verificationMethod) {
       throw new Error('Verification method not set');
     }
-    return `did:key:${this.verificationMethod.publicKeyMultibase}#${this.verificationMethod.publicKeyMultibase}`;
+    const publicKeyMultibase = requirePublicKeyMultibase(this.verificationMethod);
+    return `did:key:${publicKeyMultibase}#${publicKeyMultibase}`;
   }
 
   async sign(input: SigningInput): Promise<SigningOutput> {
@@ -121,7 +141,11 @@ class CustomCryptoImplementation implements Signer, Verifier {
     const dataHash = await createHash(canonicalizeStrict(document));
     const proofHash = await createHash(canonicalizeStrict(proof));
     const message = concatBuffers(proofHash, dataHash);
-    const secretKey = multibaseDecode(this.verificationMethod.secretKeyMultibase).bytes.slice(2);
+    const secretKeyMultibase = this.verificationMethod.secretKeyMultibase;
+    if (!secretKeyMultibase) {
+      throw new Error('Verification method secretKeyMultibase not set');
+    }
+    const secretKey = multibaseDecode(secretKeyMultibase).bytes.slice(2);
     const signature = ed25519Sign(secretKey, message);
     return {
       proofValue: multibaseEncode(signature, MultibaseEncoding.BASE58_BTC),
@@ -145,7 +169,7 @@ export async function handleCreate(args: string[]) {
 
   // Extract optional explicit paths (colon-delimited) from CLI args
   // If provided, these override any paths parsed from address input
-  const explicitPaths = options.paths as string[] | undefined;
+  const explicitPaths = parseExplicitPaths(options.paths);
 
   const output = options.output as string | undefined;
   const portable = options.portable !== undefined;
@@ -178,12 +202,13 @@ export async function handleCreate(args: string[]) {
     };
 
     // Use new address parameter for strict parsing and encoding
+    const publicKeyMultibase = requirePublicKeyMultibase(authKey);
     const { did, doc, meta, log } = await createDID({
       address: addressInput,
       paths: explicitPaths,
       signer: crypto,
       verifier: crypto,
-      updateKeys: [authKey.publicKeyMultibase],
+      updateKeys: [publicKeyMultibase],
       verificationMethods: [publicAuthKey],
       portable,
       witness: witnesses?.length
@@ -213,7 +238,7 @@ export async function handleCreate(args: string[]) {
       await writeVerificationMethodToEnv({
         ...authKey,
         controller: did,
-        id: `${did}#${authKey.publicKeyMultibase?.slice(-8)}`,
+        id: `${did}#${publicKeyMultibase.slice(-8)}`,
       });
       console.log(`DID verification method saved to env`);
     } else {
@@ -248,7 +273,7 @@ export async function handleResolve(args: string[]) {
       log = await fetchLogFromIdentifier(didIdentifier);
     }
 
-    const resolutionOptions: any = {};
+    const resolutionOptions: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[]; verifier?: Verifier } = {};
     if (witnessFile) {
       const witnessProofs = JSON.parse(fs.readFileSync(witnessFile, 'utf8'));
       resolutionOptions.witnessProofs = witnessProofs;
@@ -297,16 +322,28 @@ export async function handleUpdate(args: string[]) {
     // console.log('Current meta:', meta);
 
     // Get the verification method from environment
-    const envVMs = JSON.parse(bufferToString(createBuffer(process.env.DID_VERIFICATION_METHODS || 'W10=', 'base64')));
+    const envVMs = JSON.parse(
+      bufferToString(createBuffer(process.env.DID_VERIFICATION_METHODS || 'W10=', 'base64'))
+    ) as VerificationMethod[];
 
-    let vm = envVMs.find((vm: any) => vm.controller === did);
-
-    if (!vm) {
-      // Try to find VM by matching public key with current update keys
-      vm = envVMs.find((vm: any) => meta.updateKeys.includes(vm.publicKeyMultibase));
+    let vm: VerificationMethod | undefined;
+    if (updateKey) {
+      vm = envVMs.find((candidateVm) => candidateVm.publicKeyMultibase === updateKey);
+      if (!vm) {
+        throw new Error(`No verification method found for update key: ${updateKey}`);
+      }
+    } else {
+      vm = envVMs.find((candidateVm) => candidateVm.controller === did);
     }
 
-    if (!vm && envVMs.length > 0) {
+    if (!vm && !updateKey) {
+      // Try to find VM by matching public key with current update keys
+      vm = envVMs.find((candidateVm) =>
+        candidateVm.publicKeyMultibase ? meta.updateKeys.includes(candidateVm.publicKeyMultibase) : false
+      );
+    }
+
+    if (!vm && !updateKey && envVMs.length > 0) {
       // Fall back to first available VM with warning
       console.warn('Warning: No matching verification method found for DID or update keys. Using first available VM.');
       vm = envVMs[0];
@@ -321,12 +358,14 @@ export async function handleUpdate(args: string[]) {
       throw new Error('Verification method missing publicKeyMultibase');
     }
 
+    const vmPublicKeyMultibase = requirePublicKeyMultibase(vm);
+
     // Create verification methods array
     const verificationMethods: VerificationMethod[] = [];
 
     // If we're adding VMs, create a VM for each type
     if (addVm && addVm.length > 0) {
-      const vmId = `${did}#${vm.publicKeyMultibase?.slice(-8)}`;
+      const vmId = `${did}#${vmPublicKeyMultibase.slice(-8)}`;
 
       // Add a verification method for each type
       for (const vmType of addVm) {
@@ -334,7 +373,7 @@ export async function handleUpdate(args: string[]) {
           id: vmId,
           type: 'Multikey',
           controller: did,
-          publicKeyMultibase: vm.publicKeyMultibase,
+          publicKeyMultibase: vmPublicKeyMultibase,
           purpose: vmType as VerificationMethodType,
         };
         verificationMethods.push(newVM);
@@ -342,10 +381,10 @@ export async function handleUpdate(args: string[]) {
     } else {
       // For non-VM updates (services, alsoKnownAs), still need a VM with purpose
       verificationMethods.push({
-        id: `${did}#${vm.publicKeyMultibase?.slice(-8)}`,
+        id: `${did}#${vmPublicKeyMultibase.slice(-8)}`,
         type: 'Multikey',
         controller: did,
-        publicKeyMultibase: vm.publicKeyMultibase,
+        publicKeyMultibase: vmPublicKeyMultibase,
         purpose: 'assertionMethod',
       });
     }
@@ -355,7 +394,7 @@ export async function handleUpdate(args: string[]) {
       log,
       signer: crypto,
       verifier: crypto,
-      updateKeys: [vm.publicKeyMultibase],
+      updateKeys: [vmPublicKeyMultibase],
       verificationMethods,
       witness: witnesses?.length
         ? {
@@ -403,13 +442,13 @@ export async function handleDeactivate(args: string[]) {
     }
 
     // Parse the VM from env
-    const vms = JSON.parse(bufferToString(createBuffer(vmMatch[1], 'base64')));
+    const vms = JSON.parse(bufferToString(createBuffer(vmMatch[1], 'base64'))) as VerificationMethod[];
     if (!vms || vms.length === 0) {
       throw new Error('No verification method found in environment');
     }
 
     // Find VM that matches the current update key
-    let vm = vms.find((v: any) => v.publicKeyMultibase === meta.updateKeys[0]);
+    let vm = vms.find((candidateVm) => candidateVm.publicKeyMultibase === meta.updateKeys[0]);
 
     if (!vm) {
       // If no matching VM found, use the first one and warn

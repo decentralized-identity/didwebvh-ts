@@ -1,5 +1,6 @@
 import { beforeAll, expect, test } from 'bun:test';
-import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, DIDLogEntry, ServiceEndpoint, VerificationMethod } from '../src/interfaces';
+import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createDate, deriveNextKeyHash } from '../src/utils';
 import {
@@ -16,8 +17,8 @@ let authKey1: VerificationMethod,
   authKey4: VerificationMethod;
 let testImplementation: TestCryptoImplementation;
 
-let nonPortableDID: { did: string; doc: any; meta: any; log: DIDLog };
-let portableDID: { did: string; doc: any; meta: any; log: DIDLog };
+let nonPortableDID: CreateDIDResult;
+let portableDID: CreateDIDResult;
 
 beforeAll(async () => {
   authKey1 = await generateTestVerificationMethod();
@@ -133,6 +134,30 @@ test('Resolve DID latest', async () => {
   expect(resolved.meta.versionId.split('-')[0]).toBe('4');
 });
 
+test('Explicit versionId miss returns notFound without latest fallback', async () => {
+  const resolved = await resolveDIDFromLog(log, {
+    versionId: '999-non-existent-version-id',
+    verifier: testImplementation,
+  });
+
+  expect(resolved.doc).toBeNull();
+  expect(resolved.meta.error).toBe(DidResolutionError.NotFound);
+  expect(resolved.meta.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
+  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+});
+
+test('Explicit versionTime miss returns notFound without latest fallback', async () => {
+  const resolved = await resolveDIDFromLog(log, {
+    versionTime: new Date('2020-12-01T00:00:00Z'),
+    verifier: testImplementation,
+  });
+
+  expect(resolved.doc).toBeNull();
+  expect(resolved.meta.error).toBe(DidResolutionError.NotFound);
+  expect(resolved.meta.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
+  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+});
+
 test('Empty nextKeyHashes array should not enable prerotation', async () => {
   // Create a DID without nextKeyHashes
   const { log: log1 } = await createDID({
@@ -177,11 +202,86 @@ test('Require `nextKeyHashes` to continue if previously set', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
+    nextKeyHashes: [],
     verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
 
   await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
+});
+
+test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey2),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey2),
+    verifier: testImplementation,
+  });
+
+  expect('nextKeyHashes' in log2[1].parameters).toBe(false);
+
+  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(resolved.meta.prerotation).toBe(true);
+  expect(resolved.meta.nextKeyHashes).toEqual([nextKeyHash]);
+});
+
+test('Omitted updateKeys is rejected while pre-rotation is active', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  await expect(
+    updateDID({
+      log,
+      signer: createTestSigner(authKey2),
+      verificationMethods: asPublicVerificationMethods(authKey2),
+      verifier: testImplementation,
+    })
+  ).rejects.toThrow('updateKeys must be provided while pre-rotation is active');
+});
+
+test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  const { log: log2 } = await updateDID({
+    log: log1,
+    signer: createTestSigner(authKey2),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    nextKeyHashes: [],
+    verificationMethods: asPublicVerificationMethods(authKey2),
+    verifier: testImplementation,
+  });
+
+  expect(log2[1].parameters.nextKeyHashes).toEqual([]);
+
+  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(resolved.meta.prerotation).toBe(false);
+  expect(resolved.meta.nextKeyHashes).toEqual([]);
 });
 
 test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
@@ -203,6 +303,7 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
+    nextKeyHashes: [],
     verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
@@ -228,6 +329,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
+    nextKeyHashes: [],
     verificationMethods: asPublicVerificationMethods(authKey1),
     verifier: testImplementation,
   });
@@ -237,7 +339,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
 });
 
 test('DID log with portable false should not resolve if moved', async () => {
-  let err: any;
+  let err: unknown;
   try {
     const lastEntry = nonPortableDID.log[nonPortableDID.log.length - 1];
     const newTimestamp = createDate(new Date('2021-02-01T08:32:55Z'));
@@ -248,16 +350,16 @@ test('DID log with portable false should not resolve if moved', async () => {
       id: nonPortableDID.did.replace('example.com', 'newdomain.com'),
     };
 
-    const newEntry = {
+    const newEntry: DIDLogEntry = {
       versionId: `${nonPortableDID.log.length + 1}-test`,
       versionTime: newTimestamp,
-      parameters: { updateKeys: [authKey1.publicKeyMultibase] },
+      parameters: { updateKeys: [authKey1.publicKeyMultibase!] },
       state: newDoc,
       proof: [
         {
           type: 'DataIntegrityProof',
           cryptosuite: 'eddsa-jcs-2022',
-          verificationMethod: `did:key:${authKey1.publicKeyMultibase}`,
+          verificationMethod: `did:key:${authKey1.publicKeyMultibase!}`,
           created: newTimestamp,
           proofPurpose: 'authentication',
           proofValue: 'badProofValue',
@@ -265,12 +367,61 @@ test('DID log with portable false should not resolve if moved', async () => {
       ],
     };
 
-    const badLog: DIDLog = [...(nonPortableDID.log as any), newEntry];
+    const badLog: DIDLog = [...nonPortableDID.log, newEntry];
     await resolveDIDFromLog(badLog, { verifier: testImplementation });
   } catch (e) {
     err = e;
   }
 
   expect(err).toBeDefined();
-  expect(err.message).toContain('Cannot move DID: portability is disabled');
+  expect(err).toBeInstanceOf(Error);
+  expect((err as Error).message).toContain('Cannot move DID: portability is disabled');
+});
+
+test('Absolute service IDs prevent implicit service duplication', async () => {
+  // Create a DID with a custom service using absolute ID form
+  const customDidDocument = {
+    '@context': ['https://www.w3.org/ns/did/v1'],
+    id: 'did:webvh:{SCID}:example.com',
+    controller: ['did:webvh:{SCID}:example.com'],
+    service: [
+      {
+        id: 'did:webvh:{SCID}:example.com#files', // Absolute form with placeholder
+        type: 'relativeRef',
+        serviceEndpoint: 'https://custom.example.com',
+      },
+    ],
+  };
+
+  const { log: createdLog, doc: createdDoc } = await createDID({
+    domain: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: customDidDocument,
+    verifier: testImplementation,
+  });
+
+  // Resolve the created DID
+  const result = await resolveDIDFromLog(createdLog, { verifier: testImplementation });
+  const resolvedDid = result.did;
+
+  // Verify that the implicit #files service was NOT added (only custom service exists)
+  const filesServices = (result.doc?.service || []).filter((s: ServiceEndpoint) => {
+    const id = s.id || '';
+    return id.endsWith('#files');
+  });
+
+  expect(filesServices.length).toBe(1);
+  expect(filesServices[0].id).toBe(`${resolvedDid}#files`);
+  expect(filesServices[0].serviceEndpoint).toBe('https://custom.example.com');
+
+  // Verify #whois was still added as implicit service
+  const whoisServices = (result.doc?.service || []).filter((s: ServiceEndpoint) => {
+    const id = s.id || '';
+    return id.endsWith('#whois');
+  });
+
+  expect(whoisServices.length).toBe(1);
+  expect(whoisServices[0].id).toBe('#whois');
 });

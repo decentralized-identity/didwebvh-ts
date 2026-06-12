@@ -21,8 +21,10 @@ export interface DataIntegrityProofTemplate {
   proofPurpose: DataIntegrityProofPurpose;
 }
 
-export interface SigningInput {
-  document: unknown;
+export type SignableDocument = DIDLogEntry | DIDDoc | Pick<DIDLogEntry, 'versionId'>;
+
+export interface SigningInput<TDocument = SignableDocument> {
+  document: TDocument;
   proof: DataIntegrityProofTemplate;
 }
 
@@ -30,8 +32,8 @@ export interface SigningOutput {
   proofValue: string;
 }
 
-export interface Signer {
-  sign(input: SigningInput): Promise<SigningOutput>;
+export interface Signer<TDocument = SignableDocument> {
+  sign(input: SigningInput<TDocument>): Promise<SigningOutput>;
   getVerificationMethodId(): string;
 }
 
@@ -106,7 +108,7 @@ export interface VerificationMethod {
   publicKeyMultibase?: string;
   secretKeyMultibase?: string;
   purpose?: DataIntegrityProofPurpose;
-  publicKeyJwk?: any;
+  publicKeyJwk?: JsonObject;
   use?: string;
 }
 
@@ -174,7 +176,7 @@ export type DIDLog = DIDLogEntry[];
 export interface ServiceEndpoint {
   id?: string;
   type: string | string[];
-  serviceEndpoint?: string | string[] | any;
+  serviceEndpoint?: string | string[] | JsonValue;
   [key: string]: unknown;
 }
 
@@ -256,7 +258,8 @@ export interface ResolutionOptions {
   verificationMethod?: string;
   verifier?: Verifier;
   scid?: string;
-  fastResolve?: boolean;
+  /** Internal: full requested DID used to enforce that state.id matches in ≥1 valid version. */
+  requestedDid?: string;
 }
 
 export interface WitnessProofFileEntry {

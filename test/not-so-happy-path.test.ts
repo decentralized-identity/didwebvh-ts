@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { type DIDLog, DidResolutionError, type VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import {
@@ -12,7 +12,7 @@ import {
 describe('Not So Happy Path Tests', () => {
   let authKey: VerificationMethod;
   let testImplementation: TestCryptoImplementation;
-  let initialDID: { did: string; doc: any; meta: any; log: DIDLog };
+  let initialDID: CreateDIDResult;
 
   beforeAll(async () => {
     authKey = await generateTestVerificationMethod();
@@ -68,7 +68,7 @@ describe('Not So Happy Path Tests', () => {
     await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow('Hash chain broken');
   });
 
-  test('Fast-resolve catches hash chain break on middle entries', async () => {
+  test('Resolve catches hash chain break on middle entries', async () => {
     // Build a log with 12+ entries
     let currentLog: DIDLog;
     const { log: log0 } = await createDID({
@@ -97,10 +97,7 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
     tamperedLog[3].state.alsoKnownAs = ['did:example:tampered'];
 
-    // Hash chain validation remains active even when fastResolve is opted in.
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation, fastResolve: true })).rejects.toThrow(
-      'Hash chain broken'
-    );
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow('Hash chain broken');
   });
 
   test('Default resolve verifies every log entry proof', async () => {
@@ -126,17 +123,11 @@ describe('Not So Happy Path Tests', () => {
     }
 
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
-    // With 13 entries, index 1 is outside the fastResolve verification window
-    // (first entry + last 10 entries), but still checked in default full mode.
     tamperedLog[1]!.proof![0]!.proofValue = 'zinvalid-proof';
     await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow();
-
-    await expect(
-      resolveDIDFromLog(tamperedLog, { verifier: testImplementation, fastResolve: true })
-    ).resolves.toBeDefined();
   });
 
-  test('Error metadata on later-entry failure', async () => {
+  test('Historical versionNumber selector remains successful when a later entry fails', async () => {
     // Create a 3-entry log
     const { log: log1 } = await createDID({
       domain: 'example.com',
@@ -162,25 +153,123 @@ describe('Not So Happy Path Tests', () => {
       verifier: testImplementation,
     });
 
-    // Tamper with entry 3 (index 2) to cause a hash chain break
+    // Tamper with entry 3 (index 2) to cause a hash chain break.
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
     tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
 
-    // Request version 1 — it should resolve, but with error metadata
-    // because entry 3 fails verification
+    // Request version 1 — it should resolve successfully even though
+    // entry 3 fails verification.
     const result = await resolveDIDFromLog(tamperedLog, {
       versionNumber: 1,
       verifier: testImplementation,
     });
 
     expect(result.doc).not.toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
-    expect(result.meta.problemDetails).toBeDefined();
-    expect(result.meta.problemDetails!.type).toBe(
-      'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID'
+    expect(result.meta.versionId.split('-')[0]).toBe('1');
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Historical versionId selector remains successful when a later entry fails', async () => {
+    const { log: log1 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log2 } = await updateDID({
+      log: log1,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log3 } = await updateDID({
+      log: log2,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
+    tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
+
+    const result = await resolveDIDFromLog(tamperedLog, {
+      versionId: log1[0].versionId,
+      verifier: testImplementation,
+    });
+
+    expect(result.doc).not.toBeNull();
+    expect(result.meta.versionId).toBe(log1[0].versionId);
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Historical versionTime selector remains successful when a later entry fails', async () => {
+    const { log: log1 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log2 } = await updateDID({
+      log: log1,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log3 } = await updateDID({
+      log: log2,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
+    tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
+
+    const firstVersionTime = new Date(log1[0].versionTime);
+    const secondVersionTime = new Date(log2[1].versionTime);
+    const midpointTime = new Date((firstVersionTime.getTime() + secondVersionTime.getTime()) / 2);
+
+    const result = await resolveDIDFromLog(tamperedLog, {
+      versionTime: midpointTime,
+      verifier: testImplementation,
+    });
+
+    expect(result.doc).not.toBeNull();
+    expect(result.meta.versionId).toBe(log1[0].versionId);
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Requested DID with matching SCID but mismatched location is rejected', async () => {
+    // Build a valid log for did:webvh:SCID:example.com
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    // Construct a DID that shares the same SCID but points at a different location
+    const originalDid = log[0].state.id as string;
+    const scid = originalDid.split(':')[2];
+    const mismatchedDid = `did:webvh:${scid}:different-domain.example`;
+
+    await expect(resolveDIDFromLog(log, { requestedDid: mismatchedDid, verifier: testImplementation })).rejects.toThrow(
+      /does not match state\.id/
     );
-    expect(result.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
-    expect(result.meta.problemDetails!.detail).toContain('Hash chain broken');
   });
 
   test('Protocol version rejection in v1.0', async () => {

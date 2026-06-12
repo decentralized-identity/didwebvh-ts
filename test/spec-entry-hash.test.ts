@@ -19,7 +19,7 @@ import {
 // path substitutes the wrong predecessor (e.g. the "{SCID}" placeholder) for
 // entries 2+ — a deviation that round-trips within the library but produces
 // logs no spec-compliant resolver will accept.
-async function specEntryHashForEntry(entry: any, previousVersionId: string): Promise<string> {
+async function specEntryHashForEntry(entry: DIDLog[number], previousVersionId: string): Promise<string> {
   const { proof: _proof, ...entryWithoutProof } = entry;
   return deriveHash({ ...entryWithoutProof, versionId: previousVersionId });
 }
@@ -96,7 +96,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
   });
 
   test('log is resolvable end-to-end (hash chain + signatures)', async () => {
-    const resolved = await resolveDIDFromLog(log, { verifier, fastResolve: false });
+    const resolved = await resolveDIDFromLog(log, { verifier });
     expect(resolved.meta.versionId).toBe(log[log.length - 1].versionId);
   });
 });
