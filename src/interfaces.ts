@@ -258,6 +258,8 @@ export interface ResolutionOptions {
   verificationMethod?: string;
   verifier?: Verifier;
   scid?: string;
+  /** Internal: full requested DID used to enforce that state.id matches in ≥1 valid version. */
+  requestedDid?: string;
 }
 
 export interface WitnessProofFileEntry {

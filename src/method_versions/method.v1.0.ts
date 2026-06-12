@@ -226,6 +226,7 @@ export const resolveDIDFromLog = async (
   let i = 0;
   const hasExplicitHistoricalSelector =
     options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
+  let requestedDidSeen = !options.requestedDid;
   let host = '';
   let previousVersionTime: Date | undefined;
   const resolutionNow = new Date();
@@ -376,6 +377,10 @@ export const resolveDIDFromLog = async (
       doc = deepClone(newDoc);
       did = requireDidId(doc.id);
 
+      if (options.requestedDid && did === options.requestedDid) {
+        requestedDidSeen = true;
+      }
+
       // Add default services if they don't exist
       doc.service = Array.isArray(doc.service) ? doc.service : [];
       const baseUrl = getBaseUrl(did);
@@ -437,6 +442,10 @@ export const resolveDIDFromLog = async (
 
     if (previousVersionTime && previousVersionTime.getTime() >= resolutionNow.getTime()) {
       throw new Error('versionTime of the last entry must be earlier than current time');
+    }
+
+    if (!requestedDidSeen) {
+      throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
     }
 
     if (requiredWitnessChecks.length > 0) {

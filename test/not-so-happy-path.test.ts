@@ -252,6 +252,26 @@ describe('Not So Happy Path Tests', () => {
     expect(result.meta.problemDetails).toBeUndefined();
   });
 
+  test('Requested DID with matching SCID but mismatched location is rejected', async () => {
+    // Build a valid log for did:webvh:SCID:example.com
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    // Construct a DID that shares the same SCID but points at a different location
+    const originalDid = log[0].state.id as string;
+    const scid = originalDid.split(':')[2];
+    const mismatchedDid = `did:webvh:${scid}:different-domain.example`;
+
+    await expect(resolveDIDFromLog(log, { requestedDid: mismatchedDid, verifier: testImplementation })).rejects.toThrow(
+      /does not match state\.id/
+    );
+  });
+
   test('Protocol version rejection in v1.0', async () => {
     // Build a valid log but with the v0.5 protocol marker
     const { log } = await createDID({
