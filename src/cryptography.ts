@@ -1,5 +1,7 @@
 import type {
+  DataIntegrityProof,
   DataIntegrityProofTemplate,
+  SignableDocument,
   Signer,
   SignerOptions,
   SigningInput,
@@ -92,16 +94,20 @@ export abstract class AbstractCrypto implements Signer, Verifier {
  * @param verificationMethodId - The verification method ID to use in proofs
  * @returns A function that signs a document and returns the document with proof
  */
-export const createDocumentSigner = (signer: Signer, verificationMethodId: string) => {
-  return async (doc: any) => {
+export const createDocumentSigner = <TDocument extends SignableDocument>(
+  signer: Signer<TDocument>,
+  verificationMethodId: string
+) => {
+  return async (doc: TDocument): Promise<TDocument & { proof: DataIntegrityProof }> => {
     try {
       const proof = createProof(verificationMethodId);
       const result = await signer.sign({ document: doc, proof });
 
       return { ...doc, proof: { ...proof, proofValue: result.proofValue } };
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      throw new Error(`Document signing failure: ${e.message || e}`);
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(`Document signing failure: ${message}`);
     }
   };
 };
@@ -112,20 +118,21 @@ export const createDocumentSigner = (signer: Signer, verificationMethodId: strin
 export const createSigner = (vm: VerificationMethod, useStatic: boolean = true) => {
   console.warn('createSigner is deprecated. Use createDocumentSigner with your own Signer implementation instead.');
 
-  return async (doc: any) => {
+  return async (doc: SignableDocument) => {
     try {
       const verificationMethodId = useStatic
         ? `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`
         : vm.id || '';
 
-      const proof = createProof(verificationMethodId);
+      const proof: DataIntegrityProofTemplate = createProof(verificationMethodId);
 
       // This is a placeholder for backward compatibility
       // Users should implement their own signing logic
       throw new Error('createSigner is deprecated. Implement your own Signer and use createDocumentSigner instead.');
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      throw new Error(`Document signing failure: ${e.message || e}`);
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(`Document signing failure: ${message}`);
     }
   };
 };

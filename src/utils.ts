@@ -24,8 +24,9 @@ function validateDidKeyMultibase(keyMultibase: string): void {
 
   try {
     multibaseDecode(keyMultibase);
-  } catch (error: any) {
-    throw new Error(`Malformed did:key identifier: ${error.message}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Malformed did:key identifier: ${message}`);
   }
 }
 
@@ -176,9 +177,10 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
         didDomainComponent,
         paths: pathParts.length > 0 ? pathParts : undefined,
       };
-    } catch (e: any) {
-      if (e.message?.includes('not allowed')) throw e;
-      throw new Error(`Invalid URL: ${e.message}`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (message.includes('not allowed')) throw e;
+      throw new Error(`Invalid URL: ${message}`);
     }
   }
 
@@ -233,20 +235,28 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
   };
 }
 
+type ProcessVersionsLike = { node?: string; bun?: string };
+
 // Environment detection - treat React Native like a browser, but Bun as Node-like
 const isNodeEnvironment =
   typeof process !== 'undefined' &&
   typeof window === 'undefined' &&
-  !!((process.versions && (process.versions as any).node) || (process.versions as any).bun);
+  !!(
+    (process.versions as ProcessVersionsLike | undefined)?.node ||
+    (process.versions as ProcessVersionsLike | undefined)?.bun
+  );
 
 // Avoid bundlers including `fs`: hide the specifier from static analyzers
 const fsModuleSpecifier = ['node', 'fs'].join(':');
 // We'll resolve require dynamically only in Node runtimes; otherwise use dynamic import with a non-literal
 
-let fsModule: any | null = null;
-let fsImportPromise: Promise<any> | null = null;
+type FsModule = typeof import('node:fs');
+type GlobalRequire = (id: string) => FsModule;
 
-const getFS = async (): Promise<any> => {
+let fsModule: FsModule | null = null;
+let fsImportPromise: Promise<FsModule> | null = null;
+
+const getFS = async (): Promise<FsModule> => {
   if (!isNodeEnvironment) {
     throw new Error(
       'Filesystem access is not available in this environment (React Native, browser, or failed Node.js import)'
@@ -263,7 +273,7 @@ const getFS = async (): Promise<any> => {
 
   fsImportPromise = (async () => {
     // Prefer require when present (Node)
-    const maybeRequire = (globalThis as any).require;
+    const maybeRequire = (globalThis as { require?: GlobalRequire }).require;
     if (typeof maybeRequire === 'function') {
       try {
         const module = maybeRequire(fsModuleSpecifier);
@@ -278,14 +288,20 @@ const getFS = async (): Promise<any> => {
     }
     // Fallback to dynamic import (Bun/ESM)
     try {
-      const module = await import(fsModuleSpecifier as any);
-      fsModule = module as any;
-      return module as any;
+      const module = (await import(fsModuleSpecifier)) as FsModule;
+      fsModule = module;
+      return module;
     } catch {}
     try {
-      const module = await import('fs' as any);
-      fsModule = module as any;
-      return module as any;
+      const module = (await import('node:fs')) as FsModule;
+      fsModule = module;
+      return module;
+    } catch {}
+    try {
+      // biome-ignore lint/style/useNodejsImportProtocol: Compatibility fallback for runtimes/bundlers that reject node: builtins.
+      const module = (await import('fs')) as FsModule;
+      fsModule = module;
+      return module;
     } catch {}
     throw new Error('Filesystem access is not available in this environment (unable to load fs)');
   })();
@@ -459,14 +475,15 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
   const fs = await getFS();
   try {
     let envContent = '';
-    let existingData: any[] = [];
+    let existingData: Array<typeof vmData> = [];
 
     if (fs.existsSync(envFilePath)) {
       envContent = fs.readFileSync(envFilePath, 'utf8');
       const match = envContent.match(/DID_VERIFICATION_METHODS=(.*)/);
       if (match?.[1]) {
         const decodedData = bufferToString(createBuffer(match[1], 'base64'));
-        existingData = JSON.parse(decodedData);
+        const parsedData = JSON.parse(decodedData) as unknown;
+        existingData = Array.isArray(parsedData) ? (parsedData as Array<typeof vmData>) : [];
 
         // Check if verification method with same ID already exists
         const existingIndex = existingData.findIndex((vm) => vm.id === vmData.id);
@@ -504,18 +521,16 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
   }
 };
 
-export const clone = (input: any) => JSON.parse(JSON.stringify(input));
-
-export function deepClone(obj: any): any {
+export function deepClone<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') return obj;
-  if (obj instanceof Date) return new Date(obj.getTime());
-  if (Array.isArray(obj)) return obj.map((item) => deepClone(item));
+  if (obj instanceof Date) return new Date(obj.getTime()) as T;
+  if (Array.isArray(obj)) return obj.map((item) => deepClone(item)) as T;
 
-  const cloned: any = {};
-  for (const [key, value] of Object.entries(obj)) {
+  const cloned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
     cloned[key] = deepClone(value);
   }
-  return cloned;
+  return cloned as T;
 }
 
 export const getBaseUrl = (id: string) => {
@@ -606,7 +621,7 @@ export const createSCID = async (logEntryHash: string): Promise<string> => {
 // Cache for deriveHash operations to avoid redundant computation
 const hashCache = new Map<string, string>();
 
-function getCachedHash(input: any): string | undefined {
+function getCachedHash(input: unknown): string | undefined {
   try {
     const key = JSON.stringify(input);
     return hashCache.get(key);
@@ -615,7 +630,7 @@ function getCachedHash(input: any): string | undefined {
   }
 }
 
-function setCachedHash(input: any, hash: string): void {
+function setCachedHash(input: unknown, hash: string): void {
   try {
     const key = JSON.stringify(input);
     hashCache.set(key, hash);
@@ -625,7 +640,7 @@ function setCachedHash(input: any, hash: string): void {
 }
 
 // Input must be strict JSON-compatible and must not contain explicit undefined values.
-export async function deriveHash(input: any): Promise<string> {
+export async function deriveHash(input: unknown): Promise<string> {
   const cached = getCachedHash(input);
   if (cached) {
     return cached;
@@ -721,8 +736,23 @@ export const createVMID = (vm: VerificationMethod, did: string | null) => {
   return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || generateRandomId(8)}`;
 };
 
-export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefined, did: string | null = null) => {
-  const all: any = {
+type NormalizedVerificationMethods = Required<
+  Pick<
+    DIDDoc,
+    | 'verificationMethod'
+    | 'authentication'
+    | 'assertionMethod'
+    | 'keyAgreement'
+    | 'capabilityDelegation'
+    | 'capabilityInvocation'
+  >
+>;
+
+export const normalizeVMs = (
+  verificationMethod: VerificationMethod[] | undefined,
+  did: string | null = null
+): NormalizedVerificationMethods => {
+  const all: NormalizedVerificationMethods = {
     verificationMethod: [],
     authentication: [],
     assertionMethod: [],
@@ -742,7 +772,7 @@ export const normalizeVMs = (verificationMethod: VerificationMethod[] | undefine
     // Default controller to the DID — required by W3C DID Core §5.2
     controller: vm.controller ?? did,
   }));
-  all.verificationMethod = vms;
+  all.verificationMethod = vms as unknown as VerificationMethod[];
 
   // Then handle relationships - default to authentication if no purpose is specified
   all.authentication = verificationMethod
@@ -789,10 +819,10 @@ export const resolveVM = async (vm: string) => {
   }
 };
 
-export const findVerificationMethod = (doc: any, vmId: string): VerificationMethod | null => {
+export const findVerificationMethod = (doc: DIDDoc, vmId: string): VerificationMethod | null => {
   // Check in the verificationMethod array
-  if (doc.verificationMethod?.some((vm: any) => vm.id === vmId)) {
-    return doc.verificationMethod.find((vm: any) => vm.id === vmId);
+  if (doc.verificationMethod?.some((vm) => vm.id === vmId)) {
+    return doc.verificationMethod.find((vm) => vm.id === vmId) ?? null;
   }
 
   // Check in other verification method relationship arrays
@@ -804,9 +834,22 @@ export const findVerificationMethod = (doc: any, vmId: string): VerificationMeth
     'capabilityDelegation',
   ];
   for (const relationship of vmRelationships) {
-    if (doc[relationship]) {
-      if (doc[relationship].some((item: any) => item.id === vmId)) {
-        return doc[relationship].find((item: any) => item.id === vmId);
+    const relationshipValues = doc[relationship as keyof DIDDoc];
+    if (
+      Array.isArray(relationshipValues) &&
+      relationshipValues.some((item) => {
+        if (typeof item !== 'object' || item === null) return false;
+        const maybeId = (item as { id?: unknown }).id;
+        return maybeId === vmId;
+      })
+    ) {
+      const match = relationshipValues.find((item) => {
+        if (typeof item !== 'object' || item === null) return false;
+        const maybeId = (item as { id?: unknown }).id;
+        return maybeId === vmId;
+      });
+      if (match && typeof match === 'object') {
+        return match as VerificationMethod;
       }
     }
   }
@@ -845,19 +888,19 @@ export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileE
   }
 }
 
-export function replaceValueInObject(obj: any, searchValue: string, replaceValue: string): any {
+export function replaceValueInObject<T>(obj: T, searchValue: string, replaceValue: string): T {
   if (typeof obj === 'string') {
-    return obj.replaceAll(searchValue, replaceValue);
+    return obj.replaceAll(searchValue, replaceValue) as T;
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => replaceValueInObject(item, searchValue, replaceValue));
+    return obj.map((item) => replaceValueInObject(item, searchValue, replaceValue)) as T;
   }
   if (obj && typeof obj === 'object') {
-    const result: any = {};
-    for (const [key, value] of Object.entries(obj)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
       result[key] = replaceValueInObject(value, searchValue, replaceValue);
     }
-    return result;
+    return result as T;
   }
   return obj;
 }
