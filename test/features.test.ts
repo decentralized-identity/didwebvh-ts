@@ -275,3 +275,56 @@ test('DID log with portable false should not resolve if moved', async () => {
   expect(err).toBeInstanceOf(Error);
   expect((err as Error).message).toContain('Cannot move DID: portability is disabled');
 });
+
+test('DID log with portable false and a path should not resolve if domain moved', async () => {
+  // Regression: host comparison must use the full location (domain + path), not
+  // just the last ':'-separated segment. A path-based DID moved to a new domain
+  // while keeping the same final path segment would slip past a `.at(-1)` check.
+  const pathDID = await createDID({
+    domain: 'example.com',
+    paths: ['dids', 'abc'],
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    created: createDate(new Date('2021-01-01T08:32:55Z')),
+    portable: false,
+    verifier: testImplementation,
+  });
+
+  let err: unknown;
+  try {
+    const newTimestamp = createDate(new Date('2021-02-01T08:32:55Z'));
+
+    // Move only the domain; the trailing path segment ('abc') stays the same.
+    const newDoc = {
+      ...pathDID.doc,
+      id: pathDID.did.replace('example.com', 'newdomain.com'),
+    };
+
+    const newEntry: DIDLogEntry = {
+      versionId: `${pathDID.log.length + 1}-test`,
+      versionTime: newTimestamp,
+      parameters: { updateKeys: [authKey1.publicKeyMultibase!] },
+      state: newDoc,
+      proof: [
+        {
+          type: 'DataIntegrityProof',
+          cryptosuite: 'eddsa-jcs-2022',
+          verificationMethod: `did:key:${authKey1.publicKeyMultibase!}`,
+          created: newTimestamp,
+          proofPurpose: 'authentication',
+          proofValue: 'badProofValue',
+        },
+      ],
+    };
+
+    const badLog: DIDLog = [...pathDID.log, newEntry];
+    await resolveDIDFromLog(badLog, { verifier: testImplementation });
+  } catch (e) {
+    err = e;
+  }
+
+  expect(err).toBeDefined();
+  expect(err).toBeInstanceOf(Error);
+  expect((err as Error).message).toContain('Cannot move DID: portability is disabled');
+});

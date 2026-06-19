@@ -345,6 +345,31 @@ export function convertWebvhIdToWebId(id: string): string {
   return `did:web:${parts.slice(3).join(':')}`;
 }
 
+/**
+ * Returns the host/domain segment of a did:webvh identifier — the segment
+ * immediately following the SCID (`did:webvh:{scid}:{domain}...`).
+ */
+export function getWebvhHost(id: string): string {
+  const parts = id.split(':');
+  if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
+    throw new Error(`Invalid did:webvh id '${id}'`);
+  }
+  return parts[3];
+}
+
+/**
+ * Returns the full location of a did:webvh identifier — domain plus any path
+ * segments (`did:webvh:{scid}:{domain}:{path}...`), i.e. everything after the
+ * SCID. Used to detect whether a DID has moved when portability is disabled.
+ */
+export function getWebvhLocation(id: string): string {
+  const parts = id.split(':');
+  if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
+    throw new Error(`Invalid did:webvh id '${id}'`);
+  }
+  return parts.slice(3).join(':');
+}
+
 export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsWeb?: boolean }): DIDDoc {
   if (doc.alsoKnownAs !== undefined && !Array.isArray(doc.alsoKnownAs)) {
     throw new Error('alsoKnownAs is not an array');

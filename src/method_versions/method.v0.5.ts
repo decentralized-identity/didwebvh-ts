@@ -21,6 +21,8 @@ import {
   deriveHash,
   findVerificationMethod,
   getBaseUrl,
+  getWebvhHost,
+  getWebvhLocation,
   parseCanonicalAddress,
   replaceValueInObject,
 } from '../utils';
@@ -197,7 +199,7 @@ export const resolveDIDFromLog = async (
       if (version === '1') {
         meta.created = versionTime;
         newDoc = state;
-        host = requireDidId(newDoc.id).split(':').at(-1) ?? '';
+        host = getWebvhLocation(requireDidId(newDoc.id));
         meta.scid = parameters.scid as string;
         meta.portable = parameters.portable ?? meta.portable;
         meta.updateKeys = parameters.updateKeys as string[];
@@ -235,7 +237,7 @@ export const resolveDIDFromLog = async (
         }
       } else {
         // version number > 1
-        const newHost = requireDidId(newDoc.id).split(':').at(-1) ?? '';
+        const newHost = getWebvhLocation(requireDidId(newDoc.id));
         if (!meta.portable && newHost !== host) {
           throw new Error('Cannot move DID: portability is disabled');
         } else if (newHost !== host) {
@@ -430,7 +432,7 @@ export const updateDID = async (
     ...options,
     controller: options.controller || lastEntry.state.id || '',
     context: options.context || lastEntry.state['@context'],
-    domain: options.domain ?? lastEntry.state.id?.split(':').at(-1) ?? '',
+    domain: options.domain ?? (lastEntry.state.id ? getWebvhHost(lastEntry.state.id) : ''),
     updateKeys: options.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
