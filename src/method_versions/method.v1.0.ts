@@ -322,6 +322,19 @@ export const resolveDIDFromLog = async (
           throw new Error(`version '${version}' must not contain SCID parameter`);
         }
 
+        // portable: true cannot be introduced after the first entry — it can only remain
+        // true if it was already enabled in the first entry
+        if (parameters.portable === true && !meta.portable) {
+          throw new Error(
+            `version '${version}' cannot set portable: true; portability can only be enabled in the first entry`
+          );
+        }
+
+        // Setting portable: false in a later entry permanently locks portability off
+        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.portable) && parameters.portable === false) {
+          meta.portable = false;
+        }
+
         if (parsedStateDid.scid !== meta.scid) {
           throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
         }
