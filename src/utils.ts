@@ -188,6 +188,18 @@ export function validateMethodSpecificPathSegments(pathSegments: string[], conte
     if (decodedSegment.includes('/')) {
       throw new Error(`${context} must not contain decoded slash within a single path segment`);
     }
+
+    if (decodedSegment.includes('\\')) {
+      throw new Error(`${context} must not contain decoded backslash within a path segment`);
+    }
+
+    if (decodedSegment.includes('\u0000')) {
+      throw new Error(`${context} must not contain decoded NUL character within a path segment`);
+    }
+
+    if (decodedSegment !== decodedSegment.trim()) {
+      throw new Error(`${context} must not contain leading or trailing whitespace in decoded path segment`);
+    }
   }
 }
 
