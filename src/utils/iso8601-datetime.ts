@@ -70,32 +70,22 @@ export const ISO8601_DATETIME_REGEX = new RegExp(
 );
 
 /**
- * Validate XSD dateTimeStamp format per W3C XMLSCHEMA11-2.
+ * Parse and validate UTC ISO8601 versionTime per did:webvh spec.
  *
- * Requires timezone component (Z or ±HH:MM offset) with full calendar validation.
- * Falls back to Date.parse() for semantic correctness.
+ * Enforces:
+ * - Strict ISO 8601 format with calendar correctness (via regex)
+ * - Timezone component required (Z or ±HH:MM offset)
+ * - Semantic date validity (via Date.parse)
  *
  * Spec reference: did:webvh v1.0 §3.5 and §3.6.2 (`versionTime` in UTC ISO8601)
  * https://identity.foundation/didwebvh/v1.0/
  */
-export function isXsdDateTimeStamp(value: string): boolean {
-  if (!ISO8601_DATETIME_REGEX.test(value)) {
-    return false;
-  }
-
-  return !Number.isNaN(Date.parse(value));
-}
-
 export function parseUtcIso8601VersionTime(value: string, context: string): Date {
-  if (!isXsdDateTimeStamp(value) || !value.endsWith('Z')) {
-    throw new Error(`${context} must be a valid UTC ISO8601 timestamp`);
-  }
-
+  const match = ISO8601_DATETIME_REGEX.exec(value);
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
+  if (!match || Number.isNaN(parsed.getTime())) {
     throw new Error(`${context} must be a valid UTC ISO8601 timestamp`);
   }
-
   return parsed;
 }
 
