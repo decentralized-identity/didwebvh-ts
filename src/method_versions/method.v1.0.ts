@@ -229,6 +229,7 @@ export const resolveDIDFromLog = async (
   let requestedDidSeen = !options.requestedDid;
   let host = '';
   let previousVersionTime: Date | undefined;
+  const activeMethod = METHOD_PROTOCOL_V1_0; // Track method value across entries
   const resolutionNow = new Date();
   const requiredWitnessChecks: RequiredWitnessCheck[] = [];
   let witnessThresholdFailure = false;
@@ -304,6 +305,23 @@ export const resolveDIDFromLog = async (
         }
       } else {
         // version number > 1
+
+        // Validate method parameter: must not be present or must equal active method
+        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.method)) {
+          const entryMethod = parameters.method as string;
+          if (entryMethod !== activeMethod) {
+            throw new Error(
+              `version '${version}' has unsupported or downgraded method '${entryMethod}'; ` +
+                `expected '${activeMethod}'`
+            );
+          }
+        }
+
+        // scid MUST NOT appear in later entries
+        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.scid)) {
+          throw new Error(`version '${version}' must not contain SCID parameter`);
+        }
+
         if (parsedStateDid.scid !== meta.scid) {
           throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
         }
