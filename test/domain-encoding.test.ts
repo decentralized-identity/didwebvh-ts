@@ -148,4 +148,28 @@ describe('Strict address input validation and parsing', () => {
   test('Rejects mangled URL input', async () => {
     expect(createFromInput('address', 'https://%%%bad host%%%::notaport::/%%%')).rejects.toThrow();
   });
+
+  test('Rejects decoded backslash in path segment', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com:test%5Csecret')).rejects.toThrow(
+      'did:webvh identifier must not contain decoded backslash within a path segment'
+    );
+  });
+
+  test('Rejects decoded NUL in path segment', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com:test%00secret')).rejects.toThrow(
+      'did:webvh identifier must not contain decoded NUL character within a path segment'
+    );
+  });
+
+  test('Rejects leading whitespace in decoded path segment', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com:%20test')).rejects.toThrow(
+      'did:webvh identifier must not contain leading or trailing whitespace in decoded path segment'
+    );
+  });
+
+  test('Rejects trailing whitespace in decoded path segment', async () => {
+    expect(createFromInput('address', 'did:webvh:{SCID}:example.com:test%20')).rejects.toThrow(
+      'did:webvh identifier must not contain leading or trailing whitespace in decoded path segment'
+    );
+  });
 });
