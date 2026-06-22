@@ -74,6 +74,14 @@ export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerifi
   const parsedDid = parseDidKeyDid(`${DID_KEY_PREFIX}${match[1]}`);
   const fragment = match[2];
 
+  // If fragment is present, it MUST equal the body multibase exactly
+  if (fragment && fragment !== parsedDid.keyMultibase) {
+    throw new Error(
+      `did:key verificationMethod fragment must equal body multibase. ` +
+        `Expected fragment '${parsedDid.keyMultibase}' but got '${fragment}'`
+    );
+  }
+
   return {
     did: parsedDid.did,
     fragment,
