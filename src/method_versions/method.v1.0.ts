@@ -204,6 +204,9 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   }
 
   const didId = requireDidId(prelimEntry.state.id);
+  if (didId !== didWithScid) {
+    throw new Error(`Created DID document id must match expected DID '${didWithScid}', got '${didId}'`);
+  }
   const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(didId, prelimEntry.state) : undefined;
 
   return {
