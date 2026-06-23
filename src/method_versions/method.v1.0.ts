@@ -579,7 +579,13 @@ export const resolveDIDFromLog = async (
 };
 
 export const updateDID = async (
-  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string; updated?: string }
+  options: UpdateDIDInterface & {
+    services?: ServiceEndpoint[];
+    domain?: string;
+    address?: string;
+    paths?: string[];
+    updated?: string;
+  }
 ): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
@@ -630,12 +636,36 @@ export const updateDID = async (
     return vm;
   });
 
+  // Determine the controller (the DID id) for this update. When a new location
+  // (address/domain) is supplied, rebuild the controller from that location while
+  // preserving the SCID, so a portable DID can actually move. The SCID is the
+  // stable part of the identifier; only the location component changes.
+  const requestedAddress = options.address || options.domain;
+  let controller: string;
+  let controllerPaths = parsedLastEntryDid.paths;
+  if (options.controller) {
+    controller = options.controller;
+  } else if (requestedAddress) {
+    const parsedNewAddress = parseCanonicalAddress(requestedAddress);
+    const newLocationPaths = [...(parsedNewAddress.paths || []), ...(options.paths || [])];
+    const newLocationKey = newLocationPaths.length
+      ? `${parsedNewAddress.didDomainComponent}:${newLocationPaths.join(':')}`
+      : parsedNewAddress.didDomainComponent;
+    controller = `did:${METHOD}:${parsedLastEntryDid.scid}:${newLocationKey}`;
+    controllerPaths = newLocationPaths.length ? newLocationPaths : undefined;
+    if (controller !== lastEntryDid && !lastMeta.portable) {
+      throw new Error('Cannot move DID: portability is disabled');
+    }
+  } else {
+    controller = lastEntryDid;
+  }
+
   const { doc: normalizedUpdateDoc } = await createDIDDoc({
     ...options,
-    controller: options.controller || lastEntryDid,
+    controller,
     context: options.context || lastEntry.state['@context'],
-    domain: options.domain ?? parsedLastEntryDid.didDomainComponent,
-    paths: parsedLastEntryDid.paths,
+    domain: requestedAddress ?? parsedLastEntryDid.didDomainComponent,
+    paths: controllerPaths,
     updateKeys: options.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
