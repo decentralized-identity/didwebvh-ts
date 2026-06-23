@@ -194,6 +194,12 @@ export function validateWitnessParameter(witness: WitnessParameterResolution): v
       }
     })();
 
+    // did:webvh v1.0 requires witness keys to be Ed25519 multikeys.
+    const keyBytes = multibaseDecode(parsedDid.keyMultibase).bytes;
+    if (keyBytes.length < 2 || keyBytes[0] !== 0xed || keyBytes[1] !== 0x01) {
+      throw new Error(`Witness DID key type must be Ed25519 (multicodec 0xed01): ${w.id}`);
+    }
+
     if (ids.has(parsedDid.did)) {
       throw new Error(`Duplicate witness id: ${w.id}`);
     }

@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { type CreateDIDResult, type DIDLog, DidResolutionError, type VerificationMethod } from '../src/interfaces';
+import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
+import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
 import {
   asPublicVerificationMethods,
   createFutureDIDLog,
@@ -29,19 +30,37 @@ describe('Not So Happy Path Tests', () => {
   });
 
   test('Reject DID with invalid SCID in Method specific identifier', async () => {
-    // Create a modified log with an incorrect SCID
+    // Create a modified log with an incorrect SCID.
+    // Use a valid SHA-256 multihash that is simply not derived from the log content,
+    // so we exercise the hash derivation check rather than format validation.
     const modifiedLog = JSON.parse(JSON.stringify(initialDID.log));
 
-    // Tamper with the SCID in the parameters
-    const originalSCID = modifiedLog[0].parameters.scid;
-    modifiedLog[0].parameters.scid = `${originalSCID}tampered`;
+    const wrongDigest = new Uint8Array(32).fill(0xde);
+    const wrongMultihash = createMultihash(wrongDigest, MultihashAlgorithm.SHA2_256);
+    const wrongScid = encodeBase58Btc(wrongMultihash);
+
+    modifiedLog[0].parameters.scid = wrongScid;
 
     // Attempt to resolve the DID from the tampered log
-    expect(
+    await expect(
       resolveDIDFromLog(modifiedLog, {
         verifier: testImplementation,
       })
-    ).rejects.toThrow(`SCID '${originalSCID}tampered' not derived from logEntryHash`);
+    ).rejects.toThrow(`SCID '${wrongScid}' not derived from logEntryHash`);
+  });
+
+  test('Accepts a versionTime up to 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 4);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).resolves.toBeDefined();
+  });
+
+  test('Rejects a versionTime more than 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 6);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).rejects.toThrow(
+      'must not be more than 5 minutes in the future'
+    );
   });
 
   test('Accepts a versionTime up to 5 minutes in the future', async () => {
@@ -142,7 +161,7 @@ describe('Not So Happy Path Tests', () => {
     await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow();
   });
 
-  test('Error metadata on later-entry failure', async () => {
+  test('Historical versionNumber selector remains successful when a later entry fails', async () => {
     // Create a 3-entry log
     const { log: log1 } = await createDID({
       domain: 'example.com',
@@ -168,25 +187,150 @@ describe('Not So Happy Path Tests', () => {
       verifier: testImplementation,
     });
 
-    // Tamper with entry 3 (index 2) to cause a hash chain break
+    // Tamper with entry 3 (index 2) to cause a hash chain break.
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
     tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
 
-    // Request version 1 — it should resolve, but with error metadata
-    // because entry 3 fails verification
+    // Request version 1 — it should resolve successfully even though
+    // entry 3 fails verification.
     const result = await resolveDIDFromLog(tamperedLog, {
       versionNumber: 1,
       verifier: testImplementation,
     });
 
     expect(result.doc).not.toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
-    expect(result.meta.problemDetails).toBeDefined();
-    expect(result.meta.problemDetails!.type).toBe(
-      'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID'
+    expect(result.meta.versionId.split('-')[0]).toBe('1');
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Historical versionId selector remains successful when a later entry fails', async () => {
+    const { log: log1 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log2 } = await updateDID({
+      log: log1,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log3 } = await updateDID({
+      log: log2,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
+    tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
+
+    const result = await resolveDIDFromLog(tamperedLog, {
+      versionId: log1[0].versionId,
+      verifier: testImplementation,
+    });
+
+    expect(result.doc).not.toBeNull();
+    expect(result.meta.versionId).toBe(log1[0].versionId);
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Historical versionTime selector remains successful when a later entry fails', async () => {
+    const { log: log1 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log2 } = await updateDID({
+      log: log1,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const { log: log3 } = await updateDID({
+      log: log2,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log3));
+    tamperedLog[2].state.alsoKnownAs = ['did:example:tampered'];
+
+    const firstVersionTime = new Date(log1[0].versionTime);
+    const secondVersionTime = new Date(log2[1].versionTime);
+    const midpointTime = new Date((firstVersionTime.getTime() + secondVersionTime.getTime()) / 2);
+
+    const result = await resolveDIDFromLog(tamperedLog, {
+      versionTime: midpointTime,
+      verifier: testImplementation,
+    });
+
+    expect(result.doc).not.toBeNull();
+    expect(result.meta.versionId).toBe(log1[0].versionId);
+    expect(result.meta.error).toBeUndefined();
+    expect(result.meta.problemDetails).toBeUndefined();
+  });
+
+  test('Requested DID with matching SCID but mismatched location is rejected', async () => {
+    // Build a valid log for did:webvh:SCID:example.com
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    // Construct a DID that shares the same SCID but points at a different location
+    const originalDid = log[0].state.id as string;
+    const scid = originalDid.split(':')[2];
+    const mismatchedDid = `did:webvh:${scid}:different-domain.example`;
+
+    await expect(resolveDIDFromLog(log, { requestedDid: mismatchedDid, verifier: testImplementation })).rejects.toThrow(
+      /does not match state\.id/
     );
-    expect(result.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
-    expect(result.meta.problemDetails!.detail).toContain('Hash chain broken');
+  });
+
+  test('Requested DID not present in log is rejected', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    // Use a syntactically valid did:webvh that is guaranteed to differ from all state.id values in this log.
+    const requestedDidNotInLog = 'did:webvh:zQmXkYw8uM9QW9sW11Qx2Jq4JfY5o7jBq3nK7f4R2m1NpQ:not-in-log.example';
+
+    await expect(
+      resolveDIDFromLog(log, { requestedDid: requestedDidNotInLog, verifier: testImplementation })
+    ).rejects.toThrow(/does not match state\.id/);
+  });
+
+  test('rejects log where no state.id matches the resolved DID when requestedDid is omitted', async () => {
+    // An empty DID log has no entries, so didIdMatchCount stays 0.
+    // The spec requires didIdMatchCount > 0 after processing all entries.
+    const emptyLog: DIDLog = [];
+
+    await expect(resolveDIDFromLog(emptyLog, { verifier: testImplementation })).rejects.toThrow(
+      /no entries to process/
+    );
   });
 
   test('Protocol version rejection in v1.0', async () => {
@@ -204,6 +348,129 @@ describe('Not So Happy Path Tests', () => {
 
     await expect(resolveDIDFromLogV1(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
       "'did:webvh:0.5' is not a supported method version."
+    );
+  });
+
+  test('rejects versionId with missing dash', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
+    tamperedLog[0].versionId = '1';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      /must contain exactly one '-' separator/
+    );
+  });
+
+  test('rejects versionId with multiple dashes', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
+    tamperedLog[0].versionId = '1-fake-hash';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      /must contain exactly one '-' separator/
+    );
+  });
+
+  test('rejects versionId with empty hash component', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
+    tamperedLog[0].versionId = '1-';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      /must have a non-empty hash component/
+    );
+  });
+
+  test('Rejects unknown method value in later entry', async () => {
+    const { log } = initialDID;
+    const updateResult = await updateDID({
+      log,
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
+    tamperedLog[1].parameters.method = 'did:webvh:99.0';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      'has unsupported or downgraded method'
+    );
+  });
+
+  test('Rejects downgrade of method version in later entry', async () => {
+    const { log } = initialDID;
+    const updateResult = await updateDID({
+      log,
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
+    tamperedLog[1].parameters.method = 'did:webvh:0.5';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      'has unsupported or downgraded method'
+    );
+  });
+
+  test('Rejects scid parameter in later entry', async () => {
+    const { log } = initialDID;
+    const updateResult = await updateDID({
+      log,
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
+    tamperedLog[1].parameters.scid = log[0].parameters.scid;
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      'must not contain SCID parameter'
+    );
+  });
+
+  test('Rejects SCID using non-SHA-256 multihash algorithm', async () => {
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(initialDID.log));
+    const originalScid = tamperedLog[0].parameters.scid as string;
+
+    // Build a SHA-384 multihash (48-byte digest) so the structure is valid but algorithm is wrong
+    const fakeDigest = new Uint8Array(48).fill(0xab);
+    const sha384Multihash = createMultihash(fakeDigest, MultihashAlgorithm.SHA2_384);
+    const sha384Scid = encodeBase58Btc(sha384Multihash);
+
+    // Replace every occurrence of the real SCID with the SHA-384 one
+    const tamperedStr = JSON.stringify(tamperedLog).replaceAll(originalScid, sha384Scid);
+    const tamperedLogWithBadScid: DIDLog = JSON.parse(tamperedStr);
+
+    await expect(resolveDIDFromLog(tamperedLogWithBadScid, { verifier: testImplementation })).rejects.toThrow(
+      'SCID multihash algorithm must be SHA-256 (0x12)'
     );
   });
 });

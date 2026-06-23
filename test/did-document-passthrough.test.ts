@@ -39,7 +39,7 @@ describe('didDocument create pass-through', () => {
     const signer = createTestSigner(authKey);
     const verifier = createTestVerifier(authKey);
 
-    const { doc } = await createDID({
+    const { did, doc } = await createDID({
       domain: 'example.com',
       signer,
       verifier,
@@ -57,8 +57,9 @@ describe('didDocument create pass-through', () => {
       },
     });
 
-    expect(doc.id?.startsWith('did:webvh:')).toBe(true);
-    expect(doc.service?.[0]?.id).toBe(`${doc.id}#service-1`);
+    expect(doc.id).toBe(did);
+    expect(doc.id).toBe(`did:webvh:${did.split(':')[2]}:example.com`);
+    expect(doc.service?.[0]?.id).toBe(`${did}#service-1`);
   });
 
   test('rejects pass-through didDocument without placeholder in id', async () => {
@@ -75,6 +76,22 @@ describe('didDocument create pass-through', () => {
         },
       })
     ).rejects.toThrow("didDocument.id must contain a '{SCID}' or '{DID}' placeholder");
+  });
+
+  test('rejects pass-through didDocument whose substituted id does not match the created DID', async () => {
+    const authKey = await generateTestVerificationMethod();
+
+    await expect(
+      createDID({
+        domain: 'example.com',
+        signer: createTestSigner(authKey),
+        verifier: createTestVerifier(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: {
+          id: '{DID}garbage',
+        },
+      })
+    ).rejects.toThrow(/must match expected DID/);
   });
 
   test('adds derived alsoKnownAs aliases when flags are enabled', async () => {

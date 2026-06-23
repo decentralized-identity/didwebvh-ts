@@ -80,6 +80,7 @@ describe('did:webvh normative tests', async () => {
     });
     const resolved = await resolveDIDFromLog(updatedLog, { verifier: testImplementation });
     expect(resolved.meta.deactivated).toBe(true);
+    expect(resolved.doc).toBeNull();
   });
 
   test("Resolver encountering 'deactivated': false MUST return deactivated in metadata (negative)", async () => {

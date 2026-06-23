@@ -1,5 +1,11 @@
 import { config } from './config';
-import { BASE_CONTEXT, METHOD } from './constants';
+import {
+  BASE_CONTEXT,
+  CONTEXT_LINKED_VP,
+  METHOD,
+  SERVICE_TYPE_LINKED_VP,
+  SERVICE_TYPE_RELATIVE_REF,
+} from './constants';
 import type {
   CreateDIDInterface,
   DIDDoc,
@@ -67,6 +73,14 @@ export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerifi
 
   const parsedDid = parseDidKeyDid(`${DID_KEY_PREFIX}${match[1]}`);
   const fragment = match[2];
+
+  // If fragment is present, it MUST equal the body multibase exactly
+  if (fragment && fragment !== parsedDid.keyMultibase) {
+    throw new Error(
+      `did:key verificationMethod fragment must equal body multibase. ` +
+        `Expected fragment '${parsedDid.keyMultibase}' but got '${fragment}'`
+    );
+  }
 
   return {
     did: parsedDid.did,
@@ -481,6 +495,20 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
   };
 }
 
+/**
+ * Check if a service with the given fragment exists in the service array.
+ * Matches both fragment form (e.g., '#files') and absolute form (e.g., 'did:webvh:...#files').
+ */
+export function serviceFragmentExists(services: ServiceEndpoint[], fragment: string, did: string): boolean {
+  const fragmentForm = `#${fragment}`;
+  const absoluteForm = `${did}#${fragment}`;
+
+  return services.some((s: ServiceEndpoint) => {
+    const serviceId = s.id || '';
+    return serviceId === fragmentForm || serviceId === absoluteForm;
+  });
+}
+
 export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc {
   let webDoc = deepClone(didwebvhDoc);
 
@@ -493,16 +521,16 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
   if (!existingServiceIds.some((id: string) => id.endsWith('#files'))) {
     implicitServices.push({
       id: '#files',
-      type: 'relativeRef',
+      type: SERVICE_TYPE_RELATIVE_REF,
       serviceEndpoint: httpsBase,
     });
   }
 
   if (!existingServiceIds.some((id: string) => id.endsWith('#whois'))) {
     implicitServices.push({
-      '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+      '@context': CONTEXT_LINKED_VP,
       id: '#whois',
-      type: 'LinkedVerifiablePresentation',
+      type: SERVICE_TYPE_LINKED_VP,
       serviceEndpoint: `${httpsBase}whois.vp`,
     });
   }
@@ -894,6 +922,9 @@ export const resolveVM = async (vm: string) => {
         .split('\n')
         .map((l) => JSON.parse(l));
       const { doc } = await resolveDIDFromLog(logEntries, { verificationMethod: vm });
+      if (!doc) {
+        throw new Error(`Verification method ${vm} not found`);
+      }
       return findVerificationMethod(doc, vm);
     }
     throw new Error(`Verification method ${vm} not found`);

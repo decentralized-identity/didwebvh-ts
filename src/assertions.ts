@@ -3,7 +3,7 @@ import { createSCID, deriveNextKeyHash, parseDidKeyVerificationMethod, resolveVM
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
-import { multibaseDecode } from './utils/multiformats';
+import { decodeBase58Btc, decodeMultihash, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
 import { validateWitnessParameter } from './witness';
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
@@ -104,6 +104,27 @@ export const newKeysAreInNextKeys = async (updateKeys: string[], previousNextKey
   return true;
 };
 
+/**
+ * Validate that SCID uses SHA-256 (0x12) multihash algorithm.
+ * Per spec: "SHA-256 [[spec:rfc6234]] (multihash code `0x12`) **only**"
+ */
+const validateScidAlgorithmIsSha256 = (scid: string): void => {
+  try {
+    const multihashBytes = decodeBase58Btc(scid);
+    const { algorithm } = decodeMultihash(multihashBytes);
+
+    if (algorithm !== MultihashAlgorithm.SHA2_256) {
+      throw new Error(`SCID multihash algorithm must be SHA-256 (0x12), but got 0x${algorithm.toString(16)}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('SCID multihash algorithm')) {
+      throw error;
+    }
+    throw new Error(`Invalid SCID format: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
 export const scidIsFromHash = async (scid: string, hash: string) => {
+  validateScidAlgorithmIsSha256(scid);
   return scid === (await createSCID(hash));
 };

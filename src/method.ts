@@ -72,7 +72,7 @@ export const resolveDID = async (
   try {
     const log = await fetchLogFromIdentifier(did, controlled);
     const version = getWebvhVersionFromLog(log);
-    const optsWithScid = { ...options, scid };
+    const optsWithScid = { ...options, scid, requestedDid: did };
     const result =
       version === '0.5'
         ? await v0_5.resolveDIDFromLog(log, optsWithScid)
