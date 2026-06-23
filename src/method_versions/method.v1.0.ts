@@ -653,6 +653,10 @@ export const updateDID = async (
     validateWitnessParameter(params.witness);
   }
 
+  if (lastMeta.prerotation) {
+    await newKeysAreInNextKeys(currentUpdateKeys ?? [], lastMeta.nextKeyHashes ?? []);
+  }
+
   // Safety guard: Strip secret keys from verification methods before creating DID document
   const safeVerificationMethods = options.verificationMethods?.map((vm) => {
     if (vm.secretKeyMultibase) {

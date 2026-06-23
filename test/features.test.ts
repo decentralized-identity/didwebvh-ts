@@ -2,7 +2,7 @@ import { beforeAll, expect, test } from 'bun:test';
 import type { CreateDIDResult, DIDLog, DIDLogEntry, ServiceEndpoint, VerificationMethod } from '../src/interfaces';
 import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { createDate, deriveNextKeyHash } from '../src/utils';
+import { createDate, deriveHash, deriveNextKeyHash } from '../src/utils';
 import {
   asPublicVerificationMethods,
   createTestSigner,
@@ -183,33 +183,6 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
   expect(resolved.meta.prerotation).toBe(false);
 });
 
-test('Require `nextKeyHashes` to continue if previously set', async () => {
-  // Create a DID with nextKeyHashes pointing to authKey2
-  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
-  const { log: log1 } = await createDID({
-    domain: 'example.com',
-    signer: createTestSigner(authKey1),
-    updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
-    nextKeyHashes: [nextKeyHash],
-    verifier: testImplementation,
-  });
-
-  // Update reusing authKey1 as updateKeys (NOT in nextKeyHashes).
-  // The signer must match updateKeys for prerotation verification,
-  // but authKey1's hash is not in nextKeyHashes, so resolution fails.
-  const { log: log2 } = await updateDID({
-    log: log1,
-    signer: createTestSigner(authKey1),
-    updateKeys: [authKey1.publicKeyMultibase!],
-    nextKeyHashes: [],
-    verificationMethods: asPublicVerificationMethods(authKey1),
-    verifier: testImplementation,
-  });
-
-  await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
-});
-
 test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
@@ -285,8 +258,8 @@ test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
 });
 
 test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
-  // Create DID with nextKeyHashes pointing to authKey3
-  const nextKeyHash = await deriveNextKeyHash(authKey3.publicKeyMultibase!);
+  // Create DID with nextKeyHashes pointing to authKey2 for next update
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
     domain: 'example.com',
     signer: createTestSigner(authKey1),
@@ -296,20 +269,19 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
     verifier: testImplementation,
   });
 
-  // Update reusing authKey1 as updateKeys (NOT in nextKeyHashes).
-  // The signer must match updateKeys for prerotation verification,
-  // but authKey1's hash is not in nextKeyHashes pointing to authKey3.
-  const { log: log2 } = await updateDID({
-    log: log1,
-    signer: createTestSigner(authKey1),
-    updateKeys: [authKey1.publicKeyMultibase!],
-    nextKeyHashes: [],
-    verificationMethods: asPublicVerificationMethods(authKey1),
-    verifier: testImplementation,
-  });
-
-  // Resolution catches the invalid key
-  await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
+  // Update with authKey1 as updateKeys (NOT in nextKeyHashes).
+  // Previous entry committed authKey2 for next update, but we're signing with authKey1.
+  // Write-time validation rejects the mismatch before the update is accepted.
+  await expect(
+    updateDID({
+      log: log1,
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      nextKeyHashes: [],
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier: testImplementation,
+    })
+  ).rejects.toThrow('Invalid update key');
 });
 
 test('updateKeys MUST be in nextKeyHashes when reading', async () => {
@@ -324,18 +296,35 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
     verifier: testImplementation,
   });
 
-  // Update with authKey1 as updateKeys (NOT in nextKeyHashes)
-  const { log: log2 } = await updateDID({
-    log: log1,
-    signer: createTestSigner(authKey1),
-    updateKeys: [authKey1.publicKeyMultibase!],
-    nextKeyHashes: [],
-    verificationMethods: asPublicVerificationMethods(authKey1),
-    verifier: testImplementation,
-  });
+  const createdDate = createDate(new Date(new Date(log1[0].versionTime).getTime() + 60 * 1000));
+  const logEntry: DIDLogEntry = {
+    versionId: log1[0].versionId,
+    versionTime: createdDate,
+    parameters: {
+      updateKeys: [authKey1.publicKeyMultibase!],
+      nextKeyHashes: [],
+      witness: {},
+      watchers: [],
+    },
+    state: JSON.parse(JSON.stringify(log1[0].state)),
+  };
+  const logEntryHash = await deriveHash(logEntry);
+  const prelimEntry: DIDLogEntry = { ...logEntry, versionId: `2-${logEntryHash}` };
+  const signer = createTestSigner(authKey1);
+  const proofTemplate = {
+    type: 'DataIntegrityProof' as const,
+    cryptosuite: 'eddsa-jcs-2022' as const,
+    verificationMethod: signer.getVerificationMethodId(),
+    created: createdDate,
+    proofPurpose: 'assertionMethod' as const,
+  };
+  const signedProof = await signer.sign({ document: prelimEntry, proof: proofTemplate });
+  prelimEntry.proof = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
 
   // Resolution (reading) must catch the invalid key
-  await expect(resolveDIDFromLog(log2, { verifier: testImplementation })).rejects.toThrow('Invalid update key');
+  await expect(resolveDIDFromLog([log1[0], prelimEntry], { verifier: testImplementation })).rejects.toThrow(
+    'Invalid update key'
+  );
 });
 
 test('DID log with portable false should not resolve if moved', async () => {
