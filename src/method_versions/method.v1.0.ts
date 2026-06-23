@@ -636,10 +636,7 @@ export const updateDID = async (
     return vm;
   });
 
-  // Determine the controller (the DID id) for this update. When a new location
-  // (address/domain) is supplied, rebuild the controller from that location while
-  // preserving the SCID, so a portable DID can actually move. The SCID is the
-  // stable part of the identifier; only the location component changes.
+  // Compute controller DID id; rebuild with new address if moving, keep SCID stable.
   const requestedAddress = options.address || options.domain;
   let controller: string;
   let controllerPaths = parsedLastEntryDid.paths;
