@@ -1,7 +1,7 @@
 export { AbstractCrypto, createDocumentSigner, createProof, createSigner, prepareDataForSigning } from './cryptography';
 export * from './interfaces';
 export { createDID, deactivateDID, resolveDID, resolveDIDFromLog, updateDID } from './method';
-export { generateParallelDidWeb, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils';
+export { deriveNextKeyHash, generateParallelDidWeb, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils';
 export { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats';
 export {
   createWitnessProof,
