@@ -55,6 +55,10 @@ import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParam
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
 
+const VERSION = '1.0';
+const PROTOCOL = `did:${METHOD}:${VERSION}`;
+const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+
 const requireDidId = (id: string | undefined): string => {
   if (!id) {
     throw new Error('DID document id is missing');
@@ -86,7 +90,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   if (options.created) {
     validateUtcIso8601NotInFuture(options.created, 'createDID created');
   }
-  const createdDate = createDate(options.created);
+  const createdDate = options.created ?? createDate();
 
   // Safety guard: Strip secret keys from verification methods before creating DID document
   const safeVerificationMethods = options.verificationMethods?.map((vm) => {
@@ -230,7 +234,6 @@ export const resolveDIDFromLog = async (
   let host = '';
   let previousVersionTime: Date | undefined;
   const activeMethod = METHOD_PROTOCOL_V1_0; // Track method value across entries
-  const resolutionNow = new Date();
   const requiredWitnessChecks: RequiredWitnessCheck[] = [];
   let witnessThresholdFailure = false;
 
@@ -250,6 +253,11 @@ export const resolveDIDFromLog = async (
       const currentVersionTime = parseUtcIso8601VersionTime(versionTime, `version '${version}' versionTime`);
       if (previousVersionTime && currentVersionTime.getTime() <= previousVersionTime.getTime()) {
         throw new Error(`versionTime for version '${version}' must be greater than previous entry time`);
+      }
+      // Check against resolver's current time for each entry per spec normative language
+      const maxAllowedFutureTime = Date.now() + MAX_FUTURE_SKEW_MS;
+      if (currentVersionTime.getTime() > maxAllowedFutureTime) {
+        throw new Error(`versionTime for version '${version}' must not be more than 5 minutes in the future`);
       }
       previousVersionTime = currentVersionTime;
       meta.updated = versionTime;
@@ -471,10 +479,6 @@ export const resolveDIDFromLog = async (
       i++;
     }
 
-    if (previousVersionTime && previousVersionTime.getTime() >= resolutionNow.getTime()) {
-      throw new Error('versionTime of the last entry must be earlier than current time');
-    }
-
     if (!requestedDidSeen) {
       throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
     }
@@ -595,6 +599,10 @@ export const updateDID = async (
     throw new Error('updateKeys must be provided while pre-rotation is active');
   }
   const versionNumber = log.length + 1;
+  // Validate user-provided timestamp with skew tolerance before creating the versionTime
+  if (options.updated) {
+    validateUtcIso8601NotInFuture(options.updated, 'updateDID updated', MAX_FUTURE_SKEW_MS);
+  }
   const createdDate = createNextVersionTime(lastMeta.updated, options.updated, createDate);
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
   const resolvedNextKeyHashes = options.nextKeyHashes ?? lastMeta.nextKeyHashes ?? [];

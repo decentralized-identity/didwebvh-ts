@@ -89,9 +89,17 @@ export function parseUtcIso8601VersionTime(value: string, context: string): Date
   return parsed;
 }
 
-export function validateUtcIso8601NotInFuture(value: string, context: string, now: Date = new Date()): Date {
+export function validateUtcIso8601NotInFuture(
+  value: string,
+  context: string,
+  maxFutureSkewMs: number = 0,
+  now: Date = new Date()
+): Date {
   const parsed = parseUtcIso8601VersionTime(value, context);
-  if (parsed.getTime() > now.getTime()) {
+  if (parsed.getTime() > now.getTime() + maxFutureSkewMs) {
+    if (maxFutureSkewMs > 0) {
+      throw new Error(`${context} must not be more than ${maxFutureSkewMs / 60000} minutes in the future`);
+    }
     throw new Error(`${context} must not be in the future`);
   }
 
@@ -106,9 +114,9 @@ export function createNextVersionTime(
   const previous = parseUtcIso8601VersionTime(previousVersionTime, 'previous versionTime');
 
   if (requestedVersionTime) {
-    const requested = validateUtcIso8601NotInFuture(requestedVersionTime, 'updateDID updated');
+    const requested = parseUtcIso8601VersionTime(requestedVersionTime, 'requested versionTime');
     if (requested.getTime() <= previous.getTime()) {
-      throw new Error('updateDID updated must be greater than previous versionTime');
+      throw new Error('versionTime must be greater than previous versionTime');
     }
     return formatDate(requestedVersionTime);
   }

@@ -1,4 +1,5 @@
 import * as crypto from '@stablelib/ed25519';
+import { METHOD, PLACEHOLDER } from '../src/constants';
 import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography';
 import type {
   DIDLog,
@@ -10,7 +11,7 @@ import type {
   VerificationMethod,
   Verifier,
 } from '../src/interfaces';
-import { deriveHash } from '../src/utils';
+import { createDIDDoc, createSCID, deriveHash, replaceCreateDidPlaceholders } from '../src/utils';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats';
 
 export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
@@ -26,6 +27,54 @@ export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
     return mockEntry;
   });
 }
+
+export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhead: number): Promise<DIDLog> => {
+  const futureCreated = new Date(Date.now() + minutesAhead * 60 * 1000).toISOString();
+  const signer = createTestSigner(authKey);
+  const controller = `did:${METHOD}:${PLACEHOLDER}:example.com`;
+
+  const { doc } = await createDIDDoc({
+    controller,
+    verificationMethods: asPublicVerificationMethods(authKey),
+    signer,
+    updateKeys: [authKey.publicKeyMultibase!],
+  });
+
+  const initialLogEntry: DIDLog[0] = {
+    versionId: PLACEHOLDER,
+    versionTime: futureCreated,
+    parameters: {
+      method: `did:${METHOD}:1.0`,
+      scid: PLACEHOLDER,
+      updateKeys: [authKey.publicKeyMultibase!],
+      portable: false,
+      nextKeyHashes: [],
+      watchers: [],
+      witness: {},
+      deactivated: false,
+    },
+    state: doc,
+  };
+
+  const initialLogEntryHash = await deriveHash(initialLogEntry);
+  const scid = await createSCID(initialLogEntryHash);
+  const did = `did:${METHOD}:${scid}:example.com`;
+  const prelimEntry = replaceCreateDidPlaceholders(initialLogEntry, scid, did);
+  const logEntryHash2 = await deriveHash(prelimEntry);
+  prelimEntry.versionId = `1-${logEntryHash2}`;
+
+  const proofTemplate = {
+    type: 'DataIntegrityProof' as const,
+    cryptosuite: 'eddsa-jcs-2022' as const,
+    verificationMethod: signer.getVerificationMethodId(),
+    created: futureCreated,
+    proofPurpose: 'assertionMethod' as const,
+  };
+  const signedProof = await signer.sign({ document: prelimEntry, proof: proofTemplate });
+  prelimEntry.proof = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
+
+  return [prelimEntry];
+};
 
 // Test crypto implementation
 export class TestCryptoImplementation extends AbstractCrypto implements Verifier {
