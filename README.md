@@ -54,15 +54,23 @@ If you ever need to refresh the build (for example after local code changes), re
 
 The following commands are defined in the `package.json` file:
 
-1. `dev`: Run the Elysia resolver example in development mode with debugging enabled.
+1. `dev`: Run the Elysia resolver example in watch mode for development.
 
    ```bash
    bun run dev
    ```
 
-  This command runs: `bun --watch --inspect-wait ./examples/elysia-resolver.ts`
+  This command runs: `bun --watch ./examples/elysia-resolver.ts` and starts the resolver at `http://localhost:3010` by default. Set `PORT` to use a different port.
 
-1. `server`: Run the Elysia resolver example in watch mode for development.
+1. `debug`: Run the Elysia resolver example in watch mode with the Bun debugger enabled.
+
+   ```bash
+   bun run debug
+   ```
+
+  This command runs: `bun --watch --inspect ./examples/elysia-resolver.ts`. Use the printed Bun Inspector URL only for debugger tooling; the resolver still runs at the configured app port, defaulting to `http://localhost:3010`.
+
+1. `server`: Alias for running the Elysia resolver example in watch mode.
 
    ```bash
    bun run server

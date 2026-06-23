@@ -509,7 +509,6 @@ export const resolveDIDFromLog = async (
     if (options.requestedDid && didIdMatchCount === 0) {
       throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
     }
-
     if (requiredWitnessChecks.length > 0) {
       if (!options.witnessProofs) {
         options.witnessProofs = await fetchWitnessProofs(did);

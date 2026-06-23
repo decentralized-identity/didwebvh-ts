@@ -63,6 +63,20 @@ describe('Not So Happy Path Tests', () => {
     );
   });
 
+  test('Accepts a versionTime up to 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 4);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).resolves.toBeDefined();
+  });
+
+  test('Rejects a versionTime more than 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 6);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).rejects.toThrow(
+      'must not be more than 5 minutes in the future'
+    );
+  });
+
   test('Hash chain tampering is detected', async () => {
     // Create a DID and update it
     const { log: log1 } = await createDID({

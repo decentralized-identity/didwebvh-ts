@@ -16,7 +16,8 @@
     "dist/**/*"
   ],
   "scripts": {
-    "dev": "bun --watch --inspect-wait ./examples/elysia-resolver.ts",
+    "dev": "bun --watch ./examples/elysia-resolver.ts",
+    "debug": "bun --watch --inspect ./examples/elysia-resolver.ts",
     "server": "bun --watch ./examples/elysia-resolver.ts",
     "lint": "bunx biome check .",
     "lint:fix": "bunx biome check --write .",

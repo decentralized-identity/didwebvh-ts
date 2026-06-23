@@ -1,7 +1,7 @@
 import { verify as ed25519Verify } from '@stablelib/ed25519';
-import { AbstractCrypto, resolveDID } from 'didwebvh-ts';
-import type { DIDDoc, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
 import { Elysia } from 'elysia';
+import { AbstractCrypto, resolveDID } from '../src';
+import type { DIDDoc, SigningInput, SigningOutput, Verifier } from '../src/types';
 
 class ElysiaVerifier extends AbstractCrypto implements Verifier {
   constructor(
@@ -134,6 +134,8 @@ const getFile = async ({
   }
 };
 
+const port = Number(process.env.PORT ?? 3010);
+
 const app = new Elysia()
   .get('/health', () => 'ok')
   .get('/resolve/:id', async ({ params, query, set }) => {
@@ -189,6 +191,6 @@ const app = new Elysia()
       };
     }
   })
-  .listen(3010);
+  .listen(port);
 
-console.log(`🦊 Elysia resolver is running at ${app.server?.hostname}:${app.server?.port}`);
+console.log(`Elysia resolver is running at http://localhost:${app.server?.port ?? port}`);
