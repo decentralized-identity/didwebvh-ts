@@ -74,7 +74,7 @@ export const ISO8601_DATETIME_REGEX = new RegExp(
  *
  * Enforces:
  * - Strict ISO 8601 format with calendar correctness (via regex)
- * - Timezone component required (Z or ±HH:MM offset)
+ * - Timezone MUST be explicit Z or +00:00 (per normative spec language)
  * - Semantic date validity (via Date.parse)
  *
  * Spec reference: did:webvh v1.0 §3.5 and §3.6.2 (`versionTime` in UTC ISO8601)
@@ -86,6 +86,13 @@ export function parseUtcIso8601VersionTime(value: string, context: string): Date
   if (!match || Number.isNaN(parsed.getTime())) {
     throw new Error(`${context} must be a valid UTC ISO8601 timestamp`);
   }
+
+  // Per spec, only Z or +00:00 (explicit UTC) are allowed
+  const timezone = match.groups?.timezone;
+  if (timezone && timezone !== 'Z' && timezone !== '+00:00') {
+    throw new Error(`${context} must be in UTC (Z or +00:00), found ${timezone}`);
+  }
+
   return parsed;
 }
 
