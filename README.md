@@ -207,11 +207,9 @@ When resolving a requested earlier version (for example with `versionId`, `versi
 
 - `resolveDID(did: string, options?: ResolutionOptions): Promise<{did: string, doc: any, meta: DIDResolutionMeta, controlled: boolean}>`
   Resolves a DID to its DID document.
-  For `v1.0`, `options.fastResolve` is an opt-in mode defaulting to `false` for full log parsing.
 
 - `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] }): Promise<{did: string, doc: any, meta: DIDResolutionMeta}>`
   Resolves directly from an in-memory DID log.
-  For `v1.0`, `options.fastResolve` is an opt-in mode defaulting to `false` for full log parsing.
 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
   Creates a new DID.

@@ -4,6 +4,7 @@ import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import {
   asPublicVerificationMethods,
+  createFutureDIDLog,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -43,6 +44,20 @@ describe('Not So Happy Path Tests', () => {
     ).rejects.toThrow(`SCID '${originalSCID}tampered' not derived from logEntryHash`);
   });
 
+  test('Accepts a versionTime up to 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 4);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).resolves.toBeDefined();
+  });
+
+  test('Rejects a versionTime more than 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 6);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).rejects.toThrow(
+      'must not be more than 5 minutes in the future'
+    );
+  });
+
   test('Hash chain tampering is detected', async () => {
     // Create a DID and update it
     const { log: log1 } = await createDID({
@@ -68,7 +83,7 @@ describe('Not So Happy Path Tests', () => {
     await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow('Hash chain broken');
   });
 
-  test('Fast-resolve catches hash chain break on middle entries', async () => {
+  test('Resolve catches hash chain break on middle entries', async () => {
     // Build a log with 12+ entries
     let currentLog: DIDLog;
     const { log: log0 } = await createDID({
@@ -97,10 +112,7 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
     tamperedLog[3].state.alsoKnownAs = ['did:example:tampered'];
 
-    // Hash chain validation remains active even when fastResolve is opted in.
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation, fastResolve: true })).rejects.toThrow(
-      'Hash chain broken'
-    );
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow('Hash chain broken');
   });
 
   test('Default resolve verifies every log entry proof', async () => {
@@ -126,14 +138,8 @@ describe('Not So Happy Path Tests', () => {
     }
 
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
-    // With 13 entries, index 1 is outside the fastResolve verification window
-    // (first entry + last 10 entries), but still checked in default full mode.
     tamperedLog[1]!.proof![0]!.proofValue = 'zinvalid-proof';
     await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow();
-
-    await expect(
-      resolveDIDFromLog(tamperedLog, { verifier: testImplementation, fastResolve: true })
-    ).resolves.toBeDefined();
   });
 
   test('Error metadata on later-entry failure', async () => {
