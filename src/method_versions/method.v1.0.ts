@@ -55,8 +55,6 @@ import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParam
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
 
-const VERSION = '1.0';
-const PROTOCOL = `did:${METHOD}:${VERSION}`;
 const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 const requireDidId = (id: string | undefined): string => {
