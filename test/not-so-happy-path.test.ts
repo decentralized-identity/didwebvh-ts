@@ -337,6 +337,57 @@ describe('Not So Happy Path Tests', () => {
     );
   });
 
+  test('rejects versionId with missing dash', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
+    tamperedLog[0].versionId = '1';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      /must contain exactly one '-' separator/
+    );
+  });
+
+  test('rejects versionId with multiple dashes', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
+    tamperedLog[0].versionId = '1-fake-hash';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      /must contain exactly one '-' separator/
+    );
+  });
+
+  test('rejects versionId with empty hash component', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
+    tamperedLog[0].versionId = '1-';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      /must have a non-empty hash component/
+    );
+  });
+
   test('Rejects unknown method value in later entry', async () => {
     const { log } = initialDID;
     const updateResult = await updateDID({

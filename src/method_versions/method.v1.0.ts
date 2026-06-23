@@ -66,6 +66,33 @@ const requireDidId = (id: string | undefined): string => {
   return id;
 };
 
+const parseAndValidateVersionId = (versionId: string, expectedVersionNumber: number) => {
+  const firstDashIndex = versionId.indexOf('-');
+  const lastDashIndex = versionId.lastIndexOf('-');
+
+  if (firstDashIndex === -1 || firstDashIndex !== lastDashIndex) {
+    throw new Error(`versionId '${versionId}' must contain exactly one '-' separator`);
+  }
+
+  const version = versionId.slice(0, firstDashIndex);
+  const entryHash = versionId.slice(firstDashIndex + 1);
+
+  if (!/^\d+$/.test(version)) {
+    throw new Error(`versionId '${versionId}' must have a numeric version prefix`);
+  }
+
+  if (entryHash.length === 0) {
+    throw new Error(`versionId '${versionId}' must have a non-empty hash component`);
+  }
+
+  const versionNumber = Number(version);
+  if (versionNumber !== expectedVersionNumber) {
+    throw new Error(`version '${version}' in log doesn't match expected '${expectedVersionNumber}'.`);
+  }
+
+  return { version, versionNumber, entryHash };
+};
+
 export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
   if (!options.updateKeys) {
     throw new Error('Update keys not supplied');
@@ -243,11 +270,8 @@ export const resolveDIDFromLog = async (
   try {
     while (i < resolutionLog.length) {
       const { versionId, versionTime, parameters, state, proof } = resolutionLog[i];
-      const [version, entryHash] = versionId.split('-');
+      const { version, versionNumber, entryHash } = parseAndValidateVersionId(versionId, i + 1);
       const previousWitness = meta.witness ? deepClone(meta.witness) : undefined;
-      if (parseInt(version, 10) !== i + 1) {
-        throw new Error(`version '${version}' in log doesn't match expected '${i + 1}'.`);
-      }
       meta.versionId = versionId;
       if (!versionTime) {
         throw new Error(`version '${version}' is missing versionTime`);
@@ -410,7 +434,7 @@ export const resolveDIDFromLog = async (
       if (requiredWitness) {
         requiredWitnessChecks.push({
           targetVersionId: meta.versionId,
-          targetVersionNumber: parseInt(version, 10),
+          targetVersionNumber: versionNumber,
           witness: requiredWitness,
         });
       }
@@ -452,7 +476,7 @@ export const resolveDIDFromLog = async (
         }
       }
 
-      if (options.versionNumber === parseInt(version, 10) || options.versionId === meta.versionId) {
+      if (options.versionNumber === versionNumber || options.versionId === meta.versionId) {
         if (!resolvedDoc) {
           resolvedDoc = deepClone(doc);
           resolvedDid = did;
