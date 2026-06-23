@@ -4,6 +4,7 @@ import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import {
   asPublicVerificationMethods,
+  createFutureDIDLog,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -41,6 +42,20 @@ describe('Not So Happy Path Tests', () => {
         verifier: testImplementation,
       })
     ).rejects.toThrow(`SCID '${originalSCID}tampered' not derived from logEntryHash`);
+  });
+
+  test('Accepts a versionTime up to 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 4);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).resolves.toBeDefined();
+  });
+
+  test('Rejects a versionTime more than 5 minutes in the future', async () => {
+    const futureLog = await createFutureDIDLog(authKey, 6);
+
+    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).rejects.toThrow(
+      'must not be more than 5 minutes in the future'
+    );
   });
 
   test('Hash chain tampering is detected', async () => {

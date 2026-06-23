@@ -43,6 +43,7 @@ import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParam
 
 const VERSION = '1.0';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
+const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 const requireDidId = (id: string | undefined): string => {
   if (!id) {
@@ -75,7 +76,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   if (options.created) {
     validateUtcIso8601NotInFuture(options.created, 'createDID created');
   }
-  const createdDate = createDate(options.created);
+  const createdDate = options.created ?? createDate();
 
   // Safety guard: Strip secret keys from verification methods before creating DID document
   const safeVerificationMethods = options.verificationMethods?.map((vm) => {
@@ -213,7 +214,6 @@ export const resolveDIDFromLog = async (
   let i = 0;
   let host = '';
   let previousVersionTime: Date | undefined;
-  const resolutionNow = new Date();
   const requiredWitnessChecks: RequiredWitnessCheck[] = [];
 
   try {
@@ -232,6 +232,11 @@ export const resolveDIDFromLog = async (
       const currentVersionTime = parseUtcIso8601VersionTime(versionTime, `version '${version}' versionTime`);
       if (previousVersionTime && currentVersionTime.getTime() <= previousVersionTime.getTime()) {
         throw new Error(`versionTime for version '${version}' must be greater than previous entry time`);
+      }
+      // Check against resolver's current time for each entry per spec normative language
+      const maxAllowedFutureTime = Date.now() + MAX_FUTURE_SKEW_MS;
+      if (currentVersionTime.getTime() > maxAllowedFutureTime) {
+        throw new Error(`versionTime for version '${version}' must not be more than 5 minutes in the future`);
       }
       previousVersionTime = currentVersionTime;
       meta.updated = versionTime;
@@ -417,10 +422,6 @@ export const resolveDIDFromLog = async (
       i++;
     }
 
-    if (previousVersionTime && previousVersionTime.getTime() >= resolutionNow.getTime()) {
-      throw new Error('versionTime of the last entry must be earlier than current time');
-    }
-
     if (requiredWitnessChecks.length > 0) {
       if (!options.witnessProofs) {
         options.witnessProofs = await fetchWitnessProofs(did);
@@ -497,6 +498,10 @@ export const updateDID = async (
     throw new Error('Cannot update deactivated DID');
   }
   const versionNumber = log.length + 1;
+  // Validate user-provided timestamp with skew tolerance before creating the versionTime
+  if (options.updated) {
+    validateUtcIso8601NotInFuture(options.updated, 'updateDID updated', MAX_FUTURE_SKEW_MS);
+  }
   const createdDate = createNextVersionTime(lastMeta.updated, options.updated, createDate);
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
   const witnessInput = options.witness;
