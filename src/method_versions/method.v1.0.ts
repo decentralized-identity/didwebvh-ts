@@ -202,6 +202,9 @@ export const resolveDIDFromLog = async (
     throw new Error('Cannot specify both verificationMethod and version number/id');
   }
   const resolutionLog = log.map((l) => deepClone(l));
+  if (resolutionLog.length === 0) {
+    throw new Error(`Log identity binding check failed: no entries to process`);
+  }
   const protocol = resolutionLog[0]?.parameters?.method;
   if (protocol !== METHOD_PROTOCOL_V1_0) {
     throw new Error(`'${protocol}' is not a supported method version.`);
@@ -230,7 +233,7 @@ export const resolveDIDFromLog = async (
   let i = 0;
   const hasExplicitHistoricalSelector =
     options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
-  let requestedDidSeen = !options.requestedDid;
+  let didIdMatchCount = 0;
   let host = '';
   let previousVersionTime: Date | undefined;
   const activeMethod = METHOD_PROTOCOL_V1_0; // Track method value across entries
@@ -417,7 +420,7 @@ export const resolveDIDFromLog = async (
       did = requireDidId(doc.id);
 
       if (options.requestedDid && did === options.requestedDid) {
-        requestedDidSeen = true;
+        didIdMatchCount++;
       }
 
       // Add default services if they don't exist
@@ -479,7 +482,7 @@ export const resolveDIDFromLog = async (
       i++;
     }
 
-    if (!requestedDidSeen) {
+    if (options.requestedDid && didIdMatchCount === 0) {
       throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
     }
 

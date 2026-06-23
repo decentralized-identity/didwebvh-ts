@@ -292,6 +292,33 @@ describe('Not So Happy Path Tests', () => {
     );
   });
 
+  test('Requested DID not present in log is rejected', async () => {
+    const { log } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    // Use a syntactically valid did:webvh that is guaranteed to differ from all state.id values in this log.
+    const requestedDidNotInLog = 'did:webvh:zQmXkYw8uM9QW9sW11Qx2Jq4JfY5o7jBq3nK7f4R2m1NpQ:not-in-log.example';
+
+    await expect(
+      resolveDIDFromLog(log, { requestedDid: requestedDidNotInLog, verifier: testImplementation })
+    ).rejects.toThrow(/does not match state\.id/);
+  });
+
+  test('rejects log where no state.id matches the resolved DID when requestedDid is omitted', async () => {
+    // An empty DID log has no entries, so didIdMatchCount stays 0.
+    // The spec requires didIdMatchCount > 0 after processing all entries.
+    const emptyLog: DIDLog = [];
+
+    await expect(resolveDIDFromLog(emptyLog, { verifier: testImplementation })).rejects.toThrow(
+      /no entries to process/
+    );
+  });
+
   test('Protocol version rejection in v1.0', async () => {
     // Build a valid log but with the v0.5 protocol marker
     const { log } = await createDID({
