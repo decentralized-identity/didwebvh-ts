@@ -3,6 +3,7 @@ import type { CreateDIDResult, DataIntegrityProofTemplate, Signer, VerificationM
 import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { deriveHash, parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils';
+import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
 import {
   countWitnessApprovals,
   createWitnessProof,
@@ -181,6 +182,29 @@ describe('Witness Implementation Tests', async () => {
         verifier: testImplementation,
       })
     ).rejects.toThrow(`Duplicate witness id: ${duplicateWitnessId}`);
+  });
+
+  test('rejects witness did:key with incompatible key type at parameter validation', async () => {
+    // Build a non-Ed25519 multikey payload (header != 0xed01), but still valid multibase.
+    const nonEd25519Multikey = multibaseEncode(
+      new Uint8Array([0xe7, 0x01, ...new Uint8Array(32).fill(7)]),
+      MultibaseEncoding.BASE58_BTC
+    );
+    const invalidWitnessDid = `did:key:${nonEd25519Multikey}`;
+
+    await expect(
+      createDID({
+        domain: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        witness: {
+          threshold: 1,
+          witnesses: [{ id: invalidWitnessDid }],
+        },
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow(/Witness DID key type must be Ed25519/);
   });
 
   test('API e2e: create, update, witness, and resolve with raw multibase updateKeys', async () => {
