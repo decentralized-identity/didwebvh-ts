@@ -151,5 +151,4 @@ describe('Portability', () => {
       })
     ).rejects.toThrow('Cannot move DID: portability is disabled');
   });
-
 });
