@@ -260,7 +260,10 @@ export const resolveDIDFromLog = async (
   let lastValidMeta: DIDResolutionMeta | null = null;
   let i = 0;
   const hasExplicitHistoricalSelector =
-    options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
+    options.versionNumber !== undefined ||
+    options.versionId !== undefined ||
+    options.versionTime !== undefined ||
+    options.verificationMethod !== undefined;
   let didIdMatchCount = 0;
   let host = '';
   let previousVersionTime: Date | undefined;
