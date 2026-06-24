@@ -137,7 +137,13 @@ export const resolveDIDFromLog = async (
  * @returns The updated DID, resolved document, and DID log.
  */
 export const updateDID = async (
-  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string; updated?: string }
+  options: UpdateDIDInterface & {
+    services?: ServiceEndpoint[];
+    domain?: string;
+    address?: string;
+    paths?: string[];
+    updated?: string;
+  }
 ): Promise<UpdateDIDResult> => {
   const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);
   const result = version === '0.5' ? await v0_5.updateDID(options) : await v1.updateDID(options);

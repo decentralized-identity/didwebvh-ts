@@ -610,7 +610,13 @@ export const resolveDIDFromLog = async (
 };
 
 export const updateDID = async (
-  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string; updated?: string }
+  options: UpdateDIDInterface & {
+    services?: ServiceEndpoint[];
+    domain?: string;
+    address?: string;
+    paths?: string[];
+    updated?: string;
+  }
 ): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
@@ -669,12 +675,42 @@ export const updateDID = async (
     return vm;
   });
 
+  // Compute controller DID id; rebuild with new address if moving, keep SCID stable.
+  const requestedAddress = options.address || options.domain;
+  let controller: string;
+  let controllerPaths = parsedLastEntryDid.paths;
+  if (options.controller) {
+    controller = options.controller;
+  } else if (requestedAddress) {
+    const parsedNewAddress = parseCanonicalAddress(requestedAddress);
+    // Paths: explicit options.paths (combined with any address-embedded paths) take
+    // precedence; otherwise use address-embedded paths; otherwise inherit the prior
+    // paths so re-passing a bare domain on a pathed DID doesn't silently drop them.
+    const addressPaths = parsedNewAddress.paths || [];
+    const newLocationPaths =
+      options.paths !== undefined
+        ? [...addressPaths, ...options.paths]
+        : addressPaths.length
+          ? addressPaths
+          : parsedLastEntryDid.paths ?? [];
+    const newLocationKey = newLocationPaths.length
+      ? `${parsedNewAddress.didDomainComponent}:${newLocationPaths.join(':')}`
+      : parsedNewAddress.didDomainComponent;
+    controller = `did:${METHOD}:${parsedLastEntryDid.scid}:${newLocationKey}`;
+    controllerPaths = newLocationPaths.length ? newLocationPaths : undefined;
+    if (controller !== lastEntryDid && !lastMeta.portable) {
+      throw new Error('Cannot move DID: portability is disabled');
+    }
+  } else {
+    controller = lastEntryDid;
+  }
+
   const { doc: normalizedUpdateDoc } = await createDIDDoc({
     ...options,
-    controller: options.controller || lastEntryDid,
+    controller,
     context: options.context || lastEntry.state['@context'],
-    domain: options.domain ?? parsedLastEntryDid.didDomainComponent,
-    paths: parsedLastEntryDid.paths,
+    domain: requestedAddress ?? parsedLastEntryDid.didDomainComponent,
+    paths: controllerPaths,
     updateKeys: options.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
