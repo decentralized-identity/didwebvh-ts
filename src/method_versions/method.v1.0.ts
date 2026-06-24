@@ -260,7 +260,10 @@ export const resolveDIDFromLog = async (
   let lastValidMeta: DIDResolutionMeta | null = null;
   let i = 0;
   const hasExplicitHistoricalSelector =
-    options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
+    options.versionNumber !== undefined ||
+    options.versionId !== undefined ||
+    options.versionTime !== undefined ||
+    options.verificationMethod !== undefined;
   let didIdMatchCount = 0;
   let host = '';
   let previousVersionTime: Date | undefined;
@@ -646,11 +649,17 @@ export const updateDID = async (
         threshold: witnessInput.threshold ?? 0,
       }
     : {};
+  if (options.portable === true) {
+    throw new Error(
+      'portable: true cannot be set in an update entry; portability can only be enabled in the first entry'
+    );
+  }
   const params = {
     ...(options.updateKeys !== undefined || lastMeta.prerotation
       ? { updateKeys: options.updateKeys ?? lastMeta.updateKeys }
       : {}),
     ...(options.nextKeyHashes !== undefined ? { nextKeyHashes: options.nextKeyHashes } : {}),
+    ...(options.portable === false ? { portable: false } : {}),
     witness,
     watchers: watchersValue ?? [],
   };
