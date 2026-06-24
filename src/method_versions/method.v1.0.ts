@@ -644,7 +644,16 @@ export const updateDID = async (
     controller = options.controller;
   } else if (requestedAddress) {
     const parsedNewAddress = parseCanonicalAddress(requestedAddress);
-    const newLocationPaths = [...(parsedNewAddress.paths || []), ...(options.paths || [])];
+    // Paths: explicit options.paths (combined with any address-embedded paths) take
+    // precedence; otherwise use address-embedded paths; otherwise inherit the prior
+    // paths so re-passing a bare domain on a pathed DID doesn't silently drop them.
+    const addressPaths = parsedNewAddress.paths || [];
+    const newLocationPaths =
+      options.paths !== undefined
+        ? [...addressPaths, ...options.paths]
+        : addressPaths.length
+          ? addressPaths
+          : parsedLastEntryDid.paths ?? [];
     const newLocationKey = newLocationPaths.length
       ? `${parsedNewAddress.didDomainComponent}:${newLocationPaths.join(':')}`
       : parsedNewAddress.didDomainComponent;

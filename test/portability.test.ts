@@ -151,4 +151,45 @@ describe('Portability', () => {
       })
     ).rejects.toThrow('Cannot move DID: portability is disabled');
   });
+
+  test('Re-passing a bare domain on a pathed DID preserves the paths (#101)', async () => {
+    const pathedDID = await createDID({
+      domain: 'example.com',
+      paths: ['dids', 'alice'],
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    // Caller threads the same domain through the update but omits paths.
+    const updateResult = await updateDID({
+      log: pathedDID.log,
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    expect(updateResult.log[1].state.id).toBe(pathedDID.did);
+    const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
+    expect(resolved.did).toBe(pathedDID.did);
+  });
+
+  test('Portable DID moves to a pathed location via the address option (#101)', async () => {
+    const updateResult = await updateDID({
+      log: portableDID.log,
+      address: 'https://example.org/dids/alice',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const scid = (portableDID.log[0].state.id as string).split(':')[2];
+    expect(updateResult.log[1].state.id).toBe(`did:webvh:${scid}:example.org:dids:alice`);
+    const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
+    expect(resolved.did).toBe(`did:webvh:${scid}:example.org:dids:alice`);
+  });
 });
