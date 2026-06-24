@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
-import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
+import type { CreateDIDInterface, CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
 import {
@@ -485,5 +485,149 @@ describe('Not So Happy Path Tests', () => {
     await expect(resolveDIDFromLog(tamperedLogWithBadScid, { verifier: testImplementation })).rejects.toThrow(
       'SCID multihash algorithm must be SHA-256 (0x12)'
     );
+  });
+
+  test('createDID rejects when updateKeys is not supplied', async () => {
+    await expect(
+      createDID({
+        domain: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: undefined as unknown as string[],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('Update keys not supplied');
+  });
+
+  test('createDID rejects when neither address nor domain is provided', async () => {
+    await expect(
+      createDID({
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier: testImplementation,
+      } as unknown as CreateDIDInterface)
+    ).rejects.toThrow('Either address or domain must be provided');
+  });
+
+  test('createDID rejects when verificationMethods is absent and no didDocument', async () => {
+    await expect(
+      createDID({
+        domain: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verifier: testImplementation,
+      } as unknown as CreateDIDInterface)
+    ).rejects.toThrow('verificationMethods must be provided when didDocument is not supplied');
+  });
+
+  test('Rejects log entry with out-of-order version number', async () => {
+    const updateResult = await updateDID({
+      log: initialDID.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
+    const [, hash] = tamperedLog[1].versionId.split('-');
+    tamperedLog[1].versionId = `3-${hash}`;
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      "version '3' in log doesn't match expected '2'"
+    );
+  });
+
+  test('Rejects log entry with missing versionTime', async () => {
+    const updateResult = await updateDID({
+      log: initialDID.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
+    tamperedLog[1].versionTime = '';
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      "version '2' is missing versionTime"
+    );
+  });
+
+  test('Rejects log entry with non-monotonic versionTime', async () => {
+    const updateResult = await updateDID({
+      log: initialDID.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
+    tamperedLog[1].versionTime = tamperedLog[0].versionTime;
+
+    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+      "versionTime for version '2' must be greater than previous entry time"
+    );
+  });
+
+  test('Rejects resolution when options.scid does not match the log SCID', async () => {
+    const wrongScid = 'zFakeSCID123456789';
+    await expect(
+      resolveDIDFromLog(initialDID.log, {
+        scid: wrongScid,
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow(`SCID in DID '${wrongScid}' does not match SCID in log`);
+  });
+
+  test('requestedDid matching the actual DID resolves successfully', async () => {
+    const result = await resolveDIDFromLog(initialDID.log, {
+      requestedDid: initialDID.did,
+      verifier: testImplementation,
+    });
+
+    expect(result.doc).not.toBeNull();
+    expect(result.did).toBe(initialDID.did);
+  });
+
+  test('updateDID rejects when the DID is already deactivated', async () => {
+    const { log: deactivatedLog } = await deactivateDID({
+      log: initialDID.log,
+      signer: createTestSigner(authKey),
+      verifier: testImplementation,
+    });
+
+    await expect(
+      updateDID({
+        log: deactivatedLog,
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('Cannot update deactivated DID');
+  });
+
+  test('deactivateDID rejects when the DID is already deactivated', async () => {
+    const { log: log1 } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+    const { log: deactivatedLog } = await deactivateDID({
+      log: log1,
+      signer: createTestSigner(authKey),
+      verifier: testImplementation,
+    });
+
+    await expect(
+      deactivateDID({
+        log: deactivatedLog,
+        signer: createTestSigner(authKey),
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('DID already deactivated');
   });
 });

@@ -332,4 +332,52 @@ describe('Happy Path Tests', () => {
     expect('updateKeys' in updatedLog[1].parameters).toBe(false);
     expect(meta.updateKeys).toEqual([authKey1.publicKeyMultibase!]);
   });
+
+  test('Update DID with explicit assertionMethod option', async () => {
+    const authKey1 = await generateTestVerificationMethod();
+    const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
+
+    const { log: initialLog } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    const externalRef = 'did:example:assertion#key-1';
+    const { doc: updatedDoc } = await updateDID({
+      log: initialLog,
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      assertionMethod: [externalRef],
+      verifier,
+    });
+
+    expect(updatedDoc.assertionMethod).toEqual([externalRef]);
+  });
+
+  test('Update DID with explicit keyAgreement option', async () => {
+    const authKey1 = await generateTestVerificationMethod();
+    const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
+
+    const { log: initialLog } = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    const externalRef = 'did:example:agreement#key-1';
+    const { doc: updatedDoc } = await updateDID({
+      log: initialLog,
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      keyAgreement: [externalRef],
+      verifier,
+    });
+
+    expect(updatedDoc.keyAgreement).toEqual([externalRef]);
+  });
 });

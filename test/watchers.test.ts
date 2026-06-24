@@ -79,6 +79,8 @@ describe('Watcher Handling', () => {
     });
 
     const resolved = await resolveDIDFromLog(updated.log, { verifier });
-    expect(resolved.meta.watchers).toBeEmpty();
+    expect(updated.log[1].parameters.watchers).toEqual([]);
+    expect(Array.isArray(resolved.meta.watchers)).toBe(true);
+    expect(resolved.meta.watchers).toEqual([]);
   });
 });
