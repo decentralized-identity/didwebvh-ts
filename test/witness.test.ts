@@ -1,5 +1,11 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import type { CreateDIDResult, DataIntegrityProofTemplate, Signer, VerificationMethod } from '../src/interfaces';
+import type {
+  CreateDIDResult,
+  DataIntegrityProofTemplate,
+  DIDLog,
+  Signer,
+  VerificationMethod,
+} from '../src/interfaces';
 import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { deriveHash, parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils';
@@ -956,4 +962,56 @@ describe('Witness Implementation Tests', async () => {
       };
     };
   };
+
+  test('Resolves DID with legacy witnesses/witnessThreshold format in incremental entry', async () => {
+    const witnessKey = await generateTestVerificationMethod();
+    const witnessId = `did:key:${witnessKey.publicKeyMultibase}`;
+    const witnessVmId = `${witnessId}#${witnessKey.publicKeyMultibase}`;
+
+    const noWitnessDID = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+      created: '2021-01-01T00:00:00Z',
+    });
+
+    const versionTime = '2021-01-02T00:00:00Z';
+    const baseEntry = {
+      versionId: noWitnessDID.log[0].versionId,
+      versionTime,
+      parameters: {
+        updateKeys: [authKey.publicKeyMultibase!],
+        witnesses: [{ id: witnessId }],
+        witnessThreshold: 1,
+      },
+      state: noWitnessDID.log[0].state,
+    };
+    const logEntryHash = await deriveHash(baseEntry);
+    const versionId = `2-${logEntryHash}`;
+    const signer = createTestSigner(authKey);
+    const proofTemplate: DataIntegrityProofTemplate = {
+      type: 'DataIntegrityProof',
+      cryptosuite: 'eddsa-jcs-2022',
+      verificationMethod: signer.getVerificationMethodId(),
+      created: versionTime,
+      proofPurpose: 'assertionMethod',
+    };
+    const signedProof = await signer.sign({ document: { ...baseEntry, versionId }, proof: proofTemplate });
+    const v2Entry = { ...baseEntry, versionId, proof: [{ ...proofTemplate, proofValue: signedProof.proofValue }] };
+
+    const legacyLog = [noWitnessDID.log[0], v2Entry] as DIDLog;
+    const witnessSignerFn = createWitnessSigner(witnessKey);
+    const witnessProof = await createWitnessProof(witnessSignerFn, versionId, witnessVmId);
+
+    const resolved = await resolveDIDFromLog(legacyLog, {
+      verifier: testImplementation,
+      witnessProofs: [{ versionId, proof: [witnessProof] }],
+    });
+
+    expect(resolved.meta.witness?.witnesses).toHaveLength(1);
+    expect(resolved.meta.witness?.witnesses?.[0].id).toBe(witnessId);
+    expect(resolved.meta.witness?.threshold).toBe(1);
+  });
 });

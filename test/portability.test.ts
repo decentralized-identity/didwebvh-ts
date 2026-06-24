@@ -53,6 +53,18 @@ describe('Portability', () => {
     );
   });
 
+  test('updateDID rejects portable: true as an option', async () => {
+    await expect(
+      updateDID({
+        log: nonPortableDID.log,
+        portable: true,
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('portable: true cannot be set in an update entry');
+  });
+
   test('Rejects false-to-true portable transition (portable was explicitly false)', async () => {
     // Create a DID with portable: false explicitly in the first entry
     const did = await createDID({
@@ -82,7 +94,6 @@ describe('Portability', () => {
   });
 
   test('Setting portable: false in a later entry permanently locks portability', async () => {
-    // Use the proper API to produce a legitimately signed update that sets portable: false
     const updateResult = await updateDID({
       log: portableDID.log,
       domain: 'example.com',
@@ -92,8 +103,25 @@ describe('Portability', () => {
       verifier: testImplementation,
     });
 
-    // Resolution of a properly signed portable: false entry must succeed
-    await expect(resolveDIDFromLog(updateResult.log, { verifier: testImplementation })).resolves.toBeDefined();
+    // The log entry must carry portable: false in its parameters
+    expect(updateResult.log[1].parameters.portable).toBe(false);
+    // The returned meta must reflect the lock immediately
+    expect(updateResult.meta.portable).toBe(false);
+
+    // Resolution must succeed and report the lock
+    const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
+    expect(resolved.meta.portable).toBe(false);
+
+    // A subsequent move attempt must be rejected
+    await expect(
+      updateDID({
+        log: updateResult.log,
+        domain: 'example.org',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('Cannot move DID: portability is disabled');
   });
 
   test('Rejects SCID change in state.id during portable rename', async () => {
