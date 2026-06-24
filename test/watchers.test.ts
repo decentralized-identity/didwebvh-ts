@@ -4,6 +4,7 @@ import {
   asPublicVerificationMethods,
   createTestSigner,
   generateTestVerificationMethod,
+  nextSecond,
   TestCryptoImplementation,
 } from './utils';
 
@@ -42,6 +43,7 @@ describe('Watcher Handling', () => {
 
     const updated = await updateDID({
       log: initial.log,
+      updated: nextSecond(initial.log),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -68,6 +70,7 @@ describe('Watcher Handling', () => {
 
     const updated = await updateDID({
       log: initial.log,
+      updated: nextSecond(initial.log),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),

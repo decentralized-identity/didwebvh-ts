@@ -5,6 +5,7 @@ import {
   asPublicVerificationMethods,
   createTestSigner,
   generateTestVerificationMethod,
+  nextSecond,
   TestCryptoImplementation,
 } from './utils';
 
@@ -39,6 +40,7 @@ describe('Portability', () => {
   test('Rejects setting portable: true in a later entry', async () => {
     const updateResult = await updateDID({
       log: nonPortableDID.log,
+      updated: nextSecond(nonPortableDID.log),
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -66,6 +68,7 @@ describe('Portability', () => {
 
     const updateResult = await updateDID({
       log: did.log,
+      updated: nextSecond(did.log),
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -85,6 +88,7 @@ describe('Portability', () => {
     // Use the proper API to produce a legitimately signed update that sets portable: false
     const updateResult = await updateDID({
       log: portableDID.log,
+      updated: nextSecond(portableDID.log),
       domain: 'example.com',
       portable: false,
       signer: createTestSigner(authKey),
@@ -99,6 +103,7 @@ describe('Portability', () => {
   test('Rejects SCID change in state.id during portable rename', async () => {
     const updateResult = await updateDID({
       log: portableDID.log,
+      updated: nextSecond(portableDID.log),
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -120,6 +125,7 @@ describe('Portability', () => {
   test('Portable DID moves to a new domain via the domain option', async () => {
     const updateResult = await updateDID({
       log: portableDID.log,
+      updated: nextSecond(portableDID.log),
       domain: 'example.org',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -143,6 +149,7 @@ describe('Portability', () => {
     await expect(
       updateDID({
         log: nonPortableDID.log,
+        updated: nextSecond(nonPortableDID.log),
         domain: 'example.org',
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
@@ -165,6 +172,7 @@ describe('Portability', () => {
     // Caller threads the same domain through the update but omits paths.
     const updateResult = await updateDID({
       log: pathedDID.log,
+      updated: nextSecond(pathedDID.log),
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -180,6 +188,7 @@ describe('Portability', () => {
   test('Portable DID moves to a pathed location via the address option', async () => {
     const updateResult = await updateDID({
       log: portableDID.log,
+      updated: nextSecond(portableDID.log),
       address: 'https://example.org/dids/alice',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
