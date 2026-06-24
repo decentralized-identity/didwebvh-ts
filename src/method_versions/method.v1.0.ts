@@ -692,7 +692,7 @@ export const updateDID = async (
         ? [...addressPaths, ...options.paths]
         : addressPaths.length
           ? addressPaths
-          : parsedLastEntryDid.paths ?? [];
+          : (parsedLastEntryDid.paths ?? []);
     const newLocationKey = newLocationPaths.length
       ? `${parsedNewAddress.didDomainComponent}:${newLocationPaths.join(':')}`
       : parsedNewAddress.didDomainComponent;

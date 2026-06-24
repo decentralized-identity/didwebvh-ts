@@ -117,7 +117,7 @@ describe('Portability', () => {
     );
   });
 
-  test('Portable DID moves to a new domain via the domain option (#101)', async () => {
+  test('Portable DID moves to a new domain via the domain option', async () => {
     const updateResult = await updateDID({
       log: portableDID.log,
       domain: 'example.org',
@@ -139,7 +139,7 @@ describe('Portability', () => {
     expect(resolved.doc?.id).toBe(`did:webvh:${scid}:example.org`);
   });
 
-  test('Non-portable DID rejects a move to a new domain (#101)', async () => {
+  test('Non-portable DID rejects a move to a new domain', async () => {
     await expect(
       updateDID({
         log: nonPortableDID.log,
@@ -152,7 +152,7 @@ describe('Portability', () => {
     ).rejects.toThrow('Cannot move DID: portability is disabled');
   });
 
-  test('Re-passing a bare domain on a pathed DID preserves the paths (#101)', async () => {
+  test('Re-passing a bare domain on a pathed DID preserves the paths', async () => {
     const pathedDID = await createDID({
       domain: 'example.com',
       paths: ['dids', 'alice'],
@@ -177,7 +177,7 @@ describe('Portability', () => {
     expect(resolved.did).toBe(pathedDID.did);
   });
 
-  test('Portable DID moves to a pathed location via the address option (#101)', async () => {
+  test('Portable DID moves to a pathed location via the address option', async () => {
     const updateResult = await updateDID({
       log: portableDID.log,
       address: 'https://example.org/dids/alice',
