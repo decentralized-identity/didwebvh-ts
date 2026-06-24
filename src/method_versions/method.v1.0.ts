@@ -646,11 +646,17 @@ export const updateDID = async (
         threshold: witnessInput.threshold ?? 0,
       }
     : {};
+  if (options.portable === true) {
+    throw new Error(
+      'portable: true cannot be set in an update entry; portability can only be enabled in the first entry'
+    );
+  }
   const params = {
     ...(options.updateKeys !== undefined || lastMeta.prerotation
       ? { updateKeys: options.updateKeys ?? lastMeta.updateKeys }
       : {}),
     ...(options.nextKeyHashes !== undefined ? { nextKeyHashes: options.nextKeyHashes } : {}),
+    ...(options.portable === false ? { portable: false } : {}),
     witness,
     watchers: watchersValue ?? [],
   };
