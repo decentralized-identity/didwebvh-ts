@@ -45,6 +45,7 @@ Options:
   --domain [domain]         DEPRECATED: Use --address instead. Domain for the DID (backwards compatibility).
   --log [file]              Path to the DID log file (required for resolve, update, deactivate)
   --output [file]           Path to save the updated DID log (optional for create, update, deactivate)
+  --updated [timestamp]     Explicit update timestamp in UTC ISO8601 (e.g. 2026-01-01T12:00:00Z)
   --portable                Make the DID portable (optional for create)
   --witness [witness]       Add a witness (can be used multiple times)
   --witness-threshold [n]   Set witness threshold (optional, defaults to number of witnesses)
@@ -69,6 +70,7 @@ Examples:
   bun run cli resolve --did did:webvh:123456:example.com
   bun run cli resolve --log ./did.jsonl --witness-file ./did-witness.json
   bun run cli update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
+  bun run cli update --log ./did.jsonl --output ./updated-did.jsonl --updated 2026-01-01T12:00:00Z
   bun run cli deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
   bun run cli generate-witness-proof --version-id 1-abc123 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
   bun run cli generate-witness-proof --version-id 1-abc123 --version-id 2-def456 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
@@ -300,6 +302,7 @@ export async function handleUpdate(args: string[]) {
   const options = parseOptions(args);
   const logFile = options.log as string;
   const output = options.output as string | undefined;
+  const updated = options.updated as string | undefined;
   const witnesses = options.witness as string[] | undefined;
   const witnessThreshold = options['witness-threshold']
     ? parseInt(options['witness-threshold'] as string, 10)
@@ -392,6 +395,7 @@ export async function handleUpdate(args: string[]) {
     const crypto = createCustomCrypto(vm);
     const result = await updateDID({
       log,
+      updated,
       signer: crypto,
       verifier: crypto,
       updateKeys: [vmPublicKeyMultibase],
