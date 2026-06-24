@@ -17,6 +17,13 @@ describe('Not So Happy Path Tests', () => {
   let testImplementation: TestCryptoImplementation;
   let initialDID: CreateDIDResult;
 
+  const waitForNextSecondBoundary = async () => {
+    const startSecond = Math.floor(Date.now() / 1000);
+    while (Math.floor(Date.now() / 1000) === startSecond) {
+      await Bun.sleep(20);
+    }
+  };
+
   beforeAll(async () => {
     authKey = await generateTestVerificationMethod();
     testImplementation = new TestCryptoImplementation({ verificationMethod: authKey });
@@ -591,6 +598,8 @@ describe('Not So Happy Path Tests', () => {
   });
 
   test('updateDID rejects when the DID is already deactivated', async () => {
+    await waitForNextSecondBoundary();
+
     const { log: deactivatedLog } = await deactivateDID({
       log: initialDID.log,
       signer: createTestSigner(authKey),
@@ -616,6 +625,9 @@ describe('Not So Happy Path Tests', () => {
       verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
+
+    await waitForNextSecondBoundary();
+
     const { log: deactivatedLog } = await deactivateDID({
       log: log1,
       signer: createTestSigner(authKey),
