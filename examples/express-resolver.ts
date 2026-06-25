@@ -124,7 +124,6 @@ app.get('/resolve/:id', async (req, res) => {
         versionNumber: req.query.versionNumber ? parseInt(req.query.versionNumber as string, 10) : undefined,
         versionId: req.query.versionId as string,
         versionTime: req.query.versionTime ? new Date(req.query.versionTime as string) : undefined,
-        verificationMethod: req.query.verificationMethod as string,
         verifier: expressVerifier,
       };
 
@@ -133,7 +132,10 @@ app.get('/resolve/:id', async (req, res) => {
       return res.json(result);
     }
 
-    const { did, doc, controlled } = await resolveDID(didPart, { verifier: expressVerifier });
+    const resolution = await resolveDID(didPart, { verifier: expressVerifier });
+    const did = resolution.didDocument?.id ?? '';
+    const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
+    const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);
 
     const didParts = did.split(':');
     const domain = didParts[didParts.length - 1];

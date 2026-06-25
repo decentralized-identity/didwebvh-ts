@@ -47,22 +47,13 @@ const WELL_KNOWN_ALLOW_LIST = ['did.jsonl'];
 // Helper function to map DID resolution errors to HTTP status codes
 const getStatusCodeFromError = (errorType?: string): number => {
   switch (errorType) {
-    case 'INVALID_DID':
-    case 'INVALID_DID_URL':
-    case 'INVALID_OPTIONS':
+    case 'invalidDid':
+    case 'invalidDidUrl':
       return 400;
-    case 'NOT_FOUND':
+    case 'notFound':
       return 404;
-    case 'REPRESENTATION_NOT_SUPPORTED':
+    case 'representationNotSupported':
       return 406;
-    case 'METHOD_NOT_SUPPORTED':
-    case 'UNSUPPORTED_PUBLIC_KEY_TYPE':
-      return 501;
-    case 'INVALID_DID_DOCUMENT':
-    case 'INVALID_PUBLIC_KEY':
-    case 'INVALID_PUBLIC_KEY_LENGTH':
-    case 'INVALID_PUBLIC_KEY_TYPE':
-    case 'INTERNAL_ERROR':
     default:
       return 500;
   }
@@ -152,22 +143,24 @@ const app = new Elysia()
           versionNumber: query?.versionNumber ? parseInt(query.versionNumber as string, 10) : undefined,
           versionId: query?.versionId as string,
           versionTime: query?.versionTime ? new Date(query.versionTime as string) : undefined,
-          verificationMethod: query?.verificationMethod as string,
           verifier: elysiaVerifier,
         };
 
         console.log(`Resolving DID ${didPart}`);
         const result = await resolveDID(didPart, options);
 
-        // Check for error in meta and set appropriate status code
-        if (result.meta?.error) {
-          set.status = getStatusCodeFromError(result.meta.error);
+        // Check for error in resolution metadata and set appropriate status code
+        if (result.didResolutionMetadata?.error) {
+          set.status = getStatusCodeFromError(result.didResolutionMetadata.error);
         }
 
         return result;
       }
 
-      const { did, doc, controlled } = await resolveDID(didPart, { verifier: elysiaVerifier });
+      const resolution = await resolveDID(didPart, { verifier: elysiaVerifier });
+      const did = resolution.didDocument?.id ?? '';
+      const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
+      const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);
 
       const didParts = did.split(':');
       const domain = didParts[didParts.length - 1];
