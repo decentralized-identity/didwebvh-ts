@@ -121,17 +121,19 @@ export function createNextVersionTime(
   const previous = parseUtcIso8601VersionTime(previousVersionTime, 'previous versionTime');
 
   if (requestedVersionTime) {
-    const requested = parseUtcIso8601VersionTime(requestedVersionTime, 'requested versionTime');
-    if (requested.getTime() <= previous.getTime()) {
+    parseUtcIso8601VersionTime(requestedVersionTime, 'requested versionTime');
+    const formatted = formatDate(requestedVersionTime);
+    if (new Date(formatted).getTime() <= previous.getTime()) {
       throw new Error('versionTime must be greater than previous versionTime');
     }
-    return formatDate(requestedVersionTime);
+    return formatted;
   }
 
-  const now = new Date();
-  if (now.getTime() <= previous.getTime()) {
-    return formatDate(new Date(previous.getTime() + 1));
+  const nowFormatted = formatDate(new Date());
+  const nowTrimmed = new Date(nowFormatted);
+  if (nowTrimmed.getTime() <= previous.getTime()) {
+    return formatDate(new Date(previous.getTime() + 1000));
   }
 
-  return formatDate(now);
+  return nowFormatted;
 }

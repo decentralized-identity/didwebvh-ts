@@ -792,7 +792,6 @@ describe('Witness Implementation Tests', async () => {
 
     const updatedDid = await updateDID({
       log: didWithWitness.log,
-      updated: nextSecond(didWithWitness.log),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -860,7 +859,6 @@ describe('Witness Implementation Tests', async () => {
     // Reduce 2-of-2 -> 1-of-1 (witness1 only).
     const reduced = await updateDID({
       log: didWithWitness.log,
-      updated: nextSecond(didWithWitness.log),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
