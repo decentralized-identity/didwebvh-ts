@@ -7,7 +7,6 @@ import {
   asPublicVerificationMethods,
   createTestSigner,
   generateTestVerificationMethod,
-  nextSecond,
   TestCryptoImplementation,
 } from './utils';
 
@@ -172,7 +171,6 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
   // Update with different updateKeys — no prerotation constraint
   const { log: log2 } = await updateDID({
     log: log1,
-    updated: nextSecond(log1),
     signer: createTestSigner(authKey1),
     updateKeys: [authKey2.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey2),
@@ -198,7 +196,6 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
 
   const { log: log2 } = await updateDID({
     log: log1,
-    updated: nextSecond(log1),
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey2),
@@ -246,7 +243,6 @@ test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
 
   const { log: log2 } = await updateDID({
     log: log1,
-    updated: nextSecond(log1),
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
     nextKeyHashes: [],

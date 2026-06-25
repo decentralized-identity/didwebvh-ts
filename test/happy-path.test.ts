@@ -4,7 +4,6 @@ import {
   asPublicVerificationMethods,
   createTestSigner,
   generateTestVerificationMethod,
-  nextSecond,
   TestCryptoImplementation,
 } from './utils';
 
@@ -62,7 +61,6 @@ describe('Happy Path Tests', () => {
     const authKey2 = await generateTestVerificationMethod();
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey2),
@@ -90,7 +88,6 @@ describe('Happy Path Tests', () => {
     const authKey3 = await generateTestVerificationMethod();
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey2, authKey3),
@@ -118,7 +115,6 @@ describe('Happy Path Tests', () => {
     const externalDID = 'did:example:123#key-1';
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       authentication: [externalDID],
@@ -150,7 +146,6 @@ describe('Happy Path Tests', () => {
     // Update the DID with the new verification methods
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(assertionKey, keyAgreementKey),
@@ -183,7 +178,6 @@ describe('Happy Path Tests', () => {
 
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       services: [service],
@@ -209,7 +203,6 @@ describe('Happy Path Tests', () => {
     const alias = 'did:web:example.com';
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       alsoKnownAs: [alias],
@@ -235,7 +228,6 @@ describe('Happy Path Tests', () => {
     const controller = 'did:example:123';
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       controller,
@@ -260,7 +252,6 @@ describe('Happy Path Tests', () => {
     const nextKeyHash = 'z6MkgYGF3thn8k1Qz9P4c3mKthZXNhUgkdwBwE5hbWFJktGH';
     const { doc: updatedDoc, meta } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       nextKeyHashes: [nextKeyHash],
@@ -293,7 +284,6 @@ describe('Happy Path Tests', () => {
 
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
@@ -323,7 +313,6 @@ describe('Happy Path Tests', () => {
 
     const { log: updatedLog, meta } = await updateDID({
       log: initialLog,
-      updated: nextSecond(initialLog),
       signer: createTestSigner(authKey1),
       verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
