@@ -758,6 +758,14 @@ export const updateDID = async (
     doc.alsoKnownAs = options.alsoKnownAs;
   }
 
+  if (controller !== lastEntryDid) {
+    const aliases = Array.isArray(doc.alsoKnownAs) ? [...doc.alsoKnownAs] : [];
+    if (!aliases.includes(lastEntryDid)) {
+      aliases.push(lastEntryDid);
+    }
+    doc.alsoKnownAs = aliases;
+  }
+
   const logEntry: DIDLogEntry = {
     versionId: lastEntry.versionId,
     versionTime: createdDate,

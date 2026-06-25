@@ -160,11 +160,13 @@ describe('Portability', () => {
 
     // The new entry's state.id must reflect the new location, same SCID
     expect(updateResult.log[1].state.id).toBe(`did:webvh:${scid}:example.org`);
+    expect(updateResult.log[1].state.alsoKnownAs).toContain(originalDid);
 
     // And it must resolve to the moved DID
     const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
     expect(resolved.did).toBe(`did:webvh:${scid}:example.org`);
     expect(resolved.doc?.id).toBe(`did:webvh:${scid}:example.org`);
+    expect(resolved.doc?.alsoKnownAs).toContain(originalDid);
   });
 
   test('Non-portable DID rejects a move to a new domain', async () => {
