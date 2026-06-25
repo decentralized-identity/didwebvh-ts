@@ -108,15 +108,34 @@ describe('toResolutionResult', () => {
     expect(result.didDocument).toBeNull();
     expect(result.didDocumentMetadata.deactivated).toBe(true);
   });
+
+  test('preserves a valid document returned alongside a warning-level error', () => {
+    const doc = { id: 'did:webvh:SCID:example.com' };
+    const meta: DIDResolutionMeta = {
+      ...baseMeta,
+      error: DidResolutionError.InvalidDid,
+      problemDetails: { type: 'x', title: 'y', detail: 'later entry failed witness verification' },
+    };
+    const result = toResolutionResult({ did: doc.id, doc, meta });
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    // The earlier valid version must not be dropped.
+    expect(result.didDocument).toEqual(doc);
+    expect(result.didDocumentMetadata.versionId).toBe('1-abc');
+  });
 });
 
 describe('toErrorResult', () => {
-  test('builds an error result with code and detail', () => {
+  test('builds an error result with code, detail, and synthesized problemDetails', () => {
     const result = toErrorResult('invalidDidUrl', 'two selectors supplied', { controlled: false });
     expect(result.didDocument).toBeNull();
     expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
     expect((result.didResolutionMetadata as { controlled?: boolean }).controlled).toBe(false);
     expect(result.didResolutionMetadata.message).toBe('two selectors supplied');
+    const problemDetails = (result.didResolutionMetadata as { problemDetails?: { type: string; title: string; detail: string } })
+      .problemDetails;
+    expect(problemDetails?.detail).toBe('two selectors supplied');
+    expect(problemDetails?.type).toContain('INVALID_DID_URL');
+    expect(problemDetails?.title.length).toBeGreaterThan(0);
     expect(result.didDocumentMetadata).toEqual({});
   });
 });

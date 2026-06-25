@@ -64,12 +64,37 @@ export function mapErrorToCode(error: unknown): WebvhErrorCode {
   return 'invalidDid';
 }
 
+/** RFC9457-style `type`/`title` for each standard error code. */
+const PROBLEM_DETAILS_BY_CODE: Record<WebvhErrorCode, { type: string; title: string }> = {
+  notFound: {
+    type: 'https://w3id.org/security#NOT_FOUND',
+    title: 'The DID Log or resource was not found.',
+  },
+  invalidDid: {
+    type: 'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID',
+    title: 'The resolved DID is invalid.',
+  },
+  invalidDidUrl: {
+    type: 'https://www.w3.org/ns/did#INVALID_DID_URL',
+    title: 'The DID URL is invalid.',
+  },
+  representationNotSupported: {
+    type: 'https://www.w3.org/ns/did#REPRESENTATION_NOT_SUPPORTED',
+    title: 'The requested representation is not supported.',
+  },
+};
+
 export function toErrorResult(
   code: WebvhErrorCode,
   detail: string,
   extras: { controlled?: boolean } = {}
 ): DIDResolutionResult {
-  const didResolutionMetadata: WebvhResolutionMetadata = { error: code, message: detail };
+  const { type, title } = PROBLEM_DETAILS_BY_CODE[code];
+  const didResolutionMetadata: WebvhResolutionMetadata = {
+    error: code,
+    message: detail,
+    problemDetails: { type, title, detail },
+  };
   if (extras.controlled !== undefined) {
     didResolutionMetadata.controlled = extras.controlled;
   }
@@ -100,7 +125,15 @@ export function toResolutionResult(
     if (extras.controlled !== undefined) {
       didResolutionMetadata.controlled = extras.controlled;
     }
-    return { didResolutionMetadata, didDocument: null, didDocumentMetadata };
+    // Preserve the resolved document when the core produced one. A valid
+    // earlier version can be returned alongside a warning-level error (e.g. an
+    // explicit version selector that resolves cleanly while a later log entry
+    // fails witness verification); dropping it would hide a legitimate result.
+    return {
+      didResolutionMetadata,
+      didDocument: (core.doc as unknown as DIDResolutionResult['didDocument']) ?? null,
+      didDocumentMetadata,
+    };
   }
 
   const didResolutionMetadata: WebvhResolutionMetadata = { contentType: CONTENT_TYPE };
