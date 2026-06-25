@@ -125,7 +125,11 @@ export function createNextVersionTime(
     if (requested.getTime() <= previous.getTime()) {
       throw new Error('versionTime must be greater than previous versionTime');
     }
-    return formatDate(requestedVersionTime);
+    const formatted = formatDate(requestedVersionTime);
+    if (new Date(formatted).getTime() <= previous.getTime()) {
+      throw new Error('versionTime must be greater than previous versionTime');
+    }
+    return formatted;
   }
 
   const nowFormatted = formatDate(new Date());
