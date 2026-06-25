@@ -1,3 +1,4 @@
+import type { DIDResolutionResult } from 'did-resolver';
 import type {
   CreateDIDInterface,
   CreateDIDResult,
@@ -9,7 +10,6 @@ import type {
   UpdateDIDResult,
   WitnessProofFileEntry,
 } from './interfaces';
-import type { DIDResolutionResult } from 'did-resolver';
 import * as v0_5 from './method_versions/method.v0.5';
 import * as v1 from './method_versions/method.v1.0';
 import { assertSingleVersionSelector, mapErrorToCode, toErrorResult, toResolutionResult } from './resolver-result';
