@@ -150,7 +150,9 @@ app.get('/resolve/:id', async (req, res) => {
     }
 
     const resolution = await resolveDID(didPart, { verifier: expressVerifier });
-    if (resolution.didResolutionMetadata?.error) {
+    // Only bail when there is no usable document. A valid earlier version can be
+    // returned alongside a warning-level error, so still serve files in that case.
+    if (resolution.didResolutionMetadata?.error && !resolution.didDocument) {
       return res.status(getStatusCodeFromError(resolution.didResolutionMetadata.error)).json({
         error: 'Resolution failed',
         details: resolution.didResolutionMetadata.error,

@@ -158,7 +158,9 @@ const app = new Elysia()
       }
 
       const resolution = await resolveDID(didPart, { verifier: elysiaVerifier });
-      if (resolution.didResolutionMetadata?.error) {
+      // Only bail when there is no usable document. A valid earlier version can
+      // be returned alongside a warning-level error, so still serve files in that case.
+      if (resolution.didResolutionMetadata?.error && !resolution.didDocument) {
         set.status = getStatusCodeFromError(resolution.didResolutionMetadata.error);
         return {
           error: 'Resolution failed',
