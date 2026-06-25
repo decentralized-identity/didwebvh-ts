@@ -121,10 +121,7 @@ export function createNextVersionTime(
   const previous = parseUtcIso8601VersionTime(previousVersionTime, 'previous versionTime');
 
   if (requestedVersionTime) {
-    const requested = parseUtcIso8601VersionTime(requestedVersionTime, 'requested versionTime');
-    if (requested.getTime() <= previous.getTime()) {
-      throw new Error('versionTime must be greater than previous versionTime');
-    }
+    parseUtcIso8601VersionTime(requestedVersionTime, 'requested versionTime');
     const formatted = formatDate(requestedVersionTime);
     if (new Date(formatted).getTime() <= previous.getTime()) {
       throw new Error('versionTime must be greater than previous versionTime');
