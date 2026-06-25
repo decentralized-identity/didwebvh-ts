@@ -52,7 +52,13 @@ export function mapErrorToCode(error: unknown): WebvhErrorCode {
     return 'invalidDidUrl';
   }
   const message = error instanceof Error ? error.message : String(error);
-  if (/not found/i.test(message) || /404/.test(message)) {
+  // Only a genuine failure to fetch the DID log (or a DID-URL resource) is
+  // `notFound`. Match the library's own absence messages rather than scanning
+  // for "404"/"not found" anywhere in the text: validation errors can embed
+  // attacker-controlled log data (e.g. a tampered versionId of "404", or
+  // "Invalid update key … Not found in nextKeyHashes …"), and those are
+  // invalid documents, not missing ones.
+  if (/HTTP error! status: 404\b/.test(message) || /DID log not found/i.test(message)) {
     return 'notFound';
   }
   return 'invalidDid';

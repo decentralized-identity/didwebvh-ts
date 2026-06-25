@@ -114,6 +114,20 @@ describe('getResolver integration', () => {
     expect(result.didDocument).toBeNull();
   });
 
+  test('non-numeric versionNumber returns invalidDidUrl', async () => {
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did}?versionNumber=abc`);
+    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    expect(result.didDocument).toBeNull();
+  });
+
+  test('unparseable versionTime returns invalidDidUrl', async () => {
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did}?versionTime=not-a-date`);
+    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    expect(result.didDocument).toBeNull();
+  });
+
   test('not-found DID returns notFound', async () => {
     serve404();
     const result = await resolver.resolve(did);

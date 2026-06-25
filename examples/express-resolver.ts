@@ -133,6 +133,12 @@ app.get('/resolve/:id', async (req, res) => {
     }
 
     const resolution = await resolveDID(didPart, { verifier: expressVerifier });
+    if (resolution.didResolutionMetadata?.error) {
+      return res.status(400).json({
+        error: 'Resolution failed',
+        details: resolution.didResolutionMetadata.error,
+      });
+    }
     const did = resolution.didDocument?.id ?? '';
     const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
     const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);
