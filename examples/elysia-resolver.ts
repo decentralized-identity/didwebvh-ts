@@ -158,6 +158,13 @@ const app = new Elysia()
       }
 
       const resolution = await resolveDID(didPart, { verifier: elysiaVerifier });
+      if (resolution.didResolutionMetadata?.error) {
+        set.status = getStatusCodeFromError(resolution.didResolutionMetadata.error);
+        return {
+          error: 'Resolution failed',
+          details: resolution.didResolutionMetadata.error,
+        };
+      }
       const did = resolution.didDocument?.id ?? '';
       const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
       const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);

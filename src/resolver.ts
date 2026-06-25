@@ -52,10 +52,18 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
       selector.versionId = params.versionId;
     }
     if (params.versionNumber !== undefined) {
-      selector.versionNumber = Number(params.versionNumber);
+      const versionNumber = Number(params.versionNumber);
+      if (!Number.isInteger(versionNumber) || versionNumber < 1) {
+        return toErrorResult('invalidDidUrl', `Invalid versionNumber: ${params.versionNumber}`);
+      }
+      selector.versionNumber = versionNumber;
     }
     if (params.versionTime !== undefined) {
-      selector.versionTime = new Date(params.versionTime);
+      const versionTime = new Date(params.versionTime);
+      if (Number.isNaN(versionTime.getTime())) {
+        return toErrorResult('invalidDidUrl', `Invalid versionTime: ${params.versionTime}`);
+      }
+      selector.versionTime = versionTime;
     }
 
     try {

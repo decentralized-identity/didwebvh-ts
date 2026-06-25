@@ -318,10 +318,11 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
   const signedProof = await signer.sign({ document: prelimEntry, proof: proofTemplate });
   prelimEntry.proof = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
 
-  // Resolution (reading) must catch the invalid key
+  // Resolution (reading) must catch the invalid key. An update key that isn't
+  // in the prior nextKeyHashes is an invalid document, not a missing one.
   const resolved = await resolveDIDFromLog([log1[0], prelimEntry], { verifier: testImplementation });
   expect(resolved.didDocument).toBeNull();
-  expect(resolved.didResolutionMetadata.error).toBe('notFound');
+  expect(resolved.didResolutionMetadata.error).toBe('invalidDid');
 });
 
 test('DID log with portable false should not resolve if moved', async () => {

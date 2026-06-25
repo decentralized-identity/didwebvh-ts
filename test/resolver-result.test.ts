@@ -56,12 +56,20 @@ describe('mapErrorToCode', () => {
   test('InvalidDidUrlError -> invalidDidUrl', () => {
     expect(mapErrorToCode(new InvalidDidUrlError('x'))).toBe('invalidDidUrl');
   });
-  test('not found message -> notFound', () => {
-    expect(mapErrorToCode(new Error('resource not found'))).toBe('notFound');
-    expect(mapErrorToCode(new Error('Error 404: Not Found'))).toBe('notFound');
+  test('genuine log-fetch absence messages -> notFound', () => {
+    expect(mapErrorToCode(new Error('HTTP error! status: 404'))).toBe('notFound');
+    expect(mapErrorToCode(new Error('DID log not found for did:webvh:SCID:example.com'))).toBe('notFound');
   });
   test('other -> invalidDid', () => {
     expect(mapErrorToCode(new Error('SCID mismatch'))).toBe('invalidDid');
+  });
+  test('validation errors embedding attacker-controlled data are NOT misclassified as notFound', () => {
+    // A tampered versionId of "404" must not be treated as a missing document.
+    expect(mapErrorToCode(new Error("version '404' in log doesn't match expected '1'"))).toBe('invalidDid');
+    // "Not found in nextKeyHashes" is a validation failure, not an absence.
+    expect(mapErrorToCode(new Error('Invalid update key zABC. Not found in nextKeyHashes [zXYZ]'))).toBe('invalidDid');
+    // Non-404 HTTP failures are not absence either.
+    expect(mapErrorToCode(new Error('HTTP error! status: 500'))).toBe('invalidDid');
   });
 });
 
