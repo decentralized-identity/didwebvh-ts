@@ -282,8 +282,9 @@ export async function countVerifiedWitnessApprovals(
 
         const { proofValue, ...proofWithoutValue } = proof;
 
-        // Create hashes
-        const canonicalizedData = canonicalizeStrict({ versionId: logEntry.versionId });
+        // Verify against the proof entry's own versionId (what the witness signed); a
+        // later proof cumulatively approves earlier entries.
+        const canonicalizedData = canonicalizeStrict({ versionId: proofSet.versionId });
         const canonicalizedProof = canonicalizeStrict(proofWithoutValue);
         const dataHash = await createHash(canonicalizedData);
         const proofHash = await createHash(canonicalizedProof);

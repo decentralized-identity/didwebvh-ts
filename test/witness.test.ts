@@ -397,14 +397,15 @@ describe('Witness Implementation Tests', async () => {
       witnessProofs,
     });
 
-    // Create proof for new version from new witness
+    // The replacing entry is governed by the previous list, so v2 needs witness1 + witness2.
     const newVersionId = updatedDID.log[1].versionId;
-    const newWitnessSignerFn = createWitnessSigner(newWitness);
-    const newProof = await createWitnessProof(newWitnessSignerFn, newVersionId, witnessVerificationMethod(newWitness));
     const newWitnessProofs = [
       {
         versionId: newVersionId,
-        proof: [newProof],
+        proof: await Promise.all([
+          createWitnessProof(createWitnessSigner(witness1), newVersionId, witnessVerificationMethod(witness1)),
+          createWitnessProof(createWitnessSigner(witness2), newVersionId, witnessVerificationMethod(witness2)),
+        ]),
       },
     ];
 
@@ -705,23 +706,25 @@ describe('Witness Implementation Tests', async () => {
       ],
     });
 
+    // A v1-only proof leaves v2 unwitnessed: cumulative approval runs backwards, so an
+    // earlier proof never covers a later entry.
     await expect(
       resolveDIDFromLog(updatedDid.log, {
         verifier: testImplementation,
         witnessProofs: [
           {
-            versionId: updatedDid.log[1].versionId,
+            versionId: didWithWitness.log[0].versionId,
             proof: [
               await createWitnessProof(
                 createWitnessSigner(witness1),
-                updatedDid.log[1].versionId,
+                didWithWitness.log[0].versionId,
                 witnessVerificationMethod(witness1)
               ),
             ],
           },
         ],
       })
-    ).rejects.toThrow(`Witness threshold not met for version ${didWithWitness.log[0].versionId}`);
+    ).rejects.toThrow(`Witness threshold not met for version ${updatedDid.log[1].versionId}`);
   });
 
   test('Resolve accepts later proof for earlier required entry', async () => {
@@ -783,6 +786,115 @@ describe('Witness Implementation Tests', async () => {
     });
 
     expect(resolved.did).toBe(updatedDid.did);
+  });
+
+  test('Resolve accepts a single pruned later proof as cumulative approval for prior entries', async () => {
+    // A pruned file (one proof at the latest versionId) must witness every earlier entry,
+    // since a valid proof implies approval of all prior entries.
+    const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+    const didWithWitness = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+      verifier: testImplementation,
+    });
+
+    const updatedDid = await updateDID({
+      log: didWithWitness.log,
+      updated: nextSecond(didWithWitness.log),
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+      witnessProofs: [
+        {
+          versionId: didWithWitness.log[0].versionId,
+          proof: [
+            await createWitnessProof(
+              createWitnessSigner(witness1),
+              didWithWitness.log[0].versionId,
+              witnessVerificationMethod(witness1)
+            ),
+          ],
+        },
+      ],
+    });
+
+    // Pruned file: only the latest proof, signing the LATEST versionId.
+    const prunedWitnessProofs = [
+      {
+        versionId: updatedDid.log[1].versionId,
+        proof: [
+          await createWitnessProof(
+            createWitnessSigner(witness1),
+            updatedDid.log[1].versionId,
+            witnessVerificationMethod(witness1)
+          ),
+        ],
+      },
+    ];
+
+    const resolved = await resolveDIDFromLog(updatedDid.log, {
+      verifier: testImplementation,
+      witnessProofs: prunedWitnessProofs,
+    });
+
+    expect(resolved.did).toBe(updatedDid.did);
+    expect(resolved.meta?.error).toBeUndefined();
+  });
+
+  test('Resolve rejects a witness-list reduction approved only by the reduced list', async () => {
+    // The reducing entry must still meet the previous list's threshold (the new list
+    // activates only after publication).
+    const witnessDid1 = `did:key:${witness1.publicKeyMultibase}`;
+    const witnessDid2 = `did:key:${witness2.publicKeyMultibase}`;
+    const didWithWitness = await createDID({
+      domain: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: { threshold: 2, witnesses: [{ id: witnessDid1 }, { id: witnessDid2 }] },
+      verifier: testImplementation,
+    });
+
+    const v1 = didWithWitness.log[0].versionId;
+    const v1Proofs = {
+      versionId: v1,
+      proof: await Promise.all([
+        createWitnessProof(createWitnessSigner(witness1), v1, witnessVerificationMethod(witness1)),
+        createWitnessProof(createWitnessSigner(witness2), v1, witnessVerificationMethod(witness2)),
+      ]),
+    };
+
+    // Reduce 2-of-2 -> 1-of-1 (witness1 only).
+    const reduced = await updateDID({
+      log: didWithWitness.log,
+      updated: nextSecond(didWithWitness.log),
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: { threshold: 1, witnesses: [{ id: witnessDid1 }] },
+      verifier: testImplementation,
+      witnessProofs: [v1Proofs],
+    });
+
+    const v2 = reduced.log[1].versionId;
+
+    // Only witness1 (the reduced list) approves v2 — insufficient for the old 2-of-2.
+    await expect(
+      resolveDIDFromLog(reduced.log, {
+        verifier: testImplementation,
+        witnessProofs: [
+          v1Proofs,
+          {
+            versionId: v2,
+            proof: [await createWitnessProof(createWitnessSigner(witness1), v2, witnessVerificationMethod(witness1))],
+          },
+        ],
+      })
+    ).rejects.toThrow(`Witness threshold not met for version ${v2}`);
   });
 
   test('Resolve ignores invalid witness proof if enough valid proofs remain', async () => {
