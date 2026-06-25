@@ -41,6 +41,23 @@ const expressVerifier = new ExpressVerifier('key-prod-1', 'did:example:123#key-1
 const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 
+// Map a DID resolution error code to an HTTP status so callers can tell a
+// missing identifier (404) from a malformed request (400) or a resolver
+// failure (500).
+const getStatusCodeFromError = (errorType?: string): number => {
+  switch (errorType) {
+    case 'notFound':
+      return 404;
+    case 'invalidDid':
+    case 'invalidDidUrl':
+      return 400;
+    case 'representationNotSupported':
+      return 406;
+    default:
+      return 500;
+  }
+};
+
 const WELL_KNOWN_ALLOW_LIST = ['did.jsonl'];
 
 const getFile = async ({
@@ -134,7 +151,7 @@ app.get('/resolve/:id', async (req, res) => {
 
     const resolution = await resolveDID(didPart, { verifier: expressVerifier });
     if (resolution.didResolutionMetadata?.error) {
-      return res.status(400).json({
+      return res.status(getStatusCodeFromError(resolution.didResolutionMetadata.error)).json({
         error: 'Resolution failed',
         details: resolution.didResolutionMetadata.error,
       });

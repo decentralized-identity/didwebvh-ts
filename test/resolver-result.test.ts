@@ -68,8 +68,12 @@ describe('mapErrorToCode', () => {
     expect(mapErrorToCode(new Error("version '404' in log doesn't match expected '1'"))).toBe('invalidDid');
     // "Not found in nextKeyHashes" is a validation failure, not an absence.
     expect(mapErrorToCode(new Error('Invalid update key zABC. Not found in nextKeyHashes [zXYZ]'))).toBe('invalidDid');
-    // Non-404 HTTP failures are not absence either.
-    expect(mapErrorToCode(new Error('HTTP error! status: 500'))).toBe('invalidDid');
+  });
+  test('transport/connectivity failures -> internalError', () => {
+    expect(mapErrorToCode(new Error('HTTP error! status: 500'))).toBe('internalError');
+    expect(mapErrorToCode(new Error('HTTP error! status: 503'))).toBe('internalError');
+    expect(mapErrorToCode(new TypeError('fetch failed'))).toBe('internalError');
+    expect(mapErrorToCode(new Error('getaddrinfo ENOTFOUND example.com'))).toBe('internalError');
   });
 });
 

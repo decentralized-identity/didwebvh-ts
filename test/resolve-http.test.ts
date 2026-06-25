@@ -119,14 +119,14 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didResolutionMetadata.message).toContain('does not match SCID');
   });
 
-  test('maps a network failure to the invalidDid resolution error', async () => {
+  test('maps a network failure to the internalError resolution error', async () => {
     silenceConsoleError();
     stubFetchFailure(new TypeError('fetch failed'));
 
     const result = await resolveDID(did, { verifier });
 
     expect(result.didDocument).toBeNull();
-    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.error).toBe('internalError');
   });
 });
 
