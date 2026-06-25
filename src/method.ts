@@ -9,10 +9,12 @@ import type {
   UpdateDIDResult,
   WitnessProofFileEntry,
 } from './interfaces';
-import { DidResolutionError } from './interfaces';
+import type { DIDResolutionResult } from 'did-resolver';
 import * as v0_5 from './method_versions/method.v0.5';
 import * as v1 from './method_versions/method.v1.0';
+import { assertSingleVersionSelector, mapErrorToCode, toErrorResult, toResolutionResult } from './resolver-result';
 import { fetchLogFromIdentifier, getActiveDIDs, maybeWriteTestLog } from './utils';
+import { defaultVerifier } from './verifier';
 
 const LATEST_VERSION = '1.0';
 
@@ -62,49 +64,29 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
 export const resolveDID = async (
   did: string,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
-) => {
+): Promise<DIDResolutionResult> => {
   const activeDIDs = await getActiveDIDs();
   const controlled = activeDIDs.includes(did);
+  const verifier = options.verifier ?? defaultVerifier;
   // Extract the expected SCID from the DID string so the resolver can
   // verify the log's SCID matches what the DID claims.
   const didParts = did.split(':');
   const scid = didParts.length > 2 && didParts[0] === 'did' && didParts[1] === 'webvh' ? didParts[2] : undefined;
   try {
+    assertSingleVersionSelector(options);
     const log = await fetchLogFromIdentifier(did, controlled);
     const version = getWebvhVersionFromLog(log);
-    const optsWithScid = { ...options, scid, requestedDid: did };
+    const optsWithScid = { ...options, verifier, scid, requestedDid: did };
     const result =
       version === '0.5'
         ? await v0_5.resolveDIDFromLog(log, optsWithScid)
         : await v1.resolveDIDFromLog(log, optsWithScid);
     maybeWriteTestLog(result.did, log);
 
-    return { ...result, controlled };
+    return toResolutionResult(result, { controlled });
   } catch (e) {
-    let errorType: DidResolutionError = DidResolutionError.InvalidDid;
     const message = e instanceof Error ? e.message : String(e);
-    if (/not found/i.test(message) || /404/.test(message)) {
-      errorType = DidResolutionError.NotFound;
-    }
-    return {
-      did,
-      doc: null,
-      meta: {
-        error: errorType,
-        problemDetails: {
-          type:
-            errorType === DidResolutionError.NotFound
-              ? 'https://w3id.org/security#NOT_FOUND'
-              : 'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID',
-          title:
-            errorType === DidResolutionError.NotFound
-              ? 'The DID Log or resource was not found.'
-              : 'The resolved DID is invalid.',
-          detail: message,
-        },
-      },
-      controlled,
-    };
+    return toErrorResult(mapErrorToCode(e), message, { controlled });
   }
 };
 
@@ -118,16 +100,21 @@ export const resolveDID = async (
 export const resolveDIDFromLog = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
-) => {
-  const version = getWebvhVersionFromLog(log);
-  if (version === '0.5') {
-    const result = await v0_5.resolveDIDFromLog(log, options);
+): Promise<DIDResolutionResult> => {
+  const verifier = options.verifier ?? defaultVerifier;
+  try {
+    assertSingleVersionSelector(options);
+    const version = getWebvhVersionFromLog(log);
+    const result =
+      version === '0.5'
+        ? await v0_5.resolveDIDFromLog(log, { ...options, verifier })
+        : await v1.resolveDIDFromLog(log, { ...options, verifier });
     maybeWriteTestLog(result.did, log);
-    return result;
+    return toResolutionResult(result);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return toErrorResult(mapErrorToCode(e), message);
   }
-  const result = await v1.resolveDIDFromLog(log, options);
-  maybeWriteTestLog(result.did, log);
-  return result;
 };
 
 /**
