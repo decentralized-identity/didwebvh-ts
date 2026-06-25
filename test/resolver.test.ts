@@ -96,6 +96,17 @@ describe('getResolver integration', () => {
     expect(result.didDocumentMetadata.versionId).toBe(v1Id);
   });
 
+  test('?versionTime with a +HH:MM timezone offset is decoded as a literal plus', async () => {
+    // v1 is created at 2023-01-01T00:00:00Z, v2 at 2023-02-01T00:00:01Z.
+    // 2023-01-15T00:00:00+01:00 == 2023-01-14T23:00:00Z, which falls in v1's window.
+    // The `+` must survive query parsing (URLSearchParams would turn it into a
+    // space and yield an Invalid Date).
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did}?versionTime=2023-01-15T00:00:00+01:00`);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocumentMetadata.versionId).toBe(v1Id);
+  });
+
   test('combining selectors returns invalidDidUrl', async () => {
     serveLog(fullLog);
     const result = await resolver.resolve(`${did}?versionNumber=1&versionId=${v1Id}`);

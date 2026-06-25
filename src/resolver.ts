@@ -23,13 +23,27 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
     _options
   ): Promise<DIDResolutionResult> => {
     // did:webvh selectors arrive as DID-URL query parameters (`?versionId=`),
-    // which did-resolver exposes as the raw `parsed.query` string. Matrix-style
-    // DID parameters (`;key=value`) land in `parsed.params`; accept those too,
-    // with query parameters taking precedence.
-    const queryParams = new URLSearchParams(parsed.query ?? '');
+    // which did-resolver exposes as the raw, undecoded `parsed.query` string.
+    // Matrix-style DID parameters (`;key=value`) land in `parsed.params`; accept
+    // those too, with query parameters taking precedence.
+    //
+    // Decode per RFC 3986 (decodeURIComponent), NOT via URLSearchParams: a DID
+    // URL query is a URI component where `+` is a literal plus, whereas
+    // URLSearchParams applies application/x-www-form-urlencoded rules and would
+    // turn `+` into a space — corrupting e.g. a `versionTime` with a `+HH:MM`
+    // timezone offset.
     const params: Record<string, string | undefined> = { ...(parsed.params ?? {}) };
-    for (const [key, value] of queryParams.entries()) {
-      params[key] = value;
+    for (const pair of (parsed.query ?? '').split('&')) {
+      if (!pair) continue;
+      const eq = pair.indexOf('=');
+      const rawKey = eq === -1 ? pair : pair.slice(0, eq);
+      const rawValue = eq === -1 ? '' : pair.slice(eq + 1);
+      try {
+        params[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue);
+      } catch {
+        // Leave malformed percent-encoding untouched rather than throwing.
+        params[rawKey] = rawValue;
+      }
     }
     const selector: { versionId?: string; versionTime?: Date; versionNumber?: number; verifier: Verifier } = {
       verifier,
