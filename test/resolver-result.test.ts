@@ -131,8 +131,9 @@ describe('toErrorResult', () => {
     expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
     expect((result.didResolutionMetadata as { controlled?: boolean }).controlled).toBe(false);
     expect(result.didResolutionMetadata.message).toBe('two selectors supplied');
-    const problemDetails = (result.didResolutionMetadata as { problemDetails?: { type: string; title: string; detail: string } })
-      .problemDetails;
+    const problemDetails = (
+      result.didResolutionMetadata as { problemDetails?: { type: string; title: string; detail: string } }
+    ).problemDetails;
     expect(problemDetails?.detail).toBe('two selectors supplied');
     expect(problemDetails?.type).toContain('INVALID_DID_URL');
     expect(problemDetails?.title.length).toBeGreaterThan(0);
