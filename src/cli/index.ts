@@ -274,8 +274,17 @@ export async function handleResolve(args: string[]) {
     resolutionOptions.verifier = crypto;
 
     console.time('Resolution time');
-    const { did, doc, meta } = await resolveDIDFromLog(log, resolutionOptions);
+    const resolution = await resolveDIDFromLog(log, resolutionOptions);
     console.timeEnd('Resolution time');
+
+    const doc = resolution.didDocument;
+    const meta = resolution.didDocumentMetadata;
+    const did = doc?.id ?? '';
+
+    if (resolution.didResolutionMetadata.error) {
+      console.error('Resolution error:', JSON.stringify(resolution.didResolutionMetadata, null, 2));
+      process.exit(1);
+    }
 
     console.log('Resolved DID:', did);
     console.log('DID Document:', JSON.stringify(doc, null, 2));
@@ -309,7 +318,9 @@ export async function handleUpdate(args: string[]) {
 
   try {
     const log = await readLogFromDisk(logFile);
-    const { did, meta } = await resolveDIDFromLog(log, { verifier: createCustomCrypto() });
+    const updateResolution = await resolveDIDFromLog(log, { verifier: createCustomCrypto() });
+    const meta = updateResolution.didDocumentMetadata;
+    const did = updateResolution.didDocument?.id ?? '';
     // console.log('\nCurrent DID:', did);
     // console.log('Current meta:', meta);
 
@@ -422,7 +433,7 @@ export async function handleDeactivate(args: string[]) {
   try {
     // Read the current log to get the latest state
     const log = await readLogFromDisk(logFile);
-    const { did, meta } = await resolveDIDFromLog(log, { verifier: createCustomCrypto() });
+    const meta = (await resolveDIDFromLog(log, { verifier: createCustomCrypto() })).didDocumentMetadata;
 
     // Get the verification method from environment
     const envContent = fs.readFileSync('.env', 'utf8');
