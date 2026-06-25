@@ -921,11 +921,11 @@ export const resolveVM = async (vm: string) => {
         .trim()
         .split('\n')
         .map((l) => JSON.parse(l));
-      const { doc } = await resolveDIDFromLog(logEntries, { verificationMethod: vm });
-      if (!doc) {
+      const { didDocument } = await resolveDIDFromLog(logEntries, {});
+      if (!didDocument) {
         throw new Error(`Verification method ${vm} not found`);
       }
-      return findVerificationMethod(doc, vm);
+      return findVerificationMethod(didDocument as unknown as DIDDoc, vm);
     }
     throw new Error(`Verification method ${vm} not found`);
   } catch (e) {

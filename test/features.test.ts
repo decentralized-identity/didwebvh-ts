@@ -1,6 +1,5 @@
 import { beforeAll, expect, test } from 'bun:test';
 import type { CreateDIDResult, DIDLog, DIDLogEntry, ServiceEndpoint, VerificationMethod } from '../src/interfaces';
-import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createDate, deriveHash, deriveNextKeyHash } from '../src/utils';
 import {
@@ -90,48 +89,48 @@ beforeAll(async () => {
 });
 
 test('Resolve DID at time (first)', async () => {
-  const resolved = await resolveDIDFromLog(log, {
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-01-15T08:32:55Z'),
     verifier: testImplementation,
   });
-  expect(resolved.meta.versionId.split('-')[0]).toBe('1');
+  expect(meta.versionId!.split('-')[0]).toBe('1');
 });
 
 test('Resolve DID at time (second)', async () => {
-  const resolved = await resolveDIDFromLog(log, {
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-02-15T08:32:55Z'),
     verifier: testImplementation,
   });
-  expect(resolved.meta.versionId.split('-')[0]).toBe('2');
+  expect(meta.versionId!.split('-')[0]).toBe('2');
 });
 
 test('Resolve DID at time (third)', async () => {
-  const resolved = await resolveDIDFromLog(log, {
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-03-15T08:32:55Z'),
     verifier: testImplementation,
   });
-  expect(resolved.meta.versionId.split('-')[0]).toBe('3');
+  expect(meta.versionId!.split('-')[0]).toBe('3');
 });
 
 test('Resolve DID at time (last)', async () => {
-  const resolved = await resolveDIDFromLog(log, {
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, {
     versionTime: new Date('2021-04-15T08:32:55Z'),
     verifier: testImplementation,
   });
-  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+  expect(meta.versionId!.split('-')[0]).toBe('4');
 });
 
 test('Resolve DID at version', async () => {
-  const resolved = await resolveDIDFromLog(log, {
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, {
     versionId: log[0].versionId,
     verifier: testImplementation,
   });
-  expect(resolved.meta.versionId.split('-')[0]).toBe('1');
+  expect(meta.versionId!.split('-')[0]).toBe('1');
 });
 
 test('Resolve DID latest', async () => {
-  const resolved = await resolveDIDFromLog(log, { verifier: testImplementation });
-  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, { verifier: testImplementation });
+  expect(meta.versionId!.split('-')[0]).toBe('4');
 });
 
 test('Explicit versionId miss returns notFound without latest fallback', async () => {
@@ -140,10 +139,9 @@ test('Explicit versionId miss returns notFound without latest fallback', async (
     verifier: testImplementation,
   });
 
-  expect(resolved.doc).toBeNull();
-  expect(resolved.meta.error).toBe(DidResolutionError.NotFound);
-  expect(resolved.meta.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
-  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+  expect(resolved.didDocument).toBeNull();
+  expect(resolved.didResolutionMetadata.error).toBe('notFound');
+  expect(resolved.didResolutionMetadata.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
 });
 
 test('Explicit versionTime miss returns notFound without latest fallback', async () => {
@@ -152,10 +150,9 @@ test('Explicit versionTime miss returns notFound without latest fallback', async
     verifier: testImplementation,
   });
 
-  expect(resolved.doc).toBeNull();
-  expect(resolved.meta.error).toBe(DidResolutionError.NotFound);
-  expect(resolved.meta.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
-  expect(resolved.meta.versionId.split('-')[0]).toBe('4');
+  expect(resolved.didDocument).toBeNull();
+  expect(resolved.didResolutionMetadata.error).toBe('notFound');
+  expect(resolved.didResolutionMetadata.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
 });
 
 test('Empty nextKeyHashes array should not enable prerotation', async () => {
@@ -178,9 +175,9 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
   });
 
   // Should resolve successfully — empty nextKeyHashes doesn't block key rotation
-  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
-  expect(resolved.meta.versionId.split('-')[0]).toBe('2');
-  expect(resolved.meta.prerotation).toBe(false);
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(meta.versionId!.split('-')[0]).toBe('2');
+  expect(meta.prerotation).toBe(false);
 });
 
 test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
@@ -204,9 +201,9 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
 
   expect('nextKeyHashes' in log2[1].parameters).toBe(false);
 
-  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
-  expect(resolved.meta.prerotation).toBe(true);
-  expect(resolved.meta.nextKeyHashes).toEqual([nextKeyHash]);
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(meta.prerotation).toBe(true);
+  expect(meta.nextKeyHashes).toEqual([nextKeyHash]);
 });
 
 test('Omitted updateKeys is rejected while pre-rotation is active', async () => {
@@ -252,9 +249,9 @@ test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
 
   expect(log2[1].parameters.nextKeyHashes).toEqual([]);
 
-  const resolved = await resolveDIDFromLog(log2, { verifier: testImplementation });
-  expect(resolved.meta.prerotation).toBe(false);
-  expect(resolved.meta.nextKeyHashes).toEqual([]);
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(log2, { verifier: testImplementation });
+  expect(meta.prerotation).toBe(false);
+  expect(meta.nextKeyHashes).toEqual([]);
 });
 
 test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
@@ -321,50 +318,45 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
   const signedProof = await signer.sign({ document: prelimEntry, proof: proofTemplate });
   prelimEntry.proof = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
 
-  // Resolution (reading) must catch the invalid key
-  await expect(resolveDIDFromLog([log1[0], prelimEntry], { verifier: testImplementation })).rejects.toThrow(
-    'Invalid update key'
-  );
+  // Resolution (reading) must catch the invalid key. An update key that isn't
+  // in the prior nextKeyHashes is an invalid document, not a missing one.
+  const resolved = await resolveDIDFromLog([log1[0], prelimEntry], { verifier: testImplementation });
+  expect(resolved.didDocument).toBeNull();
+  expect(resolved.didResolutionMetadata.error).toBe('invalidDid');
 });
 
 test('DID log with portable false should not resolve if moved', async () => {
-  let err: unknown;
-  try {
-    const lastEntry = nonPortableDID.log[nonPortableDID.log.length - 1];
-    const newTimestamp = createDate(new Date('2021-02-01T08:32:55Z'));
+  const newTimestamp = createDate(new Date('2021-02-01T08:32:55Z'));
 
-    // Create a new document with the moved DID
-    const newDoc = {
-      ...nonPortableDID.doc,
-      id: nonPortableDID.did.replace('example.com', 'newdomain.com'),
-    };
+  // Create a new document with the moved DID
+  const newDoc = {
+    ...nonPortableDID.doc,
+    id: nonPortableDID.did.replace('example.com', 'newdomain.com'),
+  };
 
-    const newEntry: DIDLogEntry = {
-      versionId: `${nonPortableDID.log.length + 1}-test`,
-      versionTime: newTimestamp,
-      parameters: { updateKeys: [authKey1.publicKeyMultibase!] },
-      state: newDoc,
-      proof: [
-        {
-          type: 'DataIntegrityProof',
-          cryptosuite: 'eddsa-jcs-2022',
-          verificationMethod: `did:key:${authKey1.publicKeyMultibase!}`,
-          created: newTimestamp,
-          proofPurpose: 'authentication',
-          proofValue: 'badProofValue',
-        },
-      ],
-    };
+  const newEntry: DIDLogEntry = {
+    versionId: `${nonPortableDID.log.length + 1}-test`,
+    versionTime: newTimestamp,
+    parameters: { updateKeys: [authKey1.publicKeyMultibase!] },
+    state: newDoc,
+    proof: [
+      {
+        type: 'DataIntegrityProof',
+        cryptosuite: 'eddsa-jcs-2022',
+        verificationMethod: `did:key:${authKey1.publicKeyMultibase!}`,
+        created: newTimestamp,
+        proofPurpose: 'authentication',
+        proofValue: 'badProofValue',
+      },
+    ],
+  };
 
-    const badLog: DIDLog = [...nonPortableDID.log, newEntry];
-    await resolveDIDFromLog(badLog, { verifier: testImplementation });
-  } catch (e) {
-    err = e;
-  }
+  const badLog: DIDLog = [...nonPortableDID.log, newEntry];
+  const resolved = await resolveDIDFromLog(badLog, { verifier: testImplementation });
 
-  expect(err).toBeDefined();
-  expect(err).toBeInstanceOf(Error);
-  expect((err as Error).message).toContain('Cannot move DID: portability is disabled');
+  expect(resolved.didDocument).toBeNull();
+  expect(resolved.didResolutionMetadata.error).toBe('invalidDid');
+  expect(resolved.didResolutionMetadata.message).toContain('Cannot move DID: portability is disabled');
 });
 
 test('Absolute service IDs prevent implicit service duplication', async () => {
@@ -393,10 +385,10 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
 
   // Resolve the created DID
   const result = await resolveDIDFromLog(createdLog, { verifier: testImplementation });
-  const resolvedDid = result.did;
+  const resolvedDid = result.didDocument?.id;
 
   // Verify that the implicit #files service was NOT added (only custom service exists)
-  const filesServices = (result.doc?.service || []).filter((s: ServiceEndpoint) => {
+  const filesServices = ((result.didDocument?.service as ServiceEndpoint[]) || []).filter((s: ServiceEndpoint) => {
     const id = s.id || '';
     return id.endsWith('#files');
   });
@@ -406,7 +398,7 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
   expect(filesServices[0].serviceEndpoint).toBe('https://custom.example.com');
 
   // Verify #whois was still added as implicit service
-  const whoisServices = (result.doc?.service || []).filter((s: ServiceEndpoint) => {
+  const whoisServices = ((result.didDocument?.service as ServiceEndpoint[]) || []).filter((s: ServiceEndpoint) => {
     const id = s.id || '';
     return id.endsWith('#whois');
   });

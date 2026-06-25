@@ -255,7 +255,6 @@ export interface ResolutionOptions {
   versionNumber?: number;
   versionId?: string;
   versionTime?: Date;
-  verificationMethod?: string;
   verifier?: Verifier;
   scid?: string;
   /** Internal: full requested DID used to enforce that state.id matches in ≥1 valid version. */

@@ -48,9 +48,9 @@ describe('Portability', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
     tamperedLog[1].parameters.portable = true;
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      'cannot set portable: true'
-    );
+    const result = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didDocument).toBe(null);
   });
 
   test('updateDID rejects portable: true as an option', async () => {
@@ -88,9 +88,9 @@ describe('Portability', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
     tamperedLog[1].parameters.portable = true;
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      'cannot set portable: true'
-    );
+    const result = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didDocument).toBe(null);
   });
 
   test('Setting portable: false in a later entry permanently locks portability', async () => {
@@ -110,7 +110,7 @@ describe('Portability', () => {
 
     // Resolution must succeed and report the lock
     const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
-    expect(resolved.meta.portable).toBe(false);
+    expect(resolved.didDocumentMetadata.portable).toBe(false);
 
     // A subsequent move attempt must be rejected
     await expect(
@@ -140,9 +140,9 @@ describe('Portability', () => {
     const fakeScid = `${originalScid.slice(0, -4)}XXXX`;
     tamperedLog[1].state.id = (tamperedLog[1].state.id as string).replace(originalScid, fakeScid);
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      'does not match SCID in log'
-    );
+    const result = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didDocument).toBe(null);
   });
 
   test('Portable DID moves to a new domain via the domain option', async () => {
@@ -163,8 +163,7 @@ describe('Portability', () => {
 
     // And it must resolve to the moved DID
     const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
-    expect(resolved.did).toBe(`did:webvh:${scid}:example.org`);
-    expect(resolved.doc?.id).toBe(`did:webvh:${scid}:example.org`);
+    expect(resolved.didDocument?.id).toBe(`did:webvh:${scid}:example.org`);
   });
 
   test('Non-portable DID rejects a move to a new domain', async () => {
@@ -202,7 +201,7 @@ describe('Portability', () => {
 
     expect(updateResult.log[1].state.id).toBe(pathedDID.did);
     const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
-    expect(resolved.did).toBe(pathedDID.did);
+    expect(resolved.didDocument?.id).toBe(pathedDID.did);
   });
 
   test('Portable DID moves to a pathed location via the address option', async () => {
@@ -218,6 +217,6 @@ describe('Portability', () => {
     const scid = (portableDID.log[0].state.id as string).split(':')[2];
     expect(updateResult.log[1].state.id).toBe(`did:webvh:${scid}:example.org:dids:alice`);
     const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
-    expect(resolved.did).toBe(`did:webvh:${scid}:example.org:dids:alice`);
+    expect(resolved.didDocument?.id).toBe(`did:webvh:${scid}:example.org:dids:alice`);
   });
 });
