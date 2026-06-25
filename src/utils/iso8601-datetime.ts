@@ -120,13 +120,21 @@ export function createNextVersionTime(
 ): string {
   const previous = parseUtcIso8601VersionTime(previousVersionTime, 'previous versionTime');
 
+  // versionTime is stored at second precision, so compare the formatted (trimmed) value to
+  // guarantee strict monotonicity — sub-second differences vanish once persisted.
   if (requestedVersionTime) {
-    const requested = parseUtcIso8601VersionTime(requestedVersionTime, 'requested versionTime');
-    if (requested.getTime() <= previous.getTime()) {
+    parseUtcIso8601VersionTime(requestedVersionTime, 'requested versionTime');
+    const formatted = formatDate(requestedVersionTime);
+    if (new Date(formatted).getTime() <= previous.getTime()) {
       throw new Error('versionTime must be greater than previous versionTime');
     }
-    return formatDate(requestedVersionTime);
+    return formatted;
   }
 
-  return formatDate(new Date());
+  const formattedNow = formatDate(new Date());
+  if (new Date(formattedNow).getTime() <= previous.getTime()) {
+    return formatDate(new Date(previous.getTime() + 1000));
+  }
+
+  return formattedNow;
 }
