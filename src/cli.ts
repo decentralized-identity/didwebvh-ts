@@ -287,7 +287,9 @@ export async function handleResolve(args: string[]) {
 
     const doc = resolution.didDocument;
     const meta = resolution.didDocumentMetadata;
-    const did = doc?.id ?? '';
+    // A deactivated DID resolves successfully with a null document, so fall back
+    // to the identifier carried in the log itself rather than printing an empty id.
+    const did = doc?.id ?? log[log.length - 1]?.state?.id ?? '';
 
     if (resolution.didResolutionMetadata.error) {
       console.error('Resolution error:', JSON.stringify(resolution.didResolutionMetadata, null, 2));
