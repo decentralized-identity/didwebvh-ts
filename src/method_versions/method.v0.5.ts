@@ -19,7 +19,6 @@ import {
   createSCID,
   deepClone,
   deriveHash,
-  findVerificationMethod,
   getBaseUrl,
   parseCanonicalAddress,
   replaceValueInObject,
@@ -161,9 +160,6 @@ export const resolveDIDFromLog = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta }> => {
-  if (options.verificationMethod && (options.versionNumber || options.versionId)) {
-    throw new Error('Cannot specify both verificationMethod and version number/id');
-  }
   const resolutionLog = log.map((l) => deepClone(l));
   const protocol = resolutionLog[0].parameters.method;
   if (protocol !== PROTOCOL) {
@@ -331,13 +327,6 @@ export const resolveDIDFromLog = async (
           type: 'LinkedVerifiablePresentation',
           serviceEndpoint: `${baseUrlWithTrailingSlash}whois.vp`,
         });
-      }
-
-      if (options.verificationMethod && findVerificationMethod(doc, options.verificationMethod)) {
-        if (!resolvedDoc) {
-          resolvedDoc = deepClone(doc);
-          resolvedMeta = { ...meta };
-        }
       }
 
       if (options.versionNumber === parseInt(version, 10) || options.versionId === meta.versionId) {
