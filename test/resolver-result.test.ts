@@ -75,6 +75,14 @@ describe('mapErrorToCode', () => {
     expect(mapErrorToCode(new TypeError('fetch failed'))).toBe('internalError');
     expect(mapErrorToCode(new Error('getaddrinfo ENOTFOUND example.com'))).toBe('internalError');
   });
+  test('non-404 HTTP statuses (auth/gone/rate-limited) -> internalError', () => {
+    expect(mapErrorToCode(new Error('HTTP error! status: 401'))).toBe('internalError');
+    expect(mapErrorToCode(new Error('HTTP error! status: 403'))).toBe('internalError');
+    expect(mapErrorToCode(new Error('HTTP error! status: 410'))).toBe('internalError');
+    expect(mapErrorToCode(new Error('HTTP error! status: 429'))).toBe('internalError');
+    // 404 remains a not-found, not an internal error.
+    expect(mapErrorToCode(new Error('HTTP error! status: 404'))).toBe('notFound');
+  });
 });
 
 describe('toResolutionResult', () => {

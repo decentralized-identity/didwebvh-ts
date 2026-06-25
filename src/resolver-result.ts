@@ -66,11 +66,13 @@ export function mapErrorToCode(error: unknown): WebvhErrorCode {
   if (/HTTP error! status: 404\b/.test(message) || /DID log not found/i.test(message)) {
     return 'notFound';
   }
-  // Transport/connectivity failures (unreachable host, 5xx, network errors) are
-  // resolver-side internal errors, not invalid documents. Everything else that
-  // reaches here is a document-validation failure → invalidDid.
+  // Any non-404 HTTP error status (4xx/5xx) or network/transport failure is a
+  // resolver-side internal error, not an invalid document: a valid DID served
+  // from an unauthorized, gone, rate-limited, or failing endpoint must not be
+  // reported as a document-validation failure. (404 is handled above as
+  // notFound.) Everything else that reaches here is a validation failure.
   if (
-    /HTTP error! status: 5\d\d\b/.test(message) ||
+    /HTTP error! status: [45]\d\d\b/.test(message) ||
     /fetch failed/i.test(message) ||
     /\b(ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN)\b/.test(message) ||
     /network (error|request failed)/i.test(message)
