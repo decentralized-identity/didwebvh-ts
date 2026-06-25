@@ -758,6 +758,14 @@ export const updateDID = async (
     doc.alsoKnownAs = options.alsoKnownAs;
   }
 
+  if (controller !== lastEntryDid) {
+    const aliases = Array.isArray(doc.alsoKnownAs) ? [...doc.alsoKnownAs] : [];
+    if (!aliases.includes(lastEntryDid)) {
+      aliases.push(lastEntryDid);
+    }
+    doc.alsoKnownAs = aliases;
+  }
+
   const logEntry: DIDLogEntry = {
     versionId: lastEntry.versionId,
     versionTime: createdDate,
@@ -909,20 +917,14 @@ const getRequiredWitnessForEntry = (
 ): WitnessParameterResolution | undefined => {
   const explicitWitness = getEntryWitnessParameter(parameters);
 
-  if (explicitWitness !== undefined) {
-    if (isWitnessActive(currentWitness)) {
-      return deepClone(currentWitness);
-    }
-
-    if (isWitnessActive(previousWitness)) {
-      return deepClone(previousWitness);
-    }
-
-    return undefined;
-  }
-
+  // A list change takes effect only after its entry is published, so the previous list
+  // governs that entry; only activation from {} uses the new (current) list immediately.
   if (isWitnessActive(previousWitness)) {
     return deepClone(previousWitness);
+  }
+
+  if (explicitWitness !== undefined && isWitnessActive(currentWitness)) {
+    return deepClone(currentWitness);
   }
 
   return undefined;
