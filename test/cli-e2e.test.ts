@@ -56,6 +56,19 @@ async function createTempVerificationMethod(vm: VerificationMethod): Promise<str
   return tempFile;
 }
 
+async function nextUpdatedTimestamp(logFile: string): Promise<string> {
+  const log = await readLogFromDisk(logFile);
+  const lastVersionTime = new Date(log[log.length - 1].versionTime);
+  return new Date(lastVersionTime.getTime() + 1000).toISOString().replace(/\.\d{1,3}Z$/, 'Z');
+}
+
+async function waitForNextSecondBoundary(): Promise<void> {
+  const startSecond = Math.floor(Date.now() / 1000);
+  while (Math.floor(Date.now() / 1000) === startSecond) {
+    await Bun.sleep(20);
+  }
+}
+
 describe('CLI End-to-End Tests', async () => {
   test('Create DID using CLI', async () => {
     const proc =
@@ -72,7 +85,8 @@ describe('CLI End-to-End Tests', async () => {
     expect(createProc.exitCode).toBe(0);
 
     // Update the DID — reads authKey from .env so signer matches updateKeys
-    const updateProc = await $`bun run cli update --log ${logFile} --output ${logFile}`.quiet();
+    const updated = await nextUpdatedTimestamp(logFile);
+    const updateProc = await $`bun run cli update --log ${logFile} --output ${logFile} --updated ${updated}`.quiet();
     expect(updateProc.exitCode).toBe(0);
 
     // Verify the update was successful
@@ -88,11 +102,13 @@ describe('CLI End-to-End Tests', async () => {
     expect(createProc.exitCode).toBe(0);
 
     // First update
-    const update1Proc = await $`bun run cli update --log ${logFile} --output ${logFile}`.quiet();
+    const updated1 = await nextUpdatedTimestamp(logFile);
+    const update1Proc = await $`bun run cli update --log ${logFile} --output ${logFile} --updated ${updated1}`.quiet();
     expect(update1Proc.exitCode).toBe(0);
 
     // Second update
-    const update2Proc = await $`bun run cli update --log ${logFile} --output ${logFile}`.quiet();
+    const updated2 = await nextUpdatedTimestamp(logFile);
+    const update2Proc = await $`bun run cli update --log ${logFile} --output ${logFile} --updated ${updated2}`.quiet();
     expect(update2Proc.exitCode).toBe(0);
 
     // Verify the updates were successful
@@ -108,6 +124,7 @@ describe('CLI End-to-End Tests', async () => {
     expect(createProc.exitCode).toBe(0);
 
     // Deactivate the DID — reads authKey from .env so signer matches updateKeys
+    await waitForNextSecondBoundary();
     const deactivateProc = await $`bun run cli deactivate --log ${logFile} --output ${logFile}`.quiet();
     expect(deactivateProc.exitCode).toBe(0);
 
@@ -152,8 +169,9 @@ describe('CLI End-to-End Tests', async () => {
     const { did } = await resolveDIDFromLog(initialLog, { verifier });
 
     // Add all VM types in a single update — reads authKey from .env
+    const updated = await nextUpdatedTimestamp(vmLogFile);
     const proc =
-      await $`bun run cli update --log ${vmLogFile} --output ${vmLogFile} --add-vm authentication --add-vm assertionMethod --add-vm keyAgreement --add-vm capabilityInvocation --add-vm capabilityDelegation`.quiet();
+      await $`bun run cli update --log ${vmLogFile} --output ${vmLogFile} --updated ${updated} --add-vm authentication --add-vm assertionMethod --add-vm keyAgreement --add-vm capabilityInvocation --add-vm capabilityDelegation`.quiet();
     expect(proc.exitCode).toBe(0);
 
     // Verify all VM types were added
@@ -189,7 +207,9 @@ describe('CLI End-to-End Tests', async () => {
 
     // Update with alsoKnownAs — reads authKey from .env
     const alias = 'https://example.com/users/123';
-    const proc = await $`bun run cli update --log ${akLogFile} --output ${akLogFile} --also-known-as ${alias}`.quiet();
+    const updated = await nextUpdatedTimestamp(akLogFile);
+    const proc =
+      await $`bun run cli update --log ${akLogFile} --output ${akLogFile} --updated ${updated} --also-known-as ${alias}`.quiet();
     expect(proc.exitCode).toBe(0);
 
     // Verify alsoKnownAs was added

@@ -8,6 +8,7 @@ import {
   createFutureDIDLog,
   createTestSigner,
   generateTestVerificationMethod,
+  nextSecond,
   TestCryptoImplementation,
 } from './utils';
 
@@ -15,6 +16,13 @@ describe('Not So Happy Path Tests', () => {
   let authKey: VerificationMethod;
   let testImplementation: TestCryptoImplementation;
   let initialDID: CreateDIDResult;
+
+  const waitForNextSecondBoundary = async () => {
+    const startSecond = Math.floor(Date.now() / 1000);
+    while (Math.floor(Date.now() / 1000) === startSecond) {
+      await Bun.sleep(20);
+    }
+  };
 
   beforeAll(async () => {
     authKey = await generateTestVerificationMethod();
@@ -89,6 +97,7 @@ describe('Not So Happy Path Tests', () => {
 
     const { log: log2 } = await updateDID({
       log: log1,
+      updated: nextSecond(log1),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -117,6 +126,7 @@ describe('Not So Happy Path Tests', () => {
     for (let j = 0; j < 12; j++) {
       const { log: nextLog } = await updateDID({
         log: currentLog,
+        updated: nextSecond(currentLog),
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey),
@@ -148,6 +158,7 @@ describe('Not So Happy Path Tests', () => {
     for (let j = 0; j < 12; j++) {
       const { log: nextLog } = await updateDID({
         log: currentLog,
+        updated: nextSecond(currentLog),
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey),
@@ -173,6 +184,7 @@ describe('Not So Happy Path Tests', () => {
 
     const { log: log2 } = await updateDID({
       log: log1,
+      updated: nextSecond(log1),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -181,6 +193,7 @@ describe('Not So Happy Path Tests', () => {
 
     const { log: log3 } = await updateDID({
       log: log2,
+      updated: nextSecond(log2),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -215,6 +228,7 @@ describe('Not So Happy Path Tests', () => {
 
     const { log: log2 } = await updateDID({
       log: log1,
+      updated: nextSecond(log1),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -223,6 +237,7 @@ describe('Not So Happy Path Tests', () => {
 
     const { log: log3 } = await updateDID({
       log: log2,
+      updated: nextSecond(log2),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -254,6 +269,7 @@ describe('Not So Happy Path Tests', () => {
 
     const { log: log2 } = await updateDID({
       log: log1,
+      updated: nextSecond(log1),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -262,6 +278,7 @@ describe('Not So Happy Path Tests', () => {
 
     const { log: log3 } = await updateDID({
       log: log2,
+      updated: nextSecond(log2),
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -406,6 +423,7 @@ describe('Not So Happy Path Tests', () => {
     const { log } = initialDID;
     const updateResult = await updateDID({
       log,
+      updated: nextSecond(log),
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -424,6 +442,7 @@ describe('Not So Happy Path Tests', () => {
     const { log } = initialDID;
     const updateResult = await updateDID({
       log,
+      updated: nextSecond(log),
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -442,6 +461,7 @@ describe('Not So Happy Path Tests', () => {
     const { log } = initialDID;
     const updateResult = await updateDID({
       log,
+      updated: nextSecond(log),
       domain: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -578,6 +598,8 @@ describe('Not So Happy Path Tests', () => {
   });
 
   test('updateDID rejects when the DID is already deactivated', async () => {
+    await waitForNextSecondBoundary();
+
     const { log: deactivatedLog } = await deactivateDID({
       log: initialDID.log,
       signer: createTestSigner(authKey),
@@ -603,6 +625,9 @@ describe('Not So Happy Path Tests', () => {
       verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
+
+    await waitForNextSecondBoundary();
+
     const { log: deactivatedLog } = await deactivateDID({
       log: log1,
       signer: createTestSigner(authKey),
