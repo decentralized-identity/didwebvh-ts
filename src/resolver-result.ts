@@ -2,7 +2,12 @@ import type { DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } 
 import type { DIDDoc, DIDResolutionMeta, ProblemDetails } from './interfaces';
 import { DidResolutionError } from './interfaces';
 
-export type WebvhErrorCode = 'invalidDid' | 'notFound' | 'invalidDidUrl' | 'representationNotSupported';
+export type WebvhErrorCode =
+  | 'invalidDid'
+  | 'notFound'
+  | 'invalidDidUrl'
+  | 'representationNotSupported'
+  | 'internalError';
 
 export interface WebvhResolutionMetadata extends DIDResolutionMetadata {
   problemDetails?: ProblemDetails;
@@ -61,6 +66,17 @@ export function mapErrorToCode(error: unknown): WebvhErrorCode {
   if (/HTTP error! status: 404\b/.test(message) || /DID log not found/i.test(message)) {
     return 'notFound';
   }
+  // Transport/connectivity failures (unreachable host, 5xx, network errors) are
+  // resolver-side internal errors, not invalid documents. Everything else that
+  // reaches here is a document-validation failure → invalidDid.
+  if (
+    /HTTP error! status: 5\d\d\b/.test(message) ||
+    /fetch failed/i.test(message) ||
+    /\b(ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN)\b/.test(message) ||
+    /network (error|request failed)/i.test(message)
+  ) {
+    return 'internalError';
+  }
   return 'invalidDid';
 }
 
@@ -81,6 +97,10 @@ const PROBLEM_DETAILS_BY_CODE: Record<WebvhErrorCode, { type: string; title: str
   representationNotSupported: {
     type: 'https://www.w3.org/ns/did#REPRESENTATION_NOT_SUPPORTED',
     title: 'The requested representation is not supported.',
+  },
+  internalError: {
+    type: 'https://www.w3.org/ns/did#INTERNAL_ERROR',
+    title: 'An unexpected error occurred during resolution.',
   },
 };
 
