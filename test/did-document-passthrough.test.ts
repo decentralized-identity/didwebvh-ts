@@ -6,7 +6,6 @@ import {
   createTestSigner,
   createTestVerifier,
   generateTestVerificationMethod,
-  nextSecond,
 } from './utils';
 
 describe('didDocument create pass-through', () => {
@@ -151,7 +150,6 @@ describe('didDocument create pass-through', () => {
     try {
       const updated = await updateDID({
         log: created.log,
-        updated: nextSecond(created.log),
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
@@ -335,7 +333,6 @@ describe('generateParallelDidWeb', () => {
 
     const updated = await updateDID({
       log: created.log,
-      updated: nextSecond(created.log),
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],

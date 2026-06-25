@@ -128,5 +128,10 @@ export function createNextVersionTime(
     return formatDate(requestedVersionTime);
   }
 
-  return formatDate(new Date());
+  const now = new Date();
+  if (now.getTime() <= previous.getTime()) {
+    return formatDate(new Date(previous.getTime() + 1));
+  }
+
+  return formatDate(now);
 }

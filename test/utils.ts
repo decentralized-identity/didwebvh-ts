@@ -11,12 +11,8 @@ import type {
   VerificationMethod,
   Verifier,
 } from '../src/interfaces';
-import { createDate, createDIDDoc, createSCID, deriveHash, replaceCreateDidPlaceholders } from '../src/utils';
+import { createDIDDoc, createSCID, deriveHash, replaceCreateDidPlaceholders } from '../src/utils';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats';
-
-/** Returns the versionTime one second after the last entry in a DID log. Use in tests when chaining rapid create/update/deactivate calls. */
-export const nextSecond = (log: DIDLog): string =>
-  createDate(new Date(new Date(log[log.length - 1].versionTime).getTime() + 1000));
 
 export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
   return entries.map((entry, index) => {
