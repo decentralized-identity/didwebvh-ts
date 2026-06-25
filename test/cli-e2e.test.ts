@@ -113,7 +113,7 @@ describe('CLI End-to-End Tests', async () => {
 
     // Verify deactivation
     const log = await readLogFromDisk(logFile);
-    const { meta } = await resolveDIDFromLog(log, { verifier });
+    const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, { verifier });
     expect(meta.deactivated).toBe(true);
   });
 
@@ -131,7 +131,9 @@ describe('CLI End-to-End Tests', async () => {
 
     // Get the current authorized key and DID
     const currentLog = await readLogFromDisk(prerotationLogFile);
-    const { did, meta } = await resolveDIDFromLog(currentLog, { verifier });
+    const r = await resolveDIDFromLog(currentLog, { verifier });
+    const did = r.didDocument?.id;
+    const meta = r.didDocumentMetadata;
     const authorizedKey = meta.updateKeys[0];
 
     // Verify nextKeyHashes setup
@@ -149,7 +151,8 @@ describe('CLI End-to-End Tests', async () => {
 
     // Get the DID
     const initialLog = await readLogFromDisk(vmLogFile);
-    const { did } = await resolveDIDFromLog(initialLog, { verifier });
+    const initialResolution = await resolveDIDFromLog(initialLog, { verifier });
+    const did = initialResolution.didDocument?.id;
 
     // Add all VM types in a single update — reads authKey from .env
     const proc =
@@ -161,7 +164,7 @@ describe('CLI End-to-End Tests', async () => {
     const finalEntry = finalLog[finalLog.length - 1];
 
     // Get the authorized key from the final state
-    const { meta: finalMeta } = await resolveDIDFromLog(finalLog, { verifier });
+    const { didDocumentMetadata: finalMeta } = await resolveDIDFromLog(finalLog, { verifier });
     const authorizedKey = finalMeta.updateKeys[0];
 
     const vmTypes = [
@@ -209,7 +212,8 @@ describe('CLI End-to-End Tests', async () => {
 
     // Get the DID from the log
     const log = await readLogFromDisk(resolveLogFile);
-    const { did } = await resolveDIDFromLog(log, { verifier });
+    const resolveResolution = await resolveDIDFromLog(log, { verifier });
+    const did = resolveResolution.didDocument?.id;
 
     // Test resolve command with log file instead of DID
     const proc = await $`bun run cli resolve --log ${resolveLogFile}`.quiet();

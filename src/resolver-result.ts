@@ -1,6 +1,6 @@
 import type { DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } from 'did-resolver';
-import { DidResolutionError } from './interfaces';
 import type { DIDDoc, DIDResolutionMeta, ProblemDetails } from './interfaces';
+import { DidResolutionError } from './interfaces';
 
 export type WebvhErrorCode = 'invalidDid' | 'notFound' | 'invalidDidUrl' | 'representationNotSupported';
 

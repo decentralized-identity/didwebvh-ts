@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { DidResolutionError } from '../src/interfaces';
 import type { DIDResolutionMeta } from '../src/interfaces';
+import { DidResolutionError } from '../src/interfaces';
 import {
   assertSingleVersionSelector,
   InvalidDidUrlError,
@@ -36,10 +36,14 @@ describe('assertSingleVersionSelector', () => {
     expect(() => assertSingleVersionSelector({ versionId: '2-x', versionNumber: 2 })).toThrow(InvalidDidUrlError);
   });
   test('rejects versionId + versionTime', () => {
-    expect(() => assertSingleVersionSelector({ versionId: '2-x', versionTime: new Date() })).toThrow(InvalidDidUrlError);
+    expect(() => assertSingleVersionSelector({ versionId: '2-x', versionTime: new Date() })).toThrow(
+      InvalidDidUrlError
+    );
   });
   test('rejects versionNumber + versionTime', () => {
-    expect(() => assertSingleVersionSelector({ versionNumber: 2, versionTime: new Date() })).toThrow(InvalidDidUrlError);
+    expect(() => assertSingleVersionSelector({ versionNumber: 2, versionTime: new Date() })).toThrow(
+      InvalidDidUrlError
+    );
   });
   test('rejects all three', () => {
     expect(() => assertSingleVersionSelector({ versionId: '2-x', versionNumber: 2, versionTime: new Date() })).toThrow(

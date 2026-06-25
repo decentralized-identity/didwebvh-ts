@@ -42,39 +42,46 @@ describe('Not So Happy Path Tests', () => {
     modifiedLog[0].parameters.scid = wrongScid;
 
     // Attempt to resolve the DID from the tampered log
-    await expect(
-      resolveDIDFromLog(modifiedLog, {
-        verifier: testImplementation,
-      })
-    ).rejects.toThrow(`SCID '${wrongScid}' not derived from logEntryHash`);
+    const r = await resolveDIDFromLog(modifiedLog, {
+      verifier: testImplementation,
+    });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain(`SCID '${wrongScid}' not derived from logEntryHash`);
   });
 
   test('Accepts a versionTime up to 5 minutes in the future', async () => {
     const futureLog = await createFutureDIDLog(authKey, 4);
 
-    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).resolves.toBeDefined();
+    const r = await resolveDIDFromLog(futureLog, { verifier: testImplementation });
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    expect(r.didDocument).not.toBeNull();
   });
 
   test('Rejects a versionTime more than 5 minutes in the future', async () => {
     const futureLog = await createFutureDIDLog(authKey, 6);
 
-    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).rejects.toThrow(
-      'must not be more than 5 minutes in the future'
-    );
+    const r = await resolveDIDFromLog(futureLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('must not be more than 5 minutes in the future');
   });
 
   test('Accepts a versionTime up to 5 minutes in the future', async () => {
     const futureLog = await createFutureDIDLog(authKey, 4);
 
-    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).resolves.toBeDefined();
+    const r = await resolveDIDFromLog(futureLog, { verifier: testImplementation });
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    expect(r.didDocument).not.toBeNull();
   });
 
   test('Rejects a versionTime more than 5 minutes in the future', async () => {
     const futureLog = await createFutureDIDLog(authKey, 6);
 
-    await expect(resolveDIDFromLog(futureLog, { verifier: testImplementation })).rejects.toThrow(
-      'must not be more than 5 minutes in the future'
-    );
+    const r = await resolveDIDFromLog(futureLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('must not be more than 5 minutes in the future');
   });
 
   test('Hash chain tampering is detected', async () => {
@@ -99,7 +106,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log2));
     tamperedLog[1].state.alsoKnownAs = ['did:example:tampered'];
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow('Hash chain broken');
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('Hash chain broken');
   });
 
   test('Resolve catches hash chain break on middle entries', async () => {
@@ -131,7 +141,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
     tamperedLog[3].state.alsoKnownAs = ['did:example:tampered'];
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow('Hash chain broken');
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('Hash chain broken');
   });
 
   test('Default resolve verifies every log entry proof', async () => {
@@ -158,7 +171,9 @@ describe('Not So Happy Path Tests', () => {
 
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(currentLog));
     tamperedLog[1]!.proof![0]!.proofValue = 'zinvalid-proof';
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow();
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
   });
 
   test('Historical versionNumber selector remains successful when a later entry fails', async () => {
@@ -198,10 +213,10 @@ describe('Not So Happy Path Tests', () => {
       verifier: testImplementation,
     });
 
-    expect(result.doc).not.toBeNull();
-    expect(result.meta.versionId.split('-')[0]).toBe('1');
-    expect(result.meta.error).toBeUndefined();
-    expect(result.meta.problemDetails).toBeUndefined();
+    expect(result.didDocument).not.toBeNull();
+    expect(result.didDocumentMetadata.versionId?.split('-')[0]).toBe('1');
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didResolutionMetadata.problemDetails).toBeUndefined();
   });
 
   test('Historical versionId selector remains successful when a later entry fails', async () => {
@@ -237,10 +252,10 @@ describe('Not So Happy Path Tests', () => {
       verifier: testImplementation,
     });
 
-    expect(result.doc).not.toBeNull();
-    expect(result.meta.versionId).toBe(log1[0].versionId);
-    expect(result.meta.error).toBeUndefined();
-    expect(result.meta.problemDetails).toBeUndefined();
+    expect(result.didDocument).not.toBeNull();
+    expect(result.didDocumentMetadata.versionId).toBe(log1[0].versionId);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didResolutionMetadata.problemDetails).toBeUndefined();
   });
 
   test('Historical versionTime selector remains successful when a later entry fails', async () => {
@@ -280,10 +295,10 @@ describe('Not So Happy Path Tests', () => {
       verifier: testImplementation,
     });
 
-    expect(result.doc).not.toBeNull();
-    expect(result.meta.versionId).toBe(log1[0].versionId);
-    expect(result.meta.error).toBeUndefined();
-    expect(result.meta.problemDetails).toBeUndefined();
+    expect(result.didDocument).not.toBeNull();
+    expect(result.didDocumentMetadata.versionId).toBe(log1[0].versionId);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didResolutionMetadata.problemDetails).toBeUndefined();
   });
 
   test('Requested DID with matching SCID but mismatched location is rejected', async () => {
@@ -301,9 +316,10 @@ describe('Not So Happy Path Tests', () => {
     const scid = originalDid.split(':')[2];
     const mismatchedDid = `did:webvh:${scid}:different-domain.example`;
 
-    await expect(resolveDIDFromLog(log, { requestedDid: mismatchedDid, verifier: testImplementation })).rejects.toThrow(
-      /does not match state\.id/
-    );
+    const r = await resolveDIDFromLog(log, { requestedDid: mismatchedDid, verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toMatch(/does not match state\.id/);
   });
 
   test('Requested DID not present in log is rejected', async () => {
@@ -318,9 +334,10 @@ describe('Not So Happy Path Tests', () => {
     // Use a syntactically valid did:webvh that is guaranteed to differ from all state.id values in this log.
     const requestedDidNotInLog = 'did:webvh:zQmXkYw8uM9QW9sW11Qx2Jq4JfY5o7jBq3nK7f4R2m1NpQ:not-in-log.example';
 
-    await expect(
-      resolveDIDFromLog(log, { requestedDid: requestedDidNotInLog, verifier: testImplementation })
-    ).rejects.toThrow(/does not match state\.id/);
+    const r = await resolveDIDFromLog(log, { requestedDid: requestedDidNotInLog, verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toMatch(/does not match state\.id/);
   });
 
   test('rejects log where no state.id matches the resolved DID when requestedDid is omitted', async () => {
@@ -328,9 +345,10 @@ describe('Not So Happy Path Tests', () => {
     // The spec requires didIdMatchCount > 0 after processing all entries.
     const emptyLog: DIDLog = [];
 
-    await expect(resolveDIDFromLog(emptyLog, { verifier: testImplementation })).rejects.toThrow(
-      /no entries to process/
-    );
+    const r = await resolveDIDFromLog(emptyLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toMatch(/no entries to process/);
   });
 
   test('Protocol version rejection in v1.0', async () => {
@@ -363,9 +381,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
     tamperedLog[0].versionId = '1';
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      /must contain exactly one '-' separator/
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toMatch(/must contain exactly one '-' separator/);
   });
 
   test('rejects versionId with multiple dashes', async () => {
@@ -380,9 +399,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
     tamperedLog[0].versionId = '1-fake-hash';
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      /must contain exactly one '-' separator/
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toMatch(/must contain exactly one '-' separator/);
   });
 
   test('rejects versionId with empty hash component', async () => {
@@ -397,9 +417,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
     tamperedLog[0].versionId = '1-';
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      /must have a non-empty hash component/
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toMatch(/must have a non-empty hash component/);
   });
 
   test('Rejects unknown method value in later entry', async () => {
@@ -415,9 +436,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
     tamperedLog[1].parameters.method = 'did:webvh:99.0';
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      'has unsupported or downgraded method'
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('has unsupported or downgraded method');
   });
 
   test('Rejects downgrade of method version in later entry', async () => {
@@ -433,9 +455,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
     tamperedLog[1].parameters.method = 'did:webvh:0.5';
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      'has unsupported or downgraded method'
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('has unsupported or downgraded method');
   });
 
   test('Rejects scid parameter in later entry', async () => {
@@ -451,9 +474,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
     tamperedLog[1].parameters.scid = log[0].parameters.scid;
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      'must not contain SCID parameter'
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('must not contain SCID parameter');
   });
 
   test('Rejects SCID using non-SHA-256 multihash algorithm', async () => {
@@ -469,9 +493,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedStr = JSON.stringify(tamperedLog).replaceAll(originalScid, sha384Scid);
     const tamperedLogWithBadScid: DIDLog = JSON.parse(tamperedStr);
 
-    await expect(resolveDIDFromLog(tamperedLogWithBadScid, { verifier: testImplementation })).rejects.toThrow(
-      'SCID multihash algorithm must be SHA-256 (0x12)'
-    );
+    const r = await resolveDIDFromLog(tamperedLogWithBadScid, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('SCID multihash algorithm must be SHA-256 (0x12)');
   });
 
   test('createDID rejects when updateKeys is not supplied', async () => {
@@ -520,9 +545,10 @@ describe('Not So Happy Path Tests', () => {
     const [, hash] = tamperedLog[1].versionId.split('-');
     tamperedLog[1].versionId = `3-${hash}`;
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      "version '3' in log doesn't match expected '2'"
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain("version '3' in log doesn't match expected '2'");
   });
 
   test('Rejects log entry with missing versionTime', async () => {
@@ -536,9 +562,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
     tamperedLog[1].versionTime = '';
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      "version '2' is missing versionTime"
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain("version '2' is missing versionTime");
   });
 
   test('Rejects log entry with non-monotonic versionTime', async () => {
@@ -552,19 +579,23 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
     tamperedLog[1].versionTime = tamperedLog[0].versionTime;
 
-    await expect(resolveDIDFromLog(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain(
       "versionTime for version '2' must be greater than previous entry time"
     );
   });
 
   test('Rejects resolution when options.scid does not match the log SCID', async () => {
     const wrongScid = 'zFakeSCID123456789';
-    await expect(
-      resolveDIDFromLog(initialDID.log, {
-        scid: wrongScid,
-        verifier: testImplementation,
-      })
-    ).rejects.toThrow(`SCID in DID '${wrongScid}' does not match SCID in log`);
+    const r = await resolveDIDFromLog(initialDID.log, {
+      scid: wrongScid,
+      verifier: testImplementation,
+    });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain(`SCID in DID '${wrongScid}' does not match SCID in log`);
   });
 
   test('requestedDid matching the actual DID resolves successfully', async () => {
@@ -573,8 +604,8 @@ describe('Not So Happy Path Tests', () => {
       verifier: testImplementation,
     });
 
-    expect(result.doc).not.toBeNull();
-    expect(result.did).toBe(initialDID.did);
+    expect(result.didDocument).not.toBeNull();
+    expect(result.didDocument?.id).toBe(initialDID.did);
   });
 
   test('updateDID rejects when the DID is already deactivated', async () => {
