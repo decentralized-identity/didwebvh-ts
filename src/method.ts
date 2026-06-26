@@ -12,7 +12,7 @@ import type {
 import { DidResolutionError } from './interfaces';
 import * as v0_5 from './method_versions/method.v0.5';
 import * as v1 from './method_versions/method.v1.0';
-import { fetchLogFromIdentifier, getActiveDIDs, maybeWriteTestLog } from './utils';
+import { fetchLogFromIdentifier, getActiveDIDs } from './utils';
 
 const LATEST_VERSION = '1.0';
 
@@ -48,7 +48,6 @@ function getWebvhVersionFromOptions(options?: unknown): string {
 export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
   const version = getWebvhVersionFromOptions(options);
   const result = version === '0.5' ? await v0_5.createDID(options) : await v1.createDID(options);
-  maybeWriteTestLog(result.did, result.log);
   return result;
 };
 
@@ -77,7 +76,6 @@ export const resolveDID = async (
       version === '0.5'
         ? await v0_5.resolveDIDFromLog(log, optsWithScid)
         : await v1.resolveDIDFromLog(log, optsWithScid);
-    maybeWriteTestLog(result.did, log);
 
     return { ...result, controlled };
   } catch (e) {
@@ -122,11 +120,9 @@ export const resolveDIDFromLog = async (
   const version = getWebvhVersionFromLog(log);
   if (version === '0.5') {
     const result = await v0_5.resolveDIDFromLog(log, options);
-    maybeWriteTestLog(result.did, log);
     return result;
   }
   const result = await v1.resolveDIDFromLog(log, options);
-  maybeWriteTestLog(result.did, log);
   return result;
 };
 
@@ -147,7 +143,6 @@ export const updateDID = async (
 ): Promise<UpdateDIDResult> => {
   const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);
   const result = version === '0.5' ? await v0_5.updateDID(options) : await v1.updateDID(options);
-  maybeWriteTestLog(result.did, result.log);
   return result;
 };
 
@@ -160,6 +155,5 @@ export const updateDID = async (
 export const deactivateDID = async (options: DeactivateDIDInterface & { updateKeys?: string[] }) => {
   const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);
   const result = version === '0.5' ? await v0_5.deactivateDID(options) : await v1.deactivateDID(options);
-  maybeWriteTestLog(result.did, result.log);
   return result;
 };
