@@ -27,7 +27,7 @@
     "test:watch": "NODE_ENV=test rm -rf ./test/logs/** && bun test --watch",
     "test:bail": "NODE_ENV=test rm -rf ./test/logs/** && bun test --watch --bail --verbose",
     "test:log": "mkdir -p ./test/logs && LOG_RESOLVES=true NODE_ENV=test rm -rf ./test/logs/** && bun test &> ./test/logs/test-run.txt",
-    "cli": "bun src/cli.ts",
+    "cli": "bun src/cli/index.ts",
     "build": "bun run scripts/build.ts",
     "build:clean": "rm -rf dist",
     "check": "bunx tsc --noEmit",

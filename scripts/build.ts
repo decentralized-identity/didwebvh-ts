@@ -52,7 +52,7 @@ const cjsConfig: BuildConfig = {
 };
 
 const cliConfig: BuildConfig = {
-  entrypoints: ['./src/cli.ts'],
+  entrypoints: ['./src/cli/index.ts'],
   minify: false,
   sourcemap: 'external',
   target: 'node',

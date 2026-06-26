@@ -13,21 +13,18 @@ import type {
   VerificationMethod,
   Verifier,
   WitnessProofFileEntry,
-} from './interfaces';
-import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from './method';
+} from '../interfaces';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../method';
 import {
   fetchLogFromIdentifier,
   parseDidKeyDid,
-  readLogFromDisk,
-  writeLogToDisk,
-  writeVerificationMethodToEnv,
-} from './utils';
-import { bufferToString, concatBuffers, createBuffer } from './utils/buffer';
-import { canonicalizeStrict } from './utils/canonicalize';
-import { createHash } from './utils/crypto';
-import { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats';
-
-import { signWitnessProofEntries } from './witness';
+} from '../utils';
+import { bufferToString, concatBuffers, createBuffer } from '../utils/buffer';
+import { canonicalizeStrict } from '../utils/canonicalize';
+import { createHash } from '../utils/crypto';
+import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats';
+import { readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './persistence';
+import { signWitnessProofEntries } from '../witness';
 
 const usage = `
 Usage: bun run cli [command] [options]
