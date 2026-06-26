@@ -557,111 +557,6 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
   };
 }
 
-// Filesystem and log IO helpers
-
-function parseDidLogText(text: string): DIDLog {
-  return text.split('\n').map((line) => JSON.parse(line));
-}
-
-export const readLogFromDisk = async (path: string): Promise<DIDLog> => {
-  const fs = await getFS();
-  return readLogFromString(fs.readFileSync(path, 'utf8'));
-};
-
-export const readLogFromString = (str: string): DIDLog => {
-  return parseDidLogText(str.trim());
-};
-
-export const writeLogToDisk = async (path: string, log: DIDLog) => {
-  const fs = await getFS();
-  try {
-    const dir = path.substring(0, path.lastIndexOf('/'));
-    if (dir && !fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    fs.writeFileSync(path, `${JSON.stringify(log[0])}\n`);
-
-    for (let i = 1; i < log.length; i++) {
-      fs.appendFileSync(path, `${JSON.stringify(log[i])}\n`);
-    }
-  } catch (error) {
-    console.error('Error writing log to disk:', error);
-    throw error;
-  }
-};
-
-export const maybeWriteTestLog = async (did: string, log: DIDLog) => {
-  if (!config.isTestEnvironment) return;
-  try {
-    const fileSafe = did.replace(/[^a-zA-Z0-9]+/g, '_');
-    const path = `./test/logs/${fileSafe}.jsonl`;
-    await writeLogToDisk(path, log);
-  } catch (error) {
-    console.error('Error writing test log:', error);
-  }
-};
-
-export const writeVerificationMethodToEnv = async (verificationMethod: VerificationMethod) => {
-  const envFilePath = `${process.cwd()}/.env`;
-
-  const vmData = {
-    id: verificationMethod.id,
-    type: verificationMethod.type,
-    controller: verificationMethod.controller || '',
-    publicKeyMultibase: verificationMethod.publicKeyMultibase,
-    secretKeyMultibase: verificationMethod.secretKeyMultibase || '',
-  };
-
-  const fs = await getFS();
-  try {
-    let envContent = '';
-    let existingData: Array<typeof vmData> = [];
-
-    if (fs.existsSync(envFilePath)) {
-      envContent = fs.readFileSync(envFilePath, 'utf8');
-      const match = envContent.match(/DID_VERIFICATION_METHODS=(.*)/);
-      if (match?.[1]) {
-        const decodedData = bufferToString(createBuffer(match[1], 'base64'));
-        const parsedData = JSON.parse(decodedData) as unknown;
-        existingData = Array.isArray(parsedData) ? (parsedData as Array<typeof vmData>) : [];
-
-        // Check if verification method with same ID already exists
-        const existingIndex = existingData.findIndex((vm) => vm.id === vmData.id);
-        if (existingIndex !== -1) {
-          // Update existing verification method
-          existingData[existingIndex] = vmData;
-        } else {
-          // Add new verification method
-          existingData.push(vmData);
-        }
-      } else {
-        // No existing verification methods, create new array
-        existingData = [vmData];
-      }
-    } else {
-      // No .env file exists, create new array
-      existingData = [vmData];
-    }
-
-    const jsonData = JSON.stringify(existingData);
-    const encodedData = bufferToString(createBuffer(jsonData), 'base64');
-
-    // If DID_VERIFICATION_METHODS already exists, replace it
-    if (envContent.includes('DID_VERIFICATION_METHODS=')) {
-      envContent = envContent.replace(/DID_VERIFICATION_METHODS=.*\n?/, `DID_VERIFICATION_METHODS=${encodedData}\n`);
-    } else {
-      // Otherwise append it
-      envContent += `DID_VERIFICATION_METHODS=${encodedData}\n`;
-    }
-
-    fs.writeFileSync(envFilePath, `${envContent.trim()}\n`);
-    console.log('Verification method written to .env file successfully.');
-  } catch (error) {
-    console.error('Error writing verification method to .env file:', error);
-  }
-};
-
 export function deepClone<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') return obj;
   if (obj instanceof Date) return new Date(obj.getTime()) as T;
@@ -675,6 +570,10 @@ export function deepClone<T>(obj: T): T {
 }
 
 export async function fetchLogFromIdentifier(identifier: string, controlled: boolean = false): Promise<DIDLog> {
+  const parseDidLogText = (text: string): DIDLog => {
+    return text.split('\n').map((line) => JSON.parse(line));
+  };
+
   try {
     if (controlled) {
       const didParts = identifier.split(':');
