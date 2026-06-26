@@ -1,6 +1,5 @@
 import type { DIDLog, VerificationMethod } from '../interfaces';
 import { bufferToString, createBuffer } from '../utils/buffer';
-import { config } from '../config';
 
 type ProcessVersionsLike = { node?: string; bun?: string };
 

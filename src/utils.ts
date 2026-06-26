@@ -16,7 +16,6 @@ import type {
   WitnessProofFileEntry,
 } from './interfaces';
 import { resolveDIDFromLog } from './method';
-import { bufferToString, createBuffer } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
