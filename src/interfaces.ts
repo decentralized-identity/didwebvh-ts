@@ -197,7 +197,6 @@ export interface UpdateDIDResult {
 }
 
 export interface CreateDIDInterface {
-  domain?: string;
   address?: string;
   signer: Signer;
   updateKeys: string[];
