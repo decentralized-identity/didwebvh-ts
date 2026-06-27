@@ -50,7 +50,10 @@ export const createDID = async (
     validateWitnessParameter(options.witness);
   }
 
-  // Parse address input with strict validation
+  // Parse address / domain input with strict validation
+  if (options.address && options.domain) {
+    throw new Error('Cannot specify both address and domain; use address only');
+  }
   const addressInput = options.address || options.domain;
   if (!addressInput) {
     throw new Error('Either address or domain must be provided');
