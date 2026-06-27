@@ -28,7 +28,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
 
     // Create initial DID
     initialDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       created: '2023-01-01T00:00:00Z',

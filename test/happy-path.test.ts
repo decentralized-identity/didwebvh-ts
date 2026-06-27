@@ -13,7 +13,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
 
     const { did, doc, log } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -32,7 +32,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { did, doc, log } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1, authKey2),
@@ -51,7 +51,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -77,7 +77,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -105,7 +105,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -132,7 +132,7 @@ describe('Happy Path Tests', () => {
 
     // Create the initial DID
     const { log: initialLog, did } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -163,7 +163,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -193,7 +193,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -218,7 +218,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -242,7 +242,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -267,7 +267,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -304,7 +304,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -327,7 +327,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -351,7 +351,7 @@ describe('Happy Path Tests', () => {
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { log: initialLog } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
