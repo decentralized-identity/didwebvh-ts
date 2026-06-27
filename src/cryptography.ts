@@ -112,27 +112,4 @@ export const createDocumentSigner = <TDocument extends SignableDocument>(
   };
 };
 
-/**
- * @deprecated Use createDocumentSigner with your own Signer implementation instead
- */
-export const createSigner = (vm: VerificationMethod, useStatic: boolean = true) => {
-  console.warn('createSigner is deprecated. Use createDocumentSigner with your own Signer implementation instead.');
 
-  return async (doc: SignableDocument) => {
-    try {
-      const verificationMethodId = useStatic
-        ? `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`
-        : vm.id || '';
-
-      const proof: DataIntegrityProofTemplate = createProof(verificationMethodId);
-
-      // This is a placeholder for backward compatibility
-      // Users should implement their own signing logic
-      throw new Error('createSigner is deprecated. Implement your own Signer and use createDocumentSigner instead.');
-    } catch (e) {
-      console.error(e);
-      const message = e instanceof Error ? e.message : String(e);
-      throw new Error(`Document signing failure: ${message}`);
-    }
-  };
-};
