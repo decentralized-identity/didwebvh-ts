@@ -30,6 +30,8 @@ import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParam
 const VERSION = '0.5';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
 
+type CreateV05Options = CreateDIDInterface & { domain?: string };
+
 const requireDidId = (id: string | undefined): string => {
   if (!id) {
     throw new Error('DID document id is missing');
@@ -38,7 +40,7 @@ const requireDidId = (id: string | undefined): string => {
 };
 
 export const createDID = async (
-  options: CreateDIDInterface
+  options: CreateV05Options
 ): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   if (!options.updateKeys) {
     throw new Error('Update keys not supplied');
@@ -74,7 +76,12 @@ export const createDID = async (
     return vm;
   });
 
-  const { doc } = await createDIDDoc({ ...options, controller, verificationMethods: safeVerificationMethods });
+  const { doc } = await createDIDDoc({
+    ...options,
+    address: addressInput,
+    controller,
+    verificationMethods: safeVerificationMethods,
+  });
   const params = {
     scid: PLACEHOLDER,
     updateKeys: options.updateKeys,
@@ -428,12 +435,12 @@ export const updateDID = async (
     return vm;
   });
 
+  const { domain, updated, services, assertionMethod, ...optionsForDoc } = options;
   const { doc } = await createDIDDoc({
-    ...options,
-    controller: options.controller || lastEntry.state.id || '',
-    context: options.context || lastEntry.state['@context'],
-    domain: options.domain ?? lastEntry.state.id?.split(':').at(-1) ?? '',
-    updateKeys: options.updateKeys ?? [],
+    ...optionsForDoc,
+    controller: optionsForDoc.controller || lastEntry.state.id || '',
+    context: optionsForDoc.context || lastEntry.state['@context'],
+    updateKeys: optionsForDoc.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
 
