@@ -14,7 +14,7 @@ describe('Watcher Handling', () => {
     const watchers = ['https://watcher.example.com'];
 
     const { log } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -32,7 +32,7 @@ describe('Watcher Handling', () => {
     const watchers = ['https://watcher.example.com'];
 
     const initial = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -58,7 +58,7 @@ describe('Watcher Handling', () => {
     const watchers = ['https://watcher.example.com'];
 
     const initial = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),

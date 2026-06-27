@@ -52,7 +52,7 @@ describe('resolveDID over HTTPS', () => {
     authKey = await generateTestVerificationMethod();
     verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     ({ did, log } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
