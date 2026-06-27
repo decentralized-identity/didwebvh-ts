@@ -158,13 +158,13 @@ app.get('/resolve/:id', async (req, res) => {
   }
 });
 
-app.get('/resolve/:id/*', async (req, res) => {
+app.get('/resolve/:id/*splat', async (req, res) => {
   try {
-    const pathParts = req.params[0].split('/');
+    const splat = req.params.splat as string[];
     const fileContent = await getFile({
       params: {
-        path: pathParts.slice(0, -1).join('/'),
-        file: pathParts[pathParts.length - 1],
+        path: splat.slice(0, -1).join('/'),
+        file: splat[splat.length - 1],
       },
       isRemote: false,
     });
@@ -177,9 +177,9 @@ app.get('/resolve/:id/*', async (req, res) => {
   }
 });
 
-app.get('/.well-known/*', async (req, res) => {
+app.get('/.well-known/*splat', async (req, res) => {
   try {
-    const file = req.params[0];
+    const file = (req.params.splat as string[]).join('/');
     const fileContent = await getFile({
       params: {
         path: '.well-known',
