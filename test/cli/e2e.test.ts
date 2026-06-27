@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import type { VerificationMethod } from '../src/interfaces';
-import { resolveDIDFromLog } from '../src/method';
-import { readLogFromDisk } from '../src/utils';
-import { generateTestVerificationMethod, TestCryptoImplementation } from './utils';
+import { readLogFromDisk } from '../../src/cli/persistence';
+import type { VerificationMethod } from '../../src/interfaces';
+import { resolveDIDFromLog } from '../../src/method';
+import { generateTestVerificationMethod, TestCryptoImplementation } from '../utils';
 
 const TEST_DIR = join(process.cwd(), 'test', 'temp-cli-e2e');
 const ENV_FILE = join(process.cwd(), '.env');
