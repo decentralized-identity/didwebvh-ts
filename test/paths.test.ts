@@ -12,7 +12,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -29,7 +29,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       paths: ['api'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -48,7 +48,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       paths: ['api', 'v1', 'users'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -69,7 +69,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       paths: [],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -87,7 +87,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       paths: ['path-with-dash', 'path_with_underscore', 'path.with.dots'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -108,7 +108,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'localhost:3000',
+      address: 'localhost:3000',
       paths: ['api', 'health'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -128,7 +128,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       paths: ['api', 'v2'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -145,7 +145,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       paths: ['secure', 'keys'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -165,7 +165,7 @@ describe('Paths feature', () => {
 
     await expect(
       createDID({
-        domain: 'example.com',
+        address: 'example.com',
         paths: ['api', '..', 'secrets'],
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
@@ -181,7 +181,7 @@ describe('Paths feature', () => {
 
     await expect(
       createDID({
-        domain: 'example.com',
+        address: 'example.com',
         paths: ['api', 'a%2Fb'],
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],

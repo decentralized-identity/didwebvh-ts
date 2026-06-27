@@ -34,7 +34,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
     verifier = new TestCryptoImplementation({ verificationMethod: authKey });
 
     const created = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
