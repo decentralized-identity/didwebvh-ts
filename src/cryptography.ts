@@ -111,5 +111,3 @@ export const createDocumentSigner = <TDocument extends SignableDocument>(
     }
   };
 };
-
-
