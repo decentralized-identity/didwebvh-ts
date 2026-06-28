@@ -5,6 +5,8 @@
  * as specified in the DID:WebVH method specification.
  */
 
+import { base64urlnopad } from '@scure/base';
+
 // ===== MULTIBASE IMPLEMENTATION =====
 
 /**
@@ -29,10 +31,7 @@ const BASE_ALPHABETS = {
  * @returns The base64url encoded string (without the multibase prefix)
  */
 export function encodeBase64Url(bytes: Uint8Array): string {
-  // Convert to base64
-  const base64 = Buffer.from(bytes).toString('base64');
-  // Convert to base64url by replacing + with - and / with _
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return base64urlnopad.encode(bytes);
 }
 
 /**
@@ -41,17 +40,7 @@ export function encodeBase64Url(bytes: Uint8Array): string {
  * @returns The decoded binary data
  */
 function decodeBase64Url(str: string): Uint8Array {
-  // Add padding if necessary
-  const padding = str.length % 4 === 0 ? 0 : 4 - (str.length % 4);
-  const base64 = str.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(padding);
-
-  // Decode base64 to binary
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
+  return base64urlnopad.decode(str);
 }
 
 /**

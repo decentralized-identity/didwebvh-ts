@@ -1,4 +1,10 @@
-import { config } from '../config';
+import { base64 } from '@scure/base';
+
+// Whether Node's Buffer is available in the current runtime. Gating on the
+// capability directly (rather than sniffing for `window`) means every non-Node
+// runtime -- browser, React Native, Web/Service Workers -- takes the pure-JS
+// path instead of hitting an undefined `Buffer`.
+const hasNodeBuffer = typeof Buffer !== 'undefined';
 
 // Helper to convert bytes to hex string
 const bytesToHex = (bytes: Uint8Array): string => {
@@ -21,14 +27,13 @@ const hexToBytes = (hex: string): Uint8Array => {
 
 // Buffer polyfill for browser environments
 export const createBuffer = (input: string, encoding?: BufferEncoding): Uint8Array => {
-  if (!config.isBrowser) {
-    return Buffer.from(input, encoding);
+  // Handle base64 encoding in a runtime-agnostic way
+  if (encoding === 'base64') {
+    return base64.decode(input);
   }
 
-  // Handle base64 encoding specifically
-  if (encoding === 'base64') {
-    const binaryString = atob(input);
-    return new Uint8Array(binaryString.length).map((_, i) => binaryString.charCodeAt(i));
+  if (hasNodeBuffer) {
+    return Buffer.from(input, encoding);
   }
 
   // Default to UTF-8 encoding
@@ -36,19 +41,18 @@ export const createBuffer = (input: string, encoding?: BufferEncoding): Uint8Arr
 };
 
 export const bufferToString = (buffer: Uint8Array, encoding?: BufferEncoding): string => {
-  if (!config.isBrowser) {
-    return Buffer.from(buffer).toString(encoding);
+  // Handle base64 encoding in a runtime-agnostic way
+  if (encoding === 'base64') {
+    return base64.encode(buffer);
   }
 
-  // Handle hex encoding specifically
+  // Handle hex encoding in a runtime-agnostic way
   if (encoding === 'hex') {
     return bytesToHex(buffer);
   }
 
-  // Handle base64 encoding specifically
-  if (encoding === 'base64') {
-    const binary = String.fromCharCode(...buffer);
-    return btoa(binary);
+  if (hasNodeBuffer) {
+    return Buffer.from(buffer).toString(encoding);
   }
 
   // Default to UTF-8 encoding
@@ -56,7 +60,7 @@ export const bufferToString = (buffer: Uint8Array, encoding?: BufferEncoding): s
 };
 
 export const concatBuffers = (...buffers: Uint8Array[]): Uint8Array => {
-  if (!config.isBrowser) {
+  if (hasNodeBuffer) {
     return Buffer.concat(buffers);
   }
 
