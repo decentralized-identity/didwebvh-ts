@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import { dirname } from 'node:path';
 import { sign as ed25519Sign, verify as ed25519Verify, generateKeyPair } from '@stablelib/ed25519';
+import { getVerificationMethodsFromEnv } from '../config';
 import type {
   DIDLog,
   ResolutionOptions,
@@ -16,7 +17,7 @@ import type {
 } from '../interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../method';
 import { fetchLogFromIdentifier, parseDidKeyDid } from '../utils';
-import { bufferToString, concatBuffers, createBuffer } from '../utils/buffer';
+import { concatBuffers } from '../utils/buffer';
 import { canonicalizeStrict } from '../utils/canonicalize';
 import { createHash } from '../utils/crypto';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats';
@@ -316,9 +317,7 @@ export async function handleUpdate(args: string[]) {
     // console.log('Current meta:', meta);
 
     // Get the verification method from environment
-    const envVMs = JSON.parse(
-      bufferToString(createBuffer(process.env.DID_VERIFICATION_METHODS || 'W10=', 'base64'))
-    ) as VerificationMethod[];
+    const envVMs = getVerificationMethodsFromEnv(process.env.DID_VERIFICATION_METHODS || 'W10=');
 
     let vm: VerificationMethod | undefined;
     if (updateKey) {
@@ -436,7 +435,7 @@ export async function handleDeactivate(args: string[]) {
     }
 
     // Parse the VM from env
-    const vms = JSON.parse(bufferToString(createBuffer(vmMatch[1], 'base64'))) as VerificationMethod[];
+    const vms = getVerificationMethodsFromEnv(vmMatch[1]);
     if (!vms || vms.length === 0) {
       throw new Error('No verification method found in environment');
     }
