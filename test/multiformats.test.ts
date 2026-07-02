@@ -21,8 +21,8 @@ describe('base58btc', () => {
   });
 
   test('rejects characters outside the base58 alphabet', () => {
-    expect(() => decodeBase58Btc('abc0def')).toThrow('Invalid Base58 character: 0');
-    expect(() => decodeBase58Btc('abcOdef')).toThrow('Invalid Base58 character: O');
+    expect(() => decodeBase58Btc('abc0def')).toThrow('Unknown letter: "0"');
+    expect(() => decodeBase58Btc('abcOdef')).toThrow('Unknown letter: "O"');
   });
 });
 

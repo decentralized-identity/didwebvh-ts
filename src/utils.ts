@@ -875,8 +875,10 @@ export async function getActiveDIDs(): Promise<string[]> {
 
   try {
     for (const vm of config.getVerificationMethods()) {
-      const did = vm.controller || vm.id.split('#')[0];
-      activeDIDs.push(did);
+      const did = vm.controller || vm.id?.split('#')[0];
+      if (did) {
+        activeDIDs.push(did);
+      }
     }
   } catch (error) {
     console.error('Error processing verification methods:', error);
