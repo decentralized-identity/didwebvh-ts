@@ -618,7 +618,6 @@ export const updateDID = async (
     domain?: string;
     address?: string;
     paths?: string[];
-    updated?: string;
   }
 ): Promise<UpdateDIDResult> => {
   const log = options.log;
