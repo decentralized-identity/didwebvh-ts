@@ -5,10 +5,10 @@
   "type": "module",
   "dependencies": {
     "didwebvh-ts": "file:..",
-    "elysia": "^1.2.25",
-    "express": "^4.21.2"
+    "elysia": "^1.4.29",
+    "express": "^5.2.1"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21"
+    "@types/express": "^5.0.6"
   }
 }
