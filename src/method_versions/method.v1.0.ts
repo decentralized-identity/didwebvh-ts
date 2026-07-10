@@ -616,7 +616,6 @@ export const updateDID = async (
     services?: ServiceEndpoint[];
     address?: string;
     paths?: string[];
-    updated?: string;
   }
 ): Promise<UpdateDIDResult> => {
   const log = options.log;

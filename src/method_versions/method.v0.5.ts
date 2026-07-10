@@ -398,7 +398,7 @@ export const resolveDIDFromLog = async (
 };
 
 export const updateDID = async (
-  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string; updated?: string }
+  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string }
 ): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];

@@ -137,7 +137,6 @@ export const updateDID = async (
     services?: ServiceEndpoint[];
     address?: string;
     paths?: string[];
-    updated?: string;
   }
 ): Promise<UpdateDIDResult> => {
   const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);

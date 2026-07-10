@@ -225,6 +225,13 @@ export interface SignDIDDocInterface {
 export interface UpdateDIDInterface {
   log: DIDLog;
   signer: Signer;
+  /**
+   * Optional explicit timestamp for the new DID log entry.
+   *
+   * When omitted, the implementation generates the timestamp internally.
+   * This option is primarily intended for deterministic test/migration flows.
+   */
+  updated?: string;
   updateKeys?: string[];
   verificationMethods?: VerificationMethod[];
   controller?: string;
