@@ -28,7 +28,7 @@ beforeAll(async () => {
   testImplementation = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
   const { doc: newDoc1, log: newLog1 } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -69,7 +69,7 @@ beforeAll(async () => {
   log = newLog4;
 
   nonPortableDID = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -79,7 +79,7 @@ beforeAll(async () => {
   });
 
   portableDID = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey2),
@@ -161,7 +161,7 @@ test('Explicit versionTime miss returns notFound without latest fallback', async
 test('Empty nextKeyHashes array should not enable prerotation', async () => {
   // Create a DID without nextKeyHashes
   const { log: log1 } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -186,7 +186,7 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
 test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -212,7 +212,7 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
 test('Omitted updateKeys is rejected while pre-rotation is active', async () => {
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -233,7 +233,7 @@ test('Omitted updateKeys is rejected while pre-rotation is active', async () => 
 test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -261,7 +261,7 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
   // Create DID with nextKeyHashes pointing to authKey2 for next update
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -288,7 +288,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
   // Create DID with nextKeyHashes pointing to authKey2
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),
@@ -383,7 +383,7 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
   };
 
   const { log: createdLog, doc: createdDoc } = await createDID({
-    domain: 'example.com',
+    address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
     verificationMethods: asPublicVerificationMethods(authKey1),

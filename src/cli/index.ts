@@ -36,7 +36,6 @@ Commands:
 
 Options:
   --address [address]       Address for the DID (host, host:port, https://url, or did:webvh form) (required for create)
-  --domain [domain]         DEPRECATED: Use --address instead. Domain for the DID (backwards compatibility).
   --log [file]              Path to the DID log file (required for resolve, update, deactivate)
   --output [file]           Path to save the updated DID log (optional for create, update, deactivate)
   --portable                Make the DID portable (optional for create)
@@ -59,7 +58,6 @@ Examples:
   bun run cli create --address https://example.com --portable
   bun run cli create --address "example.com:3000" --portable
   bun run cli create --address "did:webvh:example.com:3000" --portable
-  bun run cli create --domain example.com --portable # DEPRECATED: use --address
   bun run cli resolve --did did:webvh:123456:example.com
   bun run cli resolve --log ./did.jsonl --witness-file ./did-witness.json
   bun run cli update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
@@ -158,8 +156,7 @@ function createCustomCrypto(verificationMethod?: VerificationMethod): Signer & V
 export async function handleCreate(args: string[]) {
   const options = parseOptions(args);
 
-  // Support both --address (new) and --domain (deprecated) options
-  const addressInput = (options.address || options.domain) as string;
+  const addressInput = options.address as string;
 
   // Extract optional explicit paths (colon-delimited) from CLI args
   // If provided, these override any paths parsed from address input
@@ -175,7 +172,7 @@ export async function handleCreate(args: string[]) {
     : (witnesses?.length ?? 0);
 
   if (!addressInput) {
-    console.error('Address is required for create command (use --address or deprecated --domain)');
+    console.error('Address is required for create command (use --address)');
     process.exit(1);
   }
 

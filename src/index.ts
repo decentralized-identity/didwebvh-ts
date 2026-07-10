@@ -1,4 +1,4 @@
-export { AbstractCrypto, createDocumentSigner, createProof, createSigner, prepareDataForSigning } from './cryptography';
+export { AbstractCrypto, createDocumentSigner, createProof, prepareDataForSigning } from './cryptography';
 export * from './interfaces';
 export { createDID, deactivateDID, resolveDID, resolveDIDFromLog, updateDID } from './method';
 export { deriveNextKeyHash, generateParallelDidWeb, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils';

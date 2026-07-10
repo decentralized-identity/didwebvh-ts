@@ -55,14 +55,11 @@ export interface ProblemDetails {
 export enum DidResolutionError {
   NotFound = 'notFound',
   InvalidDid = 'invalidDid',
-  LegacyNotFound = 'NOT_FOUND',
-  LegacyInvalidDid = 'INVALID_DID',
   InvalidDidUrl = 'INVALID_DID_URL',
   InvalidOptions = 'INVALID_OPTIONS',
   RepresentationNotSupported = 'REPRESENTATION_NOT_SUPPORTED',
   MethodNotSupported = 'METHOD_NOT_SUPPORTED',
   UnsupportedPublicKeyType = 'UNSUPPORTED_PUBLIC_KEY_TYPE',
-  LegacyInvalidDidDocument = 'INVALID_DID_DOCUMENT',
   InvalidPublicKey = 'INVALID_PUBLIC_KEY',
   InvalidPublicKeyLength = 'INVALID_PUBLIC_KEY_LENGTH',
   InvalidPublicKeyType = 'INVALID_PUBLIC_KEY_TYPE',
@@ -197,7 +194,6 @@ export interface UpdateDIDResult {
 }
 
 export interface CreateDIDInterface {
-  domain?: string;
   address?: string;
   signer: Signer;
   updateKeys: string[];
@@ -229,6 +225,13 @@ export interface SignDIDDocInterface {
 export interface UpdateDIDInterface {
   log: DIDLog;
   signer: Signer;
+  /**
+   * Optional explicit timestamp for the new DID log entry.
+   *
+   * When omitted, the implementation generates the timestamp internally.
+   * This option is primarily intended for deterministic test/migration flows.
+   */
+  updated?: string;
   updateKeys?: string[];
   verificationMethods?: VerificationMethod[];
   controller?: string;

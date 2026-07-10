@@ -30,6 +30,8 @@ import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParam
 const VERSION = '0.5';
 const PROTOCOL = `did:${METHOD}:${VERSION}`;
 
+type CreateV05Options = CreateDIDInterface & { domain?: string };
+
 const requireDidId = (id: string | undefined): string => {
   if (!id) {
     throw new Error('DID document id is missing');
@@ -38,7 +40,7 @@ const requireDidId = (id: string | undefined): string => {
 };
 
 export const createDID = async (
-  options: CreateDIDInterface
+  options: CreateV05Options
 ): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   if (!options.updateKeys) {
     throw new Error('Update keys not supplied');
@@ -48,7 +50,10 @@ export const createDID = async (
     validateWitnessParameter(options.witness);
   }
 
-  // Parse address input with strict validation
+  // Parse address / domain input with strict validation
+  if (options.address && options.domain) {
+    throw new Error('Cannot specify both address and domain; use address only');
+  }
   const addressInput = options.address || options.domain;
   if (!addressInput) {
     throw new Error('Either address or domain must be provided');
@@ -74,7 +79,12 @@ export const createDID = async (
     return vm;
   });
 
-  const { doc } = await createDIDDoc({ ...options, controller, verificationMethods: safeVerificationMethods });
+  const { doc } = await createDIDDoc({
+    ...options,
+    address: addressInput,
+    controller,
+    verificationMethods: safeVerificationMethods,
+  });
   const params = {
     scid: PLACEHOLDER,
     updateKeys: options.updateKeys,
@@ -399,7 +409,7 @@ export const resolveDIDFromLog = async (
 };
 
 export const updateDID = async (
-  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string; updated?: string }
+  options: UpdateDIDInterface & { services?: ServiceEndpoint[]; domain?: string }
 ): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
@@ -439,12 +449,12 @@ export const updateDID = async (
     return vm;
   });
 
+  const { domain, updated, services, assertionMethod, ...optionsForDoc } = options;
   const { doc } = await createDIDDoc({
-    ...options,
-    controller: options.controller || lastEntry.state.id || '',
-    context: options.context || lastEntry.state['@context'],
-    domain: options.domain ?? lastEntry.state.id?.split(':').at(-1) ?? '',
-    updateKeys: options.updateKeys ?? [],
+    ...optionsForDoc,
+    controller: optionsForDoc.controller || lastEntry.state.id || '',
+    context: optionsForDoc.context || lastEntry.state['@context'],
+    updateKeys: optionsForDoc.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
 

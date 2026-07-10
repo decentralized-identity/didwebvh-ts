@@ -20,7 +20,7 @@ describe('didDocument create pass-through', () => {
 
     try {
       const { doc } = await createDID({
-        domain: 'example.com',
+        address: 'example.com',
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
@@ -40,7 +40,7 @@ describe('didDocument create pass-through', () => {
     const verifier = createTestVerifier(authKey);
 
     const { did, doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer,
       verifier,
       updateKeys: [authKey.publicKeyMultibase!],
@@ -67,7 +67,7 @@ describe('didDocument create pass-through', () => {
 
     await expect(
       createDID({
-        domain: 'example.com',
+        address: 'example.com',
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
@@ -83,7 +83,7 @@ describe('didDocument create pass-through', () => {
 
     await expect(
       createDID({
-        domain: 'example.com',
+        address: 'example.com',
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
@@ -98,7 +98,7 @@ describe('didDocument create pass-through', () => {
     const authKey = await generateTestVerificationMethod();
 
     const { doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -118,7 +118,7 @@ describe('didDocument create pass-through', () => {
 
     await expect(
       createDID({
-        domain: 'example.com',
+        address: 'example.com',
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
@@ -134,7 +134,7 @@ describe('didDocument create pass-through', () => {
   test('warns and strips secretKeyMultibase when updateDID receives secret-bearing verificationMethods', async () => {
     const authKey = await generateTestVerificationMethod();
     const created = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -168,7 +168,7 @@ describe('generateParallelDidWeb', () => {
   test('generates did:web doc with correct id', async () => {
     const authKey = await generateTestVerificationMethod();
     const { did, doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -183,7 +183,7 @@ describe('generateParallelDidWeb', () => {
   test('adds full did:webvh DID to alsoKnownAs of did:web doc', async () => {
     const authKey = await generateTestVerificationMethod();
     const { did, doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -198,7 +198,7 @@ describe('generateParallelDidWeb', () => {
   test('returns webDoc on createDID when alsoKnownAsWeb is enabled', async () => {
     const authKey = await generateTestVerificationMethod();
     const result = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -214,7 +214,7 @@ describe('generateParallelDidWeb', () => {
   test('does not return webDoc on createDID when alsoKnownAsWeb is omitted', async () => {
     const authKey = await generateTestVerificationMethod();
     const result = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -227,7 +227,7 @@ describe('generateParallelDidWeb', () => {
   test('adds implicit #files and #whois services with correct HTTPS endpoints', async () => {
     const authKey = await generateTestVerificationMethod();
     const { did, doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -249,7 +249,7 @@ describe('generateParallelDidWeb', () => {
   test('translates verification method ids and controllers to did:web', async () => {
     const authKey = await generateTestVerificationMethod();
     const { did, doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -267,7 +267,7 @@ describe('generateParallelDidWeb', () => {
   test('preserves path segments in generated did:web document and implicit service endpoints', async () => {
     const authKey = await generateTestVerificationMethod();
     const { did, doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       paths: ['path', 'sub'],
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
@@ -306,7 +306,7 @@ describe('generateParallelDidWeb', () => {
   test('does not include did:web self-reference in alsoKnownAs of did:web doc', async () => {
     const authKey = await generateTestVerificationMethod();
     const { did, doc } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -323,7 +323,7 @@ describe('generateParallelDidWeb', () => {
   test('returns webDoc on updateDID when did:web alias is present', async () => {
     const authKey = await generateTestVerificationMethod();
     const created = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
