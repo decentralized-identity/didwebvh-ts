@@ -304,21 +304,32 @@ export const resolveDIDFromLog = async (
       // Add default services if they don't exist
       doc.service = Array.isArray(doc.service) ? doc.service : [];
       const baseUrl = getBaseUrl(did);
+      const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
-      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#files')) {
+      if (
+        !doc.service.some((s: ServiceEndpoint) => {
+          const id = s.id || '';
+          return id === '#files' || id === `${did}#files`;
+        })
+      ) {
         doc.service.push({
-          id: '#files',
+          id: `${did}#files`,
           type: 'relativeRef',
-          serviceEndpoint: baseUrl,
+          serviceEndpoint: baseUrlWithTrailingSlash,
         });
       }
 
-      if (!doc.service.some((s: ServiceEndpoint) => s.id === '#whois')) {
+      if (
+        !doc.service.some((s: ServiceEndpoint) => {
+          const id = s.id || '';
+          return id === '#whois' || id === `${did}#whois`;
+        })
+      ) {
         doc.service.push({
           '@context': 'https://identity.foundation/linked-vp/contexts/v1',
-          id: '#whois',
+          id: `${did}#whois`,
           type: 'LinkedVerifiablePresentation',
-          serviceEndpoint: `${baseUrl}/whois.vp`,
+          serviceEndpoint: `${baseUrlWithTrailingSlash}whois.vp`,
         });
       }
 

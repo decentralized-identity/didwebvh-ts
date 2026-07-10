@@ -412,5 +412,5 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
   });
 
   expect(whoisServices.length).toBe(1);
-  expect(whoisServices[0].id).toBe('#whois');
+  expect(whoisServices[0].id).toBe(`${resolvedDid}#whois`);
 });

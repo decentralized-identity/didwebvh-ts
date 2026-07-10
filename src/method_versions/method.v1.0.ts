@@ -453,21 +453,22 @@ export const resolveDIDFromLog = async (
       // Add default services if they don't exist
       doc.service = Array.isArray(doc.service) ? doc.service : [];
       const baseUrl = getBaseUrl(did);
+      const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
       if (!serviceFragmentExists(doc.service, ServiceFragment.Files, did)) {
         doc.service.push({
-          id: '#files',
+          id: `${did}#files`,
           type: SERVICE_TYPE_RELATIVE_REF,
-          serviceEndpoint: baseUrl,
+          serviceEndpoint: baseUrlWithTrailingSlash,
         });
       }
 
       if (!serviceFragmentExists(doc.service, ServiceFragment.Whois, did)) {
         doc.service.push({
           '@context': CONTEXT_LINKED_VP,
-          id: '#whois',
+          id: `${did}#whois`,
           type: SERVICE_TYPE_LINKED_VP,
-          serviceEndpoint: `${baseUrl}/whois.vp`,
+          serviceEndpoint: `${baseUrlWithTrailingSlash}whois.vp`,
         });
       }
 
