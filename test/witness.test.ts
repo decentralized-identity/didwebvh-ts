@@ -42,7 +42,7 @@ describe('Witness Implementation Tests', async () => {
 
   test('Create DID with witness threshold', async () => {
     initialDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -90,7 +90,7 @@ describe('Witness Implementation Tests', async () => {
   test('Create DID without witnesses then update to add witnesses', async () => {
     // Create initial DID without witnesses
     const noWitnessDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -139,7 +139,7 @@ describe('Witness Implementation Tests', async () => {
 
   test('Resolve DID rejects duplicate witness IDs in witness parameters', async () => {
     const noWitnessDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -200,7 +200,7 @@ describe('Witness Implementation Tests', async () => {
 
     await expect(
       createDID({
-        domain: 'example.com',
+        address: 'example.com',
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey),
@@ -217,7 +217,7 @@ describe('Witness Implementation Tests', async () => {
     const authKey2 = await generateTestVerificationMethod();
 
     const created = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -277,7 +277,7 @@ describe('Witness Implementation Tests', async () => {
     const authKey3 = await generateTestVerificationMethod();
 
     const created = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -339,7 +339,7 @@ describe('Witness Implementation Tests', async () => {
     const authKey2 = await generateTestVerificationMethod();
 
     const created = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -665,7 +665,7 @@ describe('Witness Implementation Tests', async () => {
   test('Resolve requires witness threshold for each required entry', async () => {
     const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
     const didWithWitness = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -720,7 +720,7 @@ describe('Witness Implementation Tests', async () => {
   test('Resolve accepts later proof for earlier required entry', async () => {
     const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
     const didWithWitness = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -782,7 +782,7 @@ describe('Witness Implementation Tests', async () => {
     // since a valid proof implies approval of all prior entries.
     const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
     const didWithWitness = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -839,7 +839,7 @@ describe('Witness Implementation Tests', async () => {
     const witnessDid1 = `did:key:${witness1.publicKeyMultibase}`;
     const witnessDid2 = `did:key:${witness2.publicKeyMultibase}`;
     const didWithWitness = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -888,7 +888,7 @@ describe('Witness Implementation Tests', async () => {
     const witnessDid1 = `did:key:${witness1.publicKeyMultibase}`;
     const witnessDid2 = `did:key:${witness2.publicKeyMultibase}`;
     const didWithWitness = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -929,7 +929,7 @@ describe('Witness Implementation Tests', async () => {
   test('Resolve maps witness threshold failure to invalidDid metadata for partial results', async () => {
     const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
     const didWithWitness = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -988,7 +988,7 @@ describe('Witness Implementation Tests', async () => {
 
   test('Update DID rejects duplicate witness IDs', async () => {
     const noWitnessDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -1014,7 +1014,7 @@ describe('Witness Implementation Tests', async () => {
 
   test('Update DID normalizes empty witness list to inactive state', async () => {
     const noWitnessDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
@@ -1079,7 +1079,7 @@ describe('Witness Implementation Tests', async () => {
     const witnessVmId = `${witnessId}#${witnessKey.publicKeyMultibase}`;
 
     const noWitnessDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey),
