@@ -37,12 +37,6 @@ export const config = {
   getEnvValue,
   isBrowser,
 
-  // Environment checks
-  isTestEnvironment: getEnvValue('NODE_ENV') === 'test',
-
-  // Feature flags
-  logResolves: getEnvValue('LOG_RESOLVES') === 'true',
-
   // Get verification methods from env
   getVerificationMethods: () => {
     return getVerificationMethodsFromEnv(getEnvValue('DID_VERIFICATION_METHODS'));
