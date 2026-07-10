@@ -494,7 +494,7 @@ describe('Not So Happy Path Tests', () => {
         verificationMethods: asPublicVerificationMethods(authKey),
         verifier: testImplementation,
       } as unknown as CreateDIDInterface)
-    ).rejects.toThrow('address must be provided');
+    ).rejects.toThrow('Address must be provided');
   });
 
   test('createDID rejects when verificationMethods is absent and no didDocument', async () => {
