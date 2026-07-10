@@ -188,6 +188,125 @@ The `didwebvh-ts` library provides the core functionality for resolving DIDs, bu
 
 For complete examples, see the [examples](./examples/) directory.
 
+## Runtime vs Adapter Boundary
+
+`didwebvh-ts` runtime now treats controlled DID context as an explicit caller concern.
+
+Runtime responsibilities:
+
+- DID method logic (create, resolve, update, deactivate)
+- DID log verification and version handling
+- Default remote DID log resolution when no caller context is provided
+
+Adapter responsibilities (CLI today, other wrappers in future):
+
+- Determine whether a DID is controlled by local state
+- Provide local DID log material when available
+- Provide any env/filesystem/repository integration
+
+The runtime does not infer ownership from `.env` or `process.env`.
+
+### Controlled DID Hook Contract
+
+`resolveDID` accepts an optional `resolveControlledDid` callback on `ResolutionOptions`:
+
+```typescript
+type ControlledDidInfo = {
+  did: string;
+  controlled: boolean;
+  didLog?: DIDLog;
+  verificationMethods?: VerificationMethod[];
+  keyRefs?: string[];
+};
+
+type ResolutionOptions = {
+  // ...other options
+  resolveControlledDid?: (
+    did: string
+  ) => ControlledDidInfo | null | undefined | Promise<ControlledDidInfo | null | undefined>;
+};
+```
+
+Resolution precedence:
+
+0. Runtime executes `resolveControlledDid` first (when provided).
+1. If `resolveControlledDid` returns `didLog`, runtime resolves from that log.
+2. Otherwise runtime uses default DID log retrieval.
+3. Returned `controlled` state is surfaced in the resolution result.
+
+## Integrator Guide
+
+### CLI-style adapter
+
+Use local `.env` or process environment as adapter inputs, then pass explicit context into runtime:
+
+```typescript
+import { resolveDID } from 'didwebvh-ts';
+
+const result = await resolveDID(did, {
+  resolveControlledDid: async (candidateDid) => {
+    const verificationMethods = await readVerificationMethodsFromEnvOrDotEnv();
+    const match = verificationMethods.find((vm) => vm.controller === candidateDid);
+
+    if (!match) {
+      return { did: candidateDid, controlled: false };
+    }
+
+    const didLog = await tryReadDidLogFromLocalStore(candidateDid);
+
+    return {
+      did: candidateDid,
+      controlled: true,
+      didLog,
+      verificationMethods,
+    };
+  },
+});
+```
+
+### Agent-wrapper style adapter (credo-like)
+
+Resolve controlled state from agent repositories/storage instead of env.
+The repository method names below are illustrative pseudocode, not Credo API methods.
+
+```typescript
+import { resolveDID } from 'didwebvh-ts';
+
+const result = await resolveDID(did, {
+  resolveControlledDid: async (candidateDid) => {
+    // Check local ownership metadata first; this does not load DID log content yet.
+    const didRecord = await didRepository.findByDid(candidateDid);
+    if (!didRecord) {
+      // Not locally controlled: runtime will resolve remotely.
+      return { did: candidateDid, controlled: false };
+    }
+
+    // If you persist DID logs locally, return one here.
+    // If unavailable, return undefined and runtime will fall back to remote fetch.
+    const didLog = await loadLocalDidLogIfAvailable(candidateDid);
+    const verificationMethods = await keyMappingRepository.findVerificationMethods(candidateDid);
+
+    return {
+      did: candidateDid,
+      controlled: true,
+      didLog: didLog ?? undefined,
+      verificationMethods,
+      keyRefs: didRecord.keyRefs,
+    };
+  },
+});
+```
+
+Execution behavior:
+
+1. `resolveControlledDid` returns `{ controlled: false }` -> runtime fetches DID log remotely.
+2. `resolveControlledDid` returns `{ controlled: true, didLog: <log> }` -> runtime resolves from local log.
+3. `resolveControlledDid` returns `{ controlled: true, didLog: undefined }` -> runtime still resolves remotely, but marks result as controlled.
+
+Migration note:
+
+- If your integration previously relied on implicit env-driven control, move that logic into your adapter and provide `resolveControlledDid` explicitly.
+
 ### Resolution metadata notes (v1.0)
 
 For `did:webvh:1.0` resolution flows, resolver failures that invalidate the DID are surfaced using:
