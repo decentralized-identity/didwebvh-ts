@@ -103,7 +103,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   // Parse address input with strict validation
   const addressInput = options.address;
   if (!addressInput) {
-    throw new Error('address must be provided');
+    throw new Error('Address must be provided');
   }
 
   const parsed = parseCanonicalAddress(addressInput);
