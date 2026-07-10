@@ -101,9 +101,9 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   }
 
   // Parse address input with strict validation
-  const addressInput = options.address || options.domain;
+  const addressInput = options.address;
   if (!addressInput) {
-    throw new Error('Either address or domain must be provided');
+    throw new Error('Address must be provided');
   }
 
   const parsed = parseCanonicalAddress(addressInput);
@@ -139,7 +139,6 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
     }
     const didDocResult = await createDIDDoc({
       ...options,
-      domain: addressInput,
       paths: allPaths,
       controller,
       verificationMethods: safeVerificationMethods,
@@ -454,21 +453,22 @@ export const resolveDIDFromLog = async (
       // Add default services if they don't exist
       doc.service = Array.isArray(doc.service) ? doc.service : [];
       const baseUrl = getBaseUrl(did);
+      const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
       if (!serviceFragmentExists(doc.service, ServiceFragment.Files, did)) {
         doc.service.push({
-          id: '#files',
+          id: `${did}#files`,
           type: SERVICE_TYPE_RELATIVE_REF,
-          serviceEndpoint: baseUrl,
+          serviceEndpoint: baseUrlWithTrailingSlash,
         });
       }
 
       if (!serviceFragmentExists(doc.service, ServiceFragment.Whois, did)) {
         doc.service.push({
           '@context': CONTEXT_LINKED_VP,
-          id: '#whois',
+          id: `${did}#whois`,
           type: SERVICE_TYPE_LINKED_VP,
-          serviceEndpoint: `${baseUrl}/whois.vp`,
+          serviceEndpoint: `${baseUrlWithTrailingSlash}whois.vp`,
         });
       }
 
@@ -615,10 +615,8 @@ export const resolveDIDFromLog = async (
 export const updateDID = async (
   options: UpdateDIDInterface & {
     services?: ServiceEndpoint[];
-    domain?: string;
     address?: string;
     paths?: string[];
-    updated?: string;
   }
 ): Promise<UpdateDIDResult> => {
   const log = options.log;
@@ -685,7 +683,7 @@ export const updateDID = async (
   });
 
   // Compute controller DID id; rebuild with new address if moving, keep SCID stable.
-  const requestedAddress = options.address || options.domain;
+  const requestedAddress = options.address;
   let controller: string;
   let controllerPaths = parsedLastEntryDid.paths;
   if (options.controller) {
@@ -718,7 +716,6 @@ export const updateDID = async (
     ...options,
     controller,
     context: options.context || lastEntry.state['@context'],
-    domain: requestedAddress ?? parsedLastEntryDid.didDomainComponent,
     paths: controllerPaths,
     updateKeys: options.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],

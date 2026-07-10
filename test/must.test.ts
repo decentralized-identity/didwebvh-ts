@@ -26,7 +26,7 @@ describe('did:webvh normative tests', async () => {
     testImplementation = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
     const { doc, log } = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -133,7 +133,7 @@ describe('did:webvh normative witness tests', async () => {
     witnessImpl3 = new TestCryptoImplementation({ verificationMethod: witness3 });
 
     initialDID = await createDID({
-      domain: 'example.com',
+      address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       verificationMethods: asPublicVerificationMethods(authKey1),
@@ -153,7 +153,7 @@ describe('did:webvh normative witness tests', async () => {
     let err: unknown;
     try {
       const { doc, log, did } = await createDID({
-        domain: 'example.com',
+        address: 'example.com',
         signer: createTestSigner(authKey1),
         updateKeys: [authKey1.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey1),
