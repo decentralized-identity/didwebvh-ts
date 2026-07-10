@@ -133,6 +133,28 @@ describe('resolveDID over HTTPS', () => {
     expect(result.doc).toBeNull();
     expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
   });
+
+  test('uses caller-provided controlled DID log without remote fetch', async () => {
+    const fetchMock = stubFetchResponse(toJsonl(log));
+
+    const result = await resolveDID(did, {
+      verifier,
+      resolveControlledDid: async (candidateDid) => {
+        if (candidateDid !== did) return null;
+        return {
+          did,
+          controlled: true,
+          didLog: log,
+        };
+      },
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.did).toBe(did);
+    expect(result.doc).toBeTruthy();
+    expect(result.controlled).toBe(true);
+    expect(result.meta.error).toBeUndefined();
+  });
 });
 
 describe('fetchLogFromIdentifier', () => {

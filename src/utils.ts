@@ -1,4 +1,3 @@
-import { config } from './config';
 import {
   BASE_CONTEXT,
   CONTEXT_LINKED_VP,
@@ -869,23 +868,6 @@ export const findVerificationMethod = (doc: DIDDoc, vmId: string): VerificationM
 
   return null;
 };
-
-export async function getActiveDIDs(): Promise<string[]> {
-  const activeDIDs: string[] = [];
-
-  try {
-    for (const vm of config.getVerificationMethods()) {
-      const did = vm.controller || vm.id?.split('#')[0];
-      if (did) {
-        activeDIDs.push(did);
-      }
-    }
-  } catch (error) {
-    console.error('Error processing verification methods:', error);
-  }
-
-  return activeDIDs;
-}
 
 export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileEntry[]> {
   try {
