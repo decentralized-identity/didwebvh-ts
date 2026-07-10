@@ -1,5 +1,5 @@
+import { decodeVerificationMethods, encodeVerificationMethods } from '../config';
 import type { DIDLog, VerificationMethod } from '../interfaces';
-import { bufferToString, createBuffer } from '../utils/buffer';
 
 type ProcessVersionsLike = { node?: string; bun?: string };
 
@@ -127,9 +127,7 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
       envContent = fs.readFileSync(envFilePath, 'utf8');
       const match = envContent.match(/DID_VERIFICATION_METHODS=(.*)/);
       if (match?.[1]) {
-        const decodedData = bufferToString(createBuffer(match[1], 'base64'));
-        const parsedData = JSON.parse(decodedData) as unknown;
-        existingData = Array.isArray(parsedData) ? (parsedData as Array<typeof vmData>) : [];
+        existingData = decodeVerificationMethods(match[1]) as Array<typeof vmData>;
 
         // Check if verification method with same ID already exists
         const existingIndex = existingData.findIndex((vm) => vm.id === vmData.id);
@@ -149,8 +147,7 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
       existingData = [vmData];
     }
 
-    const jsonData = JSON.stringify(existingData);
-    const encodedData = bufferToString(createBuffer(jsonData), 'base64');
+    const encodedData = encodeVerificationMethods(existingData as VerificationMethod[]);
 
     // If DID_VERIFICATION_METHODS already exists, replace it
     if (envContent.includes('DID_VERIFICATION_METHODS=')) {

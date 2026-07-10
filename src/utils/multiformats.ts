@@ -5,6 +5,8 @@
  * as specified in the DID:WebVH method specification.
  */
 
+import { base58, base64urlnopad } from '@scure/base';
+
 // ===== MULTIBASE IMPLEMENTATION =====
 
 /**
@@ -16,23 +18,12 @@ export enum MultibaseEncoding {
 }
 
 /**
- * Base encoding alphabets
- */
-const BASE_ALPHABETS = {
-  [MultibaseEncoding.BASE64URL_NO_PAD]: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_',
-  [MultibaseEncoding.BASE58_BTC]: '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',
-};
-
-/**
  * Encodes binary data using Base64URL (no padding)
  * @param bytes - The binary data to encode
  * @returns The base64url encoded string (without the multibase prefix)
  */
 export function encodeBase64Url(bytes: Uint8Array): string {
-  // Convert to base64
-  const base64 = Buffer.from(bytes).toString('base64');
-  // Convert to base64url by replacing + with - and / with _
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return base64urlnopad.encode(bytes);
 }
 
 /**
@@ -41,17 +32,7 @@ export function encodeBase64Url(bytes: Uint8Array): string {
  * @returns The decoded binary data
  */
 function decodeBase64Url(str: string): Uint8Array {
-  // Add padding if necessary
-  const padding = str.length % 4 === 0 ? 0 : 4 - (str.length % 4);
-  const base64 = str.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(padding);
-
-  // Decode base64 to binary
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
+  return base64urlnopad.decode(str);
 }
 
 /**
@@ -60,30 +41,7 @@ function decodeBase64Url(str: string): Uint8Array {
  * @returns The base58btc encoded string (without the multibase prefix)
  */
 export function encodeBase58Btc(bytes: Uint8Array): string {
-  const ALPHABET = BASE_ALPHABETS[MultibaseEncoding.BASE58_BTC];
-
-  // Count leading zeros
-  let zeros = 0;
-  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
-    zeros++;
-  }
-
-  // Convert to a big integer
-  let num = 0n;
-  for (let i = 0; i < bytes.length; i++) {
-    num = num * 256n + BigInt(bytes[i]);
-  }
-
-  // Convert to base58
-  let result = '';
-  while (num > 0n) {
-    const remainder = Number(num % 58n);
-    num = num / 58n;
-    result = ALPHABET[remainder] + result;
-  }
-
-  // Add leading '1's for each leading zero byte
-  return '1'.repeat(zeros) + result;
+  return base58.encode(bytes);
 }
 
 /**
@@ -92,34 +50,7 @@ export function encodeBase58Btc(bytes: Uint8Array): string {
  * @returns The decoded binary data
  */
 export function decodeBase58Btc(str: string): Uint8Array {
-  const ALPHABET = BASE_ALPHABETS[MultibaseEncoding.BASE58_BTC];
-
-  // Count leading '1's (representing leading zero bytes)
-  let zeros = 0;
-  for (let i = 0; i < str.length && str[i] === '1'; i++) {
-    zeros++;
-  }
-
-  // Convert from base58 to a big integer
-  let num = 0n;
-  for (let i = zeros; i < str.length; i++) {
-    const char = str[i];
-    const value = ALPHABET.indexOf(char);
-    if (value === -1) {
-      throw new Error(`Invalid Base58 character: ${char}`);
-    }
-    num = num * 58n + BigInt(value);
-  }
-
-  // Convert to bytes
-  const bytes: number[] = [];
-  while (num > 0n) {
-    bytes.unshift(Number(num % 256n));
-    num = num / 256n;
-  }
-
-  // Add leading zeros
-  return new Uint8Array([...new Array(zeros).fill(0), ...bytes]);
+  return base58.decode(str);
 }
 
 /**

@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.2.0",
+    "@scure/base": "^2.2.0",
     "cookie": "^1.1.1",
     "glob": "^13.0.6",
     "js-yaml": "^5.2.0",
