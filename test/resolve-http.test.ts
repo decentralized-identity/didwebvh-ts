@@ -1,6 +1,5 @@
 import { afterEach, beforeAll, describe, expect, mock, spyOn, test } from 'bun:test';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
-import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDID } from '../src/method';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils';
 import {
@@ -70,11 +69,11 @@ describe('resolveDID over HTTPS', () => {
     const result = await resolveDID(did, { verifier });
 
     expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
-    expect(result.did).toBe(did);
-    expect(result.doc).toBeTruthy();
-    expect(result.doc).not.toBeNull();
-    expect(result.doc!.id).toBe(did);
-    expect(result.meta.error).toBeUndefined();
+    expect(result.didDocument).toBeTruthy();
+    expect(result.didDocument).not.toBeNull();
+    expect(result.didDocument!.id).toBe(did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didResolutionMetadata.contentType).toBe('application/did+ld+json');
   });
 
   test('maps an HTTP 404 to the notFound resolution error', async () => {
@@ -83,10 +82,9 @@ describe('resolveDID over HTTPS', () => {
 
     const result = await resolveDID(did, { verifier });
 
-    expect(result.doc).toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.NotFound);
-    expect(result.meta.problemDetails?.type).toBe('https://w3id.org/security#NOT_FOUND');
-    expect(result.meta.problemDetails?.detail).toContain('404');
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('notFound');
+    expect(result.didResolutionMetadata.message).toContain('404');
   });
 
   test('maps an empty DID log to the notFound resolution error', async () => {
@@ -95,8 +93,8 @@ describe('resolveDID over HTTPS', () => {
 
     const result = await resolveDID(did, { verifier });
 
-    expect(result.doc).toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.NotFound);
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('notFound');
   });
 
   test('maps an invalid DID log to the invalidDid resolution error', async () => {
@@ -104,11 +102,8 @@ describe('resolveDID over HTTPS', () => {
 
     const result = await resolveDID(did, { verifier });
 
-    expect(result.doc).toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
-    expect(result.meta.problemDetails?.type).toBe(
-      'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID'
-    );
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
   });
 
   test('rejects a log whose SCID does not match the SCID in the DID', async () => {
@@ -119,19 +114,19 @@ describe('resolveDID over HTTPS', () => {
 
     const result = await resolveDID(tamperedDid, { verifier });
 
-    expect(result.doc).toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
-    expect(result.meta.problemDetails?.detail).toContain('does not match SCID');
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain('does not match SCID');
   });
 
-  test('maps a network failure to the invalidDid resolution error', async () => {
+  test('maps a network failure to the internalError resolution error', async () => {
     silenceConsoleError();
     stubFetchFailure(new TypeError('fetch failed'));
 
     const result = await resolveDID(did, { verifier });
 
-    expect(result.doc).toBeNull();
-    expect(result.meta.error).toBe(DidResolutionError.InvalidDid);
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('internalError');
   });
 });
 

@@ -159,57 +159,72 @@ For this to work, the `didwebvh-ts` package on npmjs.com must have a Trusted Pub
 
 ## Creating a DID Resolver
 
-The `didwebvh-ts` library provides the core functionality for resolving DIDs, but it does not include a built-in HTTP resolver. You can create your own resolver using your preferred web framework by following these steps:
+Resolution follows the standard W3C [`did-resolver`](https://github.com/decentralized-identity/did-resolver) interface. `resolveDID` / `resolveDIDFromLog` return a `DIDResolutionResult` (`{ didResolutionMetadata, didDocument, didDocumentMetadata }`), and `getResolver()` produces a registry entry you can drop into a `did-resolver` `Resolver` alongside `did:web`, `did:ethr`, etc.
 
-1. Import the `resolveDID` function from the `didwebvh-ts` library:
+#### Using the did-resolver interface
 
-   ```typescript
-   import { resolveDID } from 'didwebvh-ts';
-   ```
+```typescript
+import { Resolver } from 'did-resolver';
+import { getResolver } from 'didwebvh-ts';
 
-2. Create endpoints for resolving DIDs:
+// Works zero-config via the built-in Ed25519 verifier;
+// pass getResolver({ verifier }) to override.
+const resolver = new Resolver(getResolver());
 
-   ```typescript
-   // Example using Express
-   app.get('/resolve/:id', async (req, res) => {
-     try {
-       const result = await resolveDID(req.params.id);
-       res.json(result);
-     } catch (error) {
-       res.status(400).json({
-         error: 'Resolution failed',
-         details: error.message
-       });
-     }
-   });
-   ```
+const result = await resolver.resolve('did:webvh:SCID:example.com');
+// Spec-conformant query parameters are honoured:
+const v2 = await resolver.resolve('did:webvh:SCID:example.com?versionId=2-...');
+```
 
-3. Implement file retrieval logic for DID documents and associated resources.
+`versionId`, `versionTime`, and `versionNumber` are mutually exclusive — supplying more than one returns `didResolutionMetadata.error = "invalidOptions"` with a `problemDetails.type` from the [did:webvh resolution-error registry](https://didwebvh.info/latest/resolution-errors/).
+
+#### Calling the resolvers directly
+
+```typescript
+import { resolveDID } from 'didwebvh-ts';
+
+// Example using Express
+app.get('/resolve/:id', async (req, res) => {
+  const result = await resolveDID(req.params.id);
+  res.json(result);
+});
+```
+
+`resolveDID` does not throw on failure — it returns a `DIDResolutionResult` with `didDocument: null` and a `didResolutionMetadata.error` code.
 
 For complete examples, see the [examples](./examples/) directory.
 
 ### Resolution metadata notes (v1.0)
 
-For `did:webvh:1.0` resolution flows, resolver failures that invalidate the DID are surfaced using:
+Resolver failures are surfaced on `didResolutionMetadata`:
 
-- `meta.error = "invalidDid"`
-- `meta.problemDetails` populated with RFC9457-style fields (`type`, `title`, `detail`)
+- `didResolutionMetadata.error` is one of `"invalidDid"` (the resolved DID or log fails validation), `"invalidDidUrl"` (the DID URL violates `did-url` syntax, e.g. malformed percent-encoding), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). Unknown query parameters are ignored per DID Core extensibility.
+- `didResolutionMetadata.problemDetails` carries RFC9457-style fields (`type`, `title`, `detail`) where available, and `didResolutionMetadata.message` carries the underlying detail string.
+- Whether the resolved DID is locally controlled rides along as `didResolutionMetadata.controlled` (a non-standard extension).
 
-Absence cases (for example missing DID log or missing DID URL resource) use:
+Absence cases (missing DID log or missing DID URL resource) use `didResolutionMetadata.error = "notFound"`.
 
-- `meta.error = "notFound"`
+When resolving a requested earlier version (with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `didResolutionMetadata.error = "invalidDid"` if a later log entry fails verification.
 
-When resolving a requested earlier version (for example with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `meta.error = "invalidDid"` if a later log entry fails verification.
+Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, `portable`, `witness`, `watchers`, `previousLogEntryHash`, `latestVersionId`) is returned on `didDocumentMetadata` alongside the standard `versionId`/`created`/`updated`/`deactivated` fields.
+
+> **Breaking change (v3.0.0):** resolution returns the standard `DIDResolutionResult` instead of the previous `{ did, doc, meta, controlled }` shape, and the implementation-specific `verificationMethod` resolution selector has been removed.
 
 ## API Reference
 
 ### Core Functions
 
-- `resolveDID(did: string, options?: ResolutionOptions): Promise<{did: string, doc: any, meta: DIDResolutionMeta, controlled: boolean}>`
-  Resolves a DID to its DID document.
+- `getResolver(config?: { verifier?: Verifier }): ResolverRegistry`
+  Returns a `did-resolver` registry entry (`{ webvh: DIDResolver }`) registrable in a `Resolver`. Works zero-config via `defaultVerifier`.
 
-- `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] }): Promise<{did: string, doc: any, meta: DIDResolutionMeta}>`
-  Resolves directly from an in-memory DID log.
+- `defaultVerifier: Verifier`
+  Built-in Ed25519 verifier used when no `verifier` is supplied.
+
+- `resolveDID(did: string, options?: ResolutionOptions): Promise<DIDResolutionResult>`
+  Resolves a DID to a standard W3C `DIDResolutionResult` (`{ didResolutionMetadata, didDocument, didDocumentMetadata }`). Does not throw on failure.
+
+- `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] }): Promise<DIDResolutionResult>`
+  Resolves directly from an in-memory DID log, returning the same standard shape.
 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
   Creates a new DID.

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@noble/curves": "^2.2.0",
     "didwebvh-ts": "file:..",
     "elysia": "^1.4.29",
     "express": "^5.2.1"

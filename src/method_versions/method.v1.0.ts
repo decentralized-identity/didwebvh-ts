@@ -27,7 +27,6 @@ import type {
   WitnessParameterResolution,
   WitnessProofFileEntry,
 } from '../interfaces';
-import { DidResolutionError } from '../interfaces';
 import {
   createDate,
   createDIDDoc,
@@ -35,7 +34,6 @@ import {
   deepClone,
   deriveHash,
   enrichAlsoKnownAs,
-  findVerificationMethod,
   generateParallelDidWeb,
   getBaseUrl,
   parseCanonicalAddress,
@@ -225,9 +223,6 @@ export const resolveDIDFromLog = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
-  if (options.verificationMethod && (options.versionNumber || options.versionId)) {
-    throw new Error('Cannot specify both verificationMethod and version number/id');
-  }
   const resolutionLog = log.map((l) => deepClone(l));
   if (resolutionLog.length === 0) {
     throw new Error(`Log identity binding check failed: no entries to process`);
@@ -259,10 +254,7 @@ export const resolveDIDFromLog = async (
   let lastValidMeta: DIDResolutionMeta | null = null;
   let i = 0;
   const hasExplicitHistoricalSelector =
-    options.versionNumber !== undefined ||
-    options.versionId !== undefined ||
-    options.versionTime !== undefined ||
-    options.verificationMethod !== undefined;
+    options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
   let didIdMatchCount = 0;
   let host = '';
   let previousVersionTime: Date | undefined;
@@ -472,14 +464,6 @@ export const resolveDIDFromLog = async (
         });
       }
 
-      if (options.verificationMethod && findVerificationMethod(doc, options.verificationMethod)) {
-        if (!resolvedDoc) {
-          resolvedDoc = deepClone(doc);
-          resolvedDid = did;
-          resolvedMeta = { ...meta };
-        }
-      }
-
       if (options.versionNumber === versionNumber || options.versionId === meta.versionId) {
         if (!resolvedDoc) {
           resolvedDoc = deepClone(doc);
@@ -548,7 +532,7 @@ export const resolveDIDFromLog = async (
     }
     if (resolvedMeta && (!hasExplicitHistoricalSelector || witnessThresholdFailure)) {
       const message = e instanceof Error ? e.message : String(e);
-      resolvedMeta.error = DidResolutionError.InvalidDid;
+      resolvedMeta.error = 'invalidDid';
       resolvedMeta.problemDetails = {
         type: ERROR_TYPE_INVALID_DID,
         title: 'The resolved DID is invalid.',
@@ -568,7 +552,7 @@ export const resolveDIDFromLog = async (
         doc: null,
         meta: {
           ...lastValidMeta,
-          error: DidResolutionError.NotFound,
+          error: 'notFound',
           problemDetails: {
             type: ERROR_TYPE_NOT_FOUND,
             title: 'The requested DID version was not found.',

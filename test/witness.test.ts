@@ -6,7 +6,6 @@ import type {
   Signer,
   VerificationMethod,
 } from '../src/interfaces';
-import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { deriveHash, parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
@@ -83,8 +82,8 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
     });
 
-    expect(resolved.meta?.witness?.threshold).toBe(2);
-    expect(resolved.did).toBe(initialDID.did);
+    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(2);
+    expect(resolved.didDocument?.id).toBe(initialDID.did);
   });
 
   test('Create DID without witnesses then update to add witnesses', async () => {
@@ -132,9 +131,9 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
       witnessProofs,
     });
-    expect(resolved.meta?.witness?.threshold).toBe(2);
+    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(2);
     expect(updatedDID.log).toHaveLength(2);
-    expect(resolved.meta?.witness?.witnesses).toHaveLength(2);
+    expect(resolved.didDocumentMetadata?.witness?.witnesses).toHaveLength(2);
   });
 
   test('Resolve DID rejects duplicate witness IDs in witness parameters', async () => {
@@ -183,11 +182,12 @@ describe('Witness Implementation Tests', async () => {
 
     const tamperedLog = [updatedDID.log[0], duplicateWitnessEntry];
 
-    expect(
-      resolveDIDFromLog(tamperedLog, {
-        verifier: testImplementation,
-      })
-    ).rejects.toThrow(`Duplicate witness id: ${duplicateWitnessId}`);
+    const result = await resolveDIDFromLog(tamperedLog, {
+      verifier: testImplementation,
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain(`Duplicate witness id: ${duplicateWitnessId}`);
   });
 
   test('rejects witness did:key with incompatible key type at parameter validation', async () => {
@@ -268,8 +268,8 @@ describe('Witness Implementation Tests', async () => {
       ],
     });
 
-    expect(resolved.did).toBe(updated.did);
-    expect(resolved.meta?.updateKeys).toEqual([authKey2.publicKeyMultibase!]);
+    expect(resolved.didDocument?.id).toBe(updated.did);
+    expect(resolved.didDocumentMetadata?.updateKeys).toEqual([authKey2.publicKeyMultibase!]);
   });
 
   test('API e2e: rejects did:key-formatted updateKeys in update flow', async () => {
@@ -405,8 +405,8 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
       witnessProofs: [...witnessProofs, ...newWitnessProofs],
     });
-    expect(resolved.meta?.witness?.witnesses).toHaveLength(1);
-    expect(resolved.meta?.witness?.threshold).toBe(1);
+    expect(resolved.didDocumentMetadata?.witness?.witnesses).toHaveLength(1);
+    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(1);
   });
 
   test('Disable witnessing by setting witness list to null', async () => {
@@ -440,7 +440,7 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
       witnessProofs: [...witnessProofs, { versionId: newVersionId, proof: deactivationProofs }],
     });
-    expect(resolved.meta.witness).toBeEmpty();
+    expect(resolved.didDocumentMetadata.witness).toBeEmpty();
   });
 
   test('Verify witness proofs from did-witness.json', async () => {
@@ -484,7 +484,7 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
     });
 
-    expect(resolved.did).toBe(initialDID.did);
+    expect(resolved.didDocument?.id).toBe(initialDID.did);
   });
 
   test('Reject witness proofs with invalid proofPurpose', async () => {
@@ -513,12 +513,15 @@ describe('Witness Implementation Tests', async () => {
     };
 
     try {
-      await expect(
-        resolveDIDFromLog(initialDID.log, {
-          witnessProofs,
-          verifier: testImplementation,
-        })
-      ).rejects.toThrow(`Witness threshold not met for version ${initialDID.log[0].versionId}`);
+      const result = await resolveDIDFromLog(initialDID.log, {
+        witnessProofs,
+        verifier: testImplementation,
+      });
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.error).toBe('invalidDid');
+      expect(result.didResolutionMetadata.message).toContain(
+        `Witness threshold not met for version ${initialDID.log[0].versionId}`
+      );
     } finally {
       console.warn = originalWarn;
     }
@@ -698,23 +701,26 @@ describe('Witness Implementation Tests', async () => {
 
     // A v1-only proof leaves v2 unwitnessed: cumulative approval runs backwards, so an
     // earlier proof never covers a later entry.
-    await expect(
-      resolveDIDFromLog(updatedDid.log, {
-        verifier: testImplementation,
-        witnessProofs: [
-          {
-            versionId: didWithWitness.log[0].versionId,
-            proof: [
-              await createWitnessProof(
-                createWitnessSigner(witness1),
-                didWithWitness.log[0].versionId,
-                witnessVerificationMethod(witness1)
-              ),
-            ],
-          },
-        ],
-      })
-    ).rejects.toThrow(`Witness threshold not met for version ${updatedDid.log[1].versionId}`);
+    const result = await resolveDIDFromLog(updatedDid.log, {
+      verifier: testImplementation,
+      witnessProofs: [
+        {
+          versionId: didWithWitness.log[0].versionId,
+          proof: [
+            await createWitnessProof(
+              createWitnessSigner(witness1),
+              didWithWitness.log[0].versionId,
+              witnessVerificationMethod(witness1)
+            ),
+          ],
+        },
+      ],
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain(
+      `Witness threshold not met for version ${updatedDid.log[1].versionId}`
+    );
   });
 
   test('Resolve accepts later proof for earlier required entry', async () => {
@@ -774,7 +780,7 @@ describe('Witness Implementation Tests', async () => {
       ],
     });
 
-    expect(resolved.did).toBe(updatedDid.did);
+    expect(resolved.didDocument?.id).toBe(updatedDid.did);
   });
 
   test('Resolve accepts a single pruned later proof as cumulative approval for prior entries', async () => {
@@ -829,8 +835,8 @@ describe('Witness Implementation Tests', async () => {
       witnessProofs: prunedWitnessProofs,
     });
 
-    expect(resolved.did).toBe(updatedDid.did);
-    expect(resolved.meta?.error).toBeUndefined();
+    expect(resolved.didDocument?.id).toBe(updatedDid.did);
+    expect(resolved.didResolutionMetadata.error).toBeUndefined();
   });
 
   test('Resolve rejects a witness-list reduction approved only by the reduced list', async () => {
@@ -870,18 +876,19 @@ describe('Witness Implementation Tests', async () => {
     const v2 = reduced.log[1].versionId;
 
     // Only witness1 (the reduced list) approves v2 — insufficient for the old 2-of-2.
-    await expect(
-      resolveDIDFromLog(reduced.log, {
-        verifier: testImplementation,
-        witnessProofs: [
-          v1Proofs,
-          {
-            versionId: v2,
-            proof: [await createWitnessProof(createWitnessSigner(witness1), v2, witnessVerificationMethod(witness1))],
-          },
-        ],
-      })
-    ).rejects.toThrow(`Witness threshold not met for version ${v2}`);
+    const result = await resolveDIDFromLog(reduced.log, {
+      verifier: testImplementation,
+      witnessProofs: [
+        v1Proofs,
+        {
+          versionId: v2,
+          proof: [await createWitnessProof(createWitnessSigner(witness1), v2, witnessVerificationMethod(witness1))],
+        },
+      ],
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain(`Witness threshold not met for version ${v2}`);
   });
 
   test('Resolve ignores invalid witness proof if enough valid proofs remain', async () => {
@@ -923,7 +930,7 @@ describe('Witness Implementation Tests', async () => {
       ],
     });
 
-    expect(resolved.did).toBe(didWithWitness.did);
+    expect(resolved.didDocument?.id).toBe(didWithWitness.did);
   });
 
   test('Resolve maps witness threshold failure to invalidDid metadata for partial results', async () => {
@@ -977,13 +984,13 @@ describe('Witness Implementation Tests', async () => {
       ],
     });
 
-    expect(resolved.meta.error).toBe(DidResolutionError.InvalidDid);
-    expect(resolved.meta.problemDetails).toBeDefined();
-    expect(resolved.meta.problemDetails!.type).toBe(
+    expect(resolved.didResolutionMetadata.error).toBe('invalidDid');
+    expect(resolved.didResolutionMetadata.problemDetails).toBeDefined();
+    expect(resolved.didResolutionMetadata.problemDetails!.type).toBe(
       'https://w3id.org/security#INVALID_CONTROLLED_IDENTIFIER_DOCUMENT_ID'
     );
-    expect(resolved.meta.problemDetails!.title).toBe('The resolved DID is invalid.');
-    expect(resolved.meta.problemDetails!.detail).toContain('Witness threshold not met');
+    expect(resolved.didResolutionMetadata.problemDetails!.title).toBe('The resolved DID is invalid.');
+    expect(resolved.didResolutionMetadata.problemDetails!.detail).toContain('Witness threshold not met');
   });
 
   test('Update DID rejects duplicate witness IDs', async () => {
@@ -1120,8 +1127,8 @@ describe('Witness Implementation Tests', async () => {
       witnessProofs: [{ versionId, proof: [witnessProof] }],
     });
 
-    expect(resolved.meta.witness?.witnesses).toHaveLength(1);
-    expect(resolved.meta.witness?.witnesses?.[0].id).toBe(witnessId);
-    expect(resolved.meta.witness?.threshold).toBe(1);
+    expect(resolved.didDocumentMetadata.witness?.witnesses).toHaveLength(1);
+    expect(resolved.didDocumentMetadata.witness?.witnesses?.[0].id).toBe(witnessId);
+    expect(resolved.didDocumentMetadata.witness?.threshold).toBe(1);
   });
 });
