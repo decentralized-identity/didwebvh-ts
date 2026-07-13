@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { Resolver } from 'did-resolver';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, updateDID } from '../src/method';
 import { getResolver } from '../src/resolver';
