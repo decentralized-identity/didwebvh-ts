@@ -1,4 +1,4 @@
-import * as crypto from '@stablelib/ed25519';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { METHOD, PLACEHOLDER } from '../src/constants';
 import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography';
 import type {
@@ -78,30 +78,31 @@ export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhe
 
 // Test crypto implementation
 export class TestCryptoImplementation extends AbstractCrypto implements Verifier {
-  private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
+  private keyPair: { publicKey: Uint8Array; seed: Uint8Array };
 
   constructor(options: SignerOptions) {
     super(options);
     // For tests, we'll generate a deterministic key if none provided
     if (!options.verificationMethod?.secretKeyMultibase) {
-      const keyPair = crypto.generateKeyPair();
-      this.keyPair = keyPair;
+      const keyPair = ed25519.keygen();
+      this.keyPair = { publicKey: keyPair.publicKey, seed: keyPair.secretKey };
     } else {
-      const secretKey = multibaseDecode(options.verificationMethod.secretKeyMultibase).bytes;
-      const publicKey = multibaseDecode(options.verificationMethod.publicKeyMultibase!).bytes;
-      this.keyPair = { publicKey, secretKey };
+      // Multicodec-prefixed (2 bytes); the secret is seed||publicKey (64 bytes) or a bare seed.
+      const secretKey = multibaseDecode(options.verificationMethod.secretKeyMultibase).bytes.slice(2);
+      const publicKey = multibaseDecode(options.verificationMethod.publicKeyMultibase!).bytes.slice(2);
+      this.keyPair = { publicKey, seed: secretKey.slice(0, 32) };
     }
   }
 
   async sign(input: SigningInput): Promise<SigningOutput> {
     const dataToSign = await prepareDataForSigning(input.document, input.proof);
-    const signature = crypto.sign(this.keyPair.secretKey.slice(2), dataToSign);
+    const signature = ed25519.sign(dataToSign, this.keyPair.seed);
     return { proofValue: multibaseEncode(signature, MultibaseEncoding.BASE58_BTC) };
   }
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     try {
-      return crypto.verify(publicKey, message, signature);
+      return ed25519.verify(signature, message, publicKey, { zip215: false });
     } catch (error) {
       console.error('Error verifying signature:', error);
       return false;
@@ -126,8 +127,12 @@ export async function generateTestVerificationMethod(
     | 'capabilityDelegation' = 'authentication',
   id?: string
 ): Promise<VerificationMethod> {
-  const keyPair = crypto.generateKeyPair();
-  const secretKey = multibaseEncode(new Uint8Array([0x80, 0x26, ...keyPair.secretKey]), MultibaseEncoding.BASE58_BTC);
+  const keyPair = ed25519.keygen();
+  // seed||publicKey (64 bytes) matches the legacy @stablelib/ed25519 secret layout.
+  const secretKey = multibaseEncode(
+    new Uint8Array([0x80, 0x26, ...keyPair.secretKey, ...keyPair.publicKey]),
+    MultibaseEncoding.BASE58_BTC
+  );
   const publicKey = multibaseEncode(new Uint8Array([0xed, 0x01, ...keyPair.publicKey]), MultibaseEncoding.BASE58_BTC);
   return {
     id,

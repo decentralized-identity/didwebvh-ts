@@ -74,7 +74,7 @@ The Elysia resolver uses an `ElysiaVerifier` class that:
 
 1. Extends the `AbstractCrypto` class
 2. Implements the `Verifier` interface for verification
-3. Uses Ed25519 for cryptographic operations via `@stablelib/ed25519`
+3. Uses Ed25519 for cryptographic operations via `@noble/curves`
 4. Demonstrates proper verification of Ed25519 signatures
 
 ### Express Resolver

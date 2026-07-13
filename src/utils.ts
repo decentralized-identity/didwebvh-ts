@@ -774,13 +774,13 @@ export const normalizeVMs = (
   }
 
   // First collect all VMs
-  const vms = verificationMethod.map((vm) => ({
+  const vms: VerificationMethod[] = verificationMethod.map((vm) => ({
     ...vm,
     id: vm.id ?? createVMID(vm, did),
     // Default controller to the DID — required by W3C DID Core §5.2
-    controller: vm.controller ?? did,
+    controller: vm.controller ?? did ?? undefined,
   }));
-  all.verificationMethod = vms as unknown as VerificationMethod[];
+  all.verificationMethod = vms;
 
   // Then handle relationships - default to authentication if no purpose is specified
   all.authentication = verificationMethod
@@ -818,11 +818,11 @@ export const resolveVM = async (vm: string) => {
         .trim()
         .split('\n')
         .map((l) => JSON.parse(l));
-      const { doc } = await resolveDIDFromLog(logEntries, { verificationMethod: vm });
-      if (!doc) {
+      const { didDocument } = await resolveDIDFromLog(logEntries, {});
+      if (!didDocument) {
         throw new Error(`Verification method ${vm} not found`);
       }
-      return findVerificationMethod(doc, vm);
+      return findVerificationMethod(didDocument as DIDDoc, vm);
     }
     throw new Error(`Verification method ${vm} not found`);
   } catch (e) {

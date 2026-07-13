@@ -1,4 +1,4 @@
-import { verify } from '@stablelib/ed25519';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { resolveDID } from 'didwebvh-ts';
 import type { DIDDoc, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
 import express from 'express';
@@ -17,7 +17,7 @@ class ExpressVerifier implements Verifier {
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     try {
-      return verify(publicKey, message, signature);
+      return ed25519.verify(signature, message, publicKey, { zip215: false });
     } catch (error) {
       return false;
     }
@@ -40,6 +40,24 @@ const expressVerifier = new ExpressVerifier('key-prod-1', 'did:example:123#key-1
 
 const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
+
+// Map a DID resolution error code to an HTTP status so callers can tell a
+// missing identifier (404) from a malformed request (400) or a resolver
+// failure (500).
+const getStatusCodeFromError = (errorType?: string): number => {
+  switch (errorType) {
+    case 'invalidDid':
+      return 400;
+    case 'invalidDidUrl':
+      return 400;
+    case 'invalidOptions':
+      return 400;
+    case 'notFound':
+      return 404;
+    default:
+      return 500;
+  }
+};
 
 const WELL_KNOWN_ALLOW_LIST = ['did.jsonl'];
 
@@ -124,7 +142,6 @@ app.get('/resolve/:id', async (req, res) => {
         versionNumber: req.query.versionNumber ? parseInt(req.query.versionNumber as string, 10) : undefined,
         versionId: req.query.versionId as string,
         versionTime: req.query.versionTime ? new Date(req.query.versionTime as string) : undefined,
-        verificationMethod: req.query.verificationMethod as string,
         verifier: expressVerifier,
       };
 
@@ -133,7 +150,18 @@ app.get('/resolve/:id', async (req, res) => {
       return res.json(result);
     }
 
-    const { did, doc, controlled } = await resolveDID(didPart, { verifier: expressVerifier });
+    const resolution = await resolveDID(didPart, { verifier: expressVerifier });
+    // Only bail when there is no usable document. A valid earlier version can be
+    // returned alongside a warning-level error, so still serve files in that case.
+    if (resolution.didResolutionMetadata?.error && !resolution.didDocument) {
+      return res.status(getStatusCodeFromError(resolution.didResolutionMetadata.error)).json({
+        error: 'Resolution failed',
+        details: resolution.didResolutionMetadata.error,
+      });
+    }
+    const did = resolution.didDocument?.id ?? '';
+    const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
+    const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);
 
     const didParts = did.split(':');
     const domain = didParts[didParts.length - 1];

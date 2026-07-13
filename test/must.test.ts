@@ -40,18 +40,14 @@ describe('did:webvh normative tests', async () => {
 
   test('Resolve MUST process the DID Log correctly (positive)', async () => {
     const resolved = await resolveDIDFromLog(newLog1, { verifier: testImplementation });
-    expect(resolved.meta.versionId.split('-')[0]).toBe('1');
+    expect(resolved.didDocumentMetadata.versionId!.split('-')[0]).toBe('1');
   });
 
   test('Resolve MUST process the DID Log correctly (negative)', async () => {
-    let err: unknown;
     const malformedLog = 'malformed log content';
-    try {
-      await resolveDIDFromLog(malformedLog as unknown as DIDLog, { verifier: testImplementation });
-    } catch (e) {
-      err = e;
-    }
-    expect(err).toBeDefined();
+    const result = await resolveDIDFromLog(malformedLog as unknown as DIDLog, { verifier: testImplementation });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBeDefined();
   });
 
   test('Update implementation MUST generate a correct DID Entry (positive)', async () => {
@@ -69,7 +65,7 @@ describe('did:webvh normative tests', async () => {
     });
 
     const resolved = await resolveDIDFromLog(updatedLog, { verifier: testImplementation });
-    expect(resolved.meta.versionId.split('-')[0]).toBe('2');
+    expect(resolved.didDocumentMetadata.versionId!.split('-')[0]).toBe('2');
   });
 
   test("Resolver encountering 'deactivated': true MUST return deactivated in metadata (positive)", async () => {
@@ -79,13 +75,13 @@ describe('did:webvh normative tests', async () => {
       verifier: testImplementation,
     });
     const resolved = await resolveDIDFromLog(updatedLog, { verifier: testImplementation });
-    expect(resolved.meta.deactivated).toBe(true);
-    expect(resolved.doc).toBeNull();
+    expect(resolved.didDocumentMetadata.deactivated).toBe(true);
+    expect(resolved.didDocument).toBeNull();
   });
 
   test("Resolver encountering 'deactivated': false MUST return deactivated in metadata (negative)", async () => {
     const resolved = await resolveDIDFromLog(newLog1, { verifier: testImplementation });
-    expect(resolved.meta.deactivated).toBe(false);
+    expect(resolved.didDocumentMetadata.deactivated).toBe(false);
   });
 });
 
@@ -189,18 +185,13 @@ describe('did:webvh normative witness tests', async () => {
       },
     ];
 
-    let err: unknown;
-    try {
-      await resolveDIDFromLog(initialDID.log, {
-        witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
-        verifier: testImplementation,
-      });
-    } catch (e) {
-      err = e;
-    }
-    expect(err).toBeDefined();
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).toContain('Witness threshold not met');
+    const result = await resolveDIDFromLog(initialDID.log, {
+      witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
+      verifier: testImplementation,
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBeDefined();
+    expect(result.didResolutionMetadata.message).toContain('Witness threshold not met');
   });
 
   test('witness proofs MUST use eddsa-jcs-2022 cryptosuite', async () => {
@@ -231,20 +222,18 @@ describe('did:webvh normative witness tests', async () => {
       warnings.push(args.map(String).join(' '));
     };
 
-    let err: unknown;
+    let result: Awaited<ReturnType<typeof resolveDIDFromLog>>;
     try {
-      await resolveDIDFromLog(initialDID.log, {
+      result = await resolveDIDFromLog(initialDID.log, {
         witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
         verifier: testImplementation,
       });
-    } catch (e) {
-      err = e;
     } finally {
       console.warn = originalWarn;
     }
-    expect(err).toBeDefined();
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).toContain('Witness threshold not met');
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBeDefined();
+    expect(result.didResolutionMetadata.message).toContain('Witness threshold not met');
     expect(warnings.some((msg) => msg.includes('Invalid witness proof cryptosuite'))).toBe(true);
   });
 
@@ -263,18 +252,13 @@ describe('did:webvh normative witness tests', async () => {
       },
     ];
 
-    let err: unknown;
-    try {
-      await resolveDIDFromLog(initialDID.log, {
-        witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
-        verifier: testImplementation,
-      });
-    } catch (e) {
-      err = e;
-    }
-    expect(err).toBeDefined();
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).toContain('Witness threshold not met');
+    const result = await resolveDIDFromLog(initialDID.log, {
+      witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
+      verifier: testImplementation,
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBeDefined();
+    expect(result.didResolutionMetadata.message).toContain('Witness threshold not met');
   });
 });
 

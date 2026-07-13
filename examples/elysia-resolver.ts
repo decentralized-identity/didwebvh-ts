@@ -1,4 +1,4 @@
-import { verify as ed25519Verify } from '@stablelib/ed25519';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { Elysia } from 'elysia';
 import { AbstractCrypto, resolveDID } from '../src';
 import type { DIDDoc, SigningInput, SigningOutput, Verifier } from '../src/types';
@@ -22,7 +22,7 @@ class ElysiaVerifier extends AbstractCrypto implements Verifier {
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     try {
-      return ed25519Verify(publicKey, message, signature);
+      return ed25519.verify(signature, message, publicKey, { zip215: false });
     } catch (error) {
       console.error('Ed25519 verification error:', error);
       return false;
@@ -47,22 +47,14 @@ const WELL_KNOWN_ALLOW_LIST = ['did.jsonl'];
 // Helper function to map DID resolution errors to HTTP status codes
 const getStatusCodeFromError = (errorType?: string): number => {
   switch (errorType) {
-    case 'INVALID_DID':
-    case 'INVALID_DID_URL':
-    case 'INVALID_OPTIONS':
+    case 'invalidDid':
       return 400;
-    case 'NOT_FOUND':
+    case 'invalidDidUrl':
+      return 400;
+    case 'invalidOptions':
+      return 400;
+    case 'notFound':
       return 404;
-    case 'REPRESENTATION_NOT_SUPPORTED':
-      return 406;
-    case 'METHOD_NOT_SUPPORTED':
-    case 'UNSUPPORTED_PUBLIC_KEY_TYPE':
-      return 501;
-    case 'INVALID_DID_DOCUMENT':
-    case 'INVALID_PUBLIC_KEY':
-    case 'INVALID_PUBLIC_KEY_LENGTH':
-    case 'INVALID_PUBLIC_KEY_TYPE':
-    case 'INTERNAL_ERROR':
     default:
       return 500;
   }
@@ -152,22 +144,33 @@ const app = new Elysia()
           versionNumber: query?.versionNumber ? parseInt(query.versionNumber as string, 10) : undefined,
           versionId: query?.versionId as string,
           versionTime: query?.versionTime ? new Date(query.versionTime as string) : undefined,
-          verificationMethod: query?.verificationMethod as string,
           verifier: elysiaVerifier,
         };
 
         console.log(`Resolving DID ${didPart}`);
         const result = await resolveDID(didPart, options);
 
-        // Check for error in meta and set appropriate status code
-        if (result.meta?.error) {
-          set.status = getStatusCodeFromError(result.meta.error);
+        // Check for error in resolution metadata and set appropriate status code
+        if (result.didResolutionMetadata?.error) {
+          set.status = getStatusCodeFromError(result.didResolutionMetadata.error);
         }
 
         return result;
       }
 
-      const { did, doc, controlled } = await resolveDID(didPart, { verifier: elysiaVerifier });
+      const resolution = await resolveDID(didPart, { verifier: elysiaVerifier });
+      // Only bail when there is no usable document. A valid earlier version can
+      // be returned alongside a warning-level error, so still serve files in that case.
+      if (resolution.didResolutionMetadata?.error && !resolution.didDocument) {
+        set.status = getStatusCodeFromError(resolution.didResolutionMetadata.error);
+        return {
+          error: 'Resolution failed',
+          details: resolution.didResolutionMetadata.error,
+        };
+      }
+      const did = resolution.didDocument?.id ?? '';
+      const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
+      const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);
 
       const didParts = did.split(':');
       const domain = didParts[didParts.length - 1];

@@ -52,19 +52,16 @@ export interface ProblemDetails {
   detail: string;
 }
 
-export enum DidResolutionError {
-  NotFound = 'notFound',
-  InvalidDid = 'invalidDid',
-  InvalidDidUrl = 'INVALID_DID_URL',
-  InvalidOptions = 'INVALID_OPTIONS',
-  RepresentationNotSupported = 'REPRESENTATION_NOT_SUPPORTED',
-  MethodNotSupported = 'METHOD_NOT_SUPPORTED',
-  UnsupportedPublicKeyType = 'UNSUPPORTED_PUBLIC_KEY_TYPE',
-  InvalidPublicKey = 'INVALID_PUBLIC_KEY',
-  InvalidPublicKeyLength = 'INVALID_PUBLIC_KEY_LENGTH',
-  InvalidPublicKeyType = 'INVALID_PUBLIC_KEY_TYPE',
-  InternalError = 'INTERNAL_ERROR',
-}
+/**
+ * Codes surfaced on `didResolutionMetadata.error`.
+ *
+ * `invalidDid`/`notFound` match DID Core §7.1.2; `invalidDidUrl` is reserved for a
+ * DID URL that violates `did-url` syntax (e.g. malformed percent-encoding);
+ * `invalidOptions` covers well-formed URLs carrying invalid resolution options
+ * (conflicting or ill-typed version selectors) per the DID Resolution spec's
+ * INVALID_OPTIONS; `internalError` covers transport/resolver-side failures.
+ */
+export type DidResolutionError = 'invalidDid' | 'invalidDidUrl' | 'invalidOptions' | 'notFound' | 'internalError';
 
 export interface DIDResolutionMeta {
   versionId: string;
@@ -258,7 +255,6 @@ export interface ResolutionOptions {
   versionNumber?: number;
   versionId?: string;
   versionTime?: Date;
-  verificationMethod?: string;
   verifier?: Verifier;
   scid?: string;
   /** Internal: full requested DID used to enforce that state.id matches in ≥1 valid version. */
