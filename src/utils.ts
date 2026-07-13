@@ -494,6 +494,22 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
   };
 }
 
+export function sanitizeVerificationMethods(
+  verificationMethods?: VerificationMethod[]
+): VerificationMethod[] | undefined {
+  return verificationMethods?.map((vm) => {
+    if (vm.secretKeyMultibase) {
+      console.warn(
+        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
+      );
+      const { secretKeyMultibase, ...safeVm } = vm;
+      return safeVm;
+    }
+
+    return vm;
+  });
+}
+
 /**
  * Check if a service with the given fragment exists in the service array.
  * Matches both fragment form (e.g., '#files') and absolute form (e.g., 'did:webvh:...#files').
