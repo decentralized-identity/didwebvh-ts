@@ -1,13 +1,12 @@
 import type { DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } from 'did-resolver';
-import type { DIDDoc, DIDResolutionMeta, ProblemDetails } from './interfaces';
-import { DidResolutionError } from './interfaces';
+import type { DIDDoc, DIDResolutionMeta, DidResolutionError, ProblemDetails } from './interfaces';
 
-export type WebvhErrorCode =
-  | 'invalidDid'
-  | 'notFound'
-  | 'invalidDidUrl'
-  | 'representationNotSupported'
-  | 'internalError';
+/** `problemDetails.type` URIs from the did:webvh resolution-error registry. */
+export const WEBVH_ERROR_TYPES = {
+  conflictingResolutionOptions: 'https://didwebvh.info/latest/resolution-errors/#conflicting-resolution-options',
+  versionIdFormatInvalid: 'https://didwebvh.info/latest/resolution-errors/#versionid-format-invalid',
+  versionTimeFormatInvalid: 'https://didwebvh.info/latest/resolution-errors/#versiontime-format-invalid',
+} as const;
 
 export interface WebvhResolutionMetadata extends DIDResolutionMetadata {
   problemDetails?: ProblemDetails;
@@ -28,34 +27,34 @@ export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
 
 const CONTENT_TYPE = 'application/did+ld+json';
 
-/** Raised when a DID URL carries more than one version selector. */
-export class InvalidDidUrlError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidDidUrlError';
-  }
+/** A structured, non-throwing validation failure for resolution options. */
+export interface ResolutionOptionsError {
+  code: DidResolutionError;
+  detail: string;
+  /** did:webvh registry URI for `problemDetails.type`; falls back to the code's default. */
+  problemType?: string;
 }
 
-export function assertSingleVersionSelector(options: {
+export function validateSingleVersionSelector(options: {
   versionId?: string;
   versionTime?: Date;
   versionNumber?: number;
-}): void {
+}): ResolutionOptionsError | null {
   const count =
     (options.versionId !== undefined ? 1 : 0) +
     (options.versionTime !== undefined ? 1 : 0) +
     (options.versionNumber !== undefined ? 1 : 0);
   if (count > 1) {
-    throw new InvalidDidUrlError(
-      'At most one of versionId, versionTime, versionNumber may be supplied; they are mutually exclusive.'
-    );
+    return {
+      code: 'invalidOptions',
+      detail: 'At most one of versionId, versionTime, versionNumber may be supplied; they are mutually exclusive.',
+      problemType: WEBVH_ERROR_TYPES.conflictingResolutionOptions,
+    };
   }
+  return null;
 }
 
-export function mapErrorToCode(error: unknown): WebvhErrorCode {
-  if (error instanceof InvalidDidUrlError) {
-    return 'invalidDidUrl';
-  }
+export function mapErrorToCode(error: unknown): DidResolutionError {
   const message = error instanceof Error ? error.message : String(error);
   // Only a genuine failure to fetch the DID log (or a DID-URL resource) is
   // `notFound`. Match the library's own absence messages rather than scanning
@@ -83,7 +82,7 @@ export function mapErrorToCode(error: unknown): WebvhErrorCode {
 }
 
 /** RFC9457-style `type`/`title` for each standard error code. */
-const PROBLEM_DETAILS_BY_CODE: Record<WebvhErrorCode, { type: string; title: string }> = {
+const PROBLEM_DETAILS_BY_CODE: Record<DidResolutionError, { type: string; title: string }> = {
   notFound: {
     type: 'https://w3id.org/security#NOT_FOUND',
     title: 'The DID Log or resource was not found.',
@@ -96,9 +95,9 @@ const PROBLEM_DETAILS_BY_CODE: Record<WebvhErrorCode, { type: string; title: str
     type: 'https://www.w3.org/ns/did#INVALID_DID_URL',
     title: 'The DID URL is invalid.',
   },
-  representationNotSupported: {
-    type: 'https://www.w3.org/ns/did#REPRESENTATION_NOT_SUPPORTED',
-    title: 'The requested representation is not supported.',
+  invalidOptions: {
+    type: 'https://www.w3.org/ns/did#INVALID_OPTIONS',
+    title: 'The DID resolution options are invalid.',
   },
   internalError: {
     type: 'https://www.w3.org/ns/did#INTERNAL_ERROR',
@@ -107,15 +106,15 @@ const PROBLEM_DETAILS_BY_CODE: Record<WebvhErrorCode, { type: string; title: str
 };
 
 export function toErrorResult(
-  code: WebvhErrorCode,
+  code: DidResolutionError,
   detail: string,
-  extras: { controlled?: boolean } = {}
+  extras: { controlled?: boolean; problemType?: string } = {}
 ): DIDResolutionResult {
   const { type, title } = PROBLEM_DETAILS_BY_CODE[code];
   const didResolutionMetadata: WebvhResolutionMetadata = {
     error: code,
     message: detail,
-    problemDetails: { type, title, detail },
+    problemDetails: { type: extras.problemType ?? type, title, detail },
   };
   if (extras.controlled !== undefined) {
     didResolutionMetadata.controlled = extras.controlled;
@@ -133,13 +132,7 @@ export function toResolutionResult(
   const didDocumentMetadata: WebvhDocumentMetadata = { ...documentMeta };
 
   if (error) {
-    const code: WebvhErrorCode =
-      error === DidResolutionError.NotFound
-        ? 'notFound'
-        : error === DidResolutionError.InvalidDidUrl
-          ? 'invalidDidUrl'
-          : 'invalidDid';
-    const didResolutionMetadata: WebvhResolutionMetadata = { error: code };
+    const didResolutionMetadata: WebvhResolutionMetadata = { error };
     if (problemDetails) {
       didResolutionMetadata.problemDetails = problemDetails;
       didResolutionMetadata.message = problemDetails.detail;
@@ -153,7 +146,7 @@ export function toResolutionResult(
     // fails witness verification); dropping it would hide a legitimate result.
     return {
       didResolutionMetadata,
-      didDocument: (core.doc as unknown as DIDResolutionResult['didDocument']) ?? null,
+      didDocument: (core.doc as DIDResolutionResult['didDocument']) ?? null,
       didDocumentMetadata,
     };
   }
@@ -164,7 +157,7 @@ export function toResolutionResult(
   }
   return {
     didResolutionMetadata,
-    didDocument: (core.doc as unknown as DIDResolutionResult['didDocument']) ?? null,
+    didDocument: (core.doc as DIDResolutionResult['didDocument']) ?? null,
     didDocumentMetadata,
   };
 }

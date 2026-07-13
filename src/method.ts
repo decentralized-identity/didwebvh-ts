@@ -12,7 +12,7 @@ import type {
 } from './interfaces';
 import * as v0_5 from './method_versions/method.v0.5';
 import * as v1 from './method_versions/method.v1.0';
-import { assertSingleVersionSelector, mapErrorToCode, toErrorResult, toResolutionResult } from './resolver-result';
+import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result';
 import { fetchLogFromIdentifier, getActiveDIDs } from './utils';
 import { defaultVerifier } from './verifier';
 
@@ -71,8 +71,14 @@ export const resolveDID = async (
   // verify the log's SCID matches what the DID claims.
   const didParts = did.split(':');
   const scid = didParts.length > 2 && didParts[0] === 'did' && didParts[1] === 'webvh' ? didParts[2] : undefined;
+  const selectorError = validateSingleVersionSelector(options);
+  if (selectorError) {
+    return toErrorResult(selectorError.code, selectorError.detail, {
+      controlled,
+      problemType: selectorError.problemType,
+    });
+  }
   try {
-    assertSingleVersionSelector(options);
     const log = await fetchLogFromIdentifier(did, controlled);
     const version = getWebvhVersionFromLog(log);
     const optsWithScid = { ...options, verifier, scid, requestedDid: did };
@@ -100,8 +106,11 @@ export const resolveDIDFromLog = async (
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ): Promise<DIDResolutionResult> => {
   const verifier = options.verifier ?? defaultVerifier;
+  const selectorError = validateSingleVersionSelector(options);
+  if (selectorError) {
+    return toErrorResult(selectorError.code, selectorError.detail, { problemType: selectorError.problemType });
+  }
   try {
-    assertSingleVersionSelector(options);
     const version = getWebvhVersionFromLog(log);
     const result =
       version === '0.5'

@@ -1,4 +1,4 @@
-import { verify } from '@stablelib/ed25519';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { resolveDID } from 'didwebvh-ts';
 import type { DIDDoc, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
 import express from 'express';
@@ -17,7 +17,7 @@ class ExpressVerifier implements Verifier {
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     try {
-      return verify(publicKey, message, signature);
+      return ed25519.verify(signature, message, publicKey, { zip215: false });
     } catch (error) {
       return false;
     }
@@ -46,13 +46,14 @@ const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 // failure (500).
 const getStatusCodeFromError = (errorType?: string): number => {
   switch (errorType) {
-    case 'notFound':
-      return 404;
     case 'invalidDid':
+      return 400;
     case 'invalidDidUrl':
       return 400;
-    case 'representationNotSupported':
-      return 406;
+    case 'invalidOptions':
+      return 400;
+    case 'notFound':
+      return 404;
     default:
       return 500;
   }

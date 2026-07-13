@@ -107,23 +107,65 @@ describe('getResolver integration', () => {
     expect(result.didDocumentMetadata.versionId).toBe(v1Id);
   });
 
-  test('combining selectors returns invalidDidUrl', async () => {
+  test('combining selectors returns invalidOptions with the webvh problem type', async () => {
     serveLog(fullLog);
     const result = await resolver.resolve(`${did}?versionNumber=1&versionId=${v1Id}`);
-    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
+    expect((result.didResolutionMetadata as { problemDetails?: { type: string } }).problemDetails?.type).toContain(
+      'conflicting-resolution-options'
+    );
     expect(result.didDocument).toBeNull();
   });
 
-  test('non-numeric versionNumber returns invalidDidUrl', async () => {
+  test('non-numeric versionNumber returns invalidOptions', async () => {
     serveLog(fullLog);
     const result = await resolver.resolve(`${did}?versionNumber=abc`);
+    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(result.didDocument).toBeNull();
+  });
+
+  test('unparseable versionTime returns invalidOptions', async () => {
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did}?versionTime=not-a-date`);
+    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(result.didDocument).toBeNull();
+  });
+
+  test('unknown query parameters are ignored, not errors', async () => {
+    // DID Core §3.2.1 extensibility: registered params (service, relativeRef)
+    // and future extensions must not break plain resolution.
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did}?service=files&relativeRef=%2Fresume.pdf&foo=bar`);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocument?.id).toBe(did);
+  });
+
+  test('matrix-form version selectors are rejected, not silently ignored', async () => {
+    // Silently dropping `;versionId=` would resolve latest when the caller
+    // asked for a specific version — reject instead.
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did};versionId=${v1Id}`);
+    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(result.didDocument).toBeNull();
+  });
+
+  test('lowercase hex in query percent-encoding resolves successfully', async () => {
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did}?versionTime=2023-01-15T00:00:00%2b01%3a00`);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+    expect(result.didDocumentMetadata.versionId).toBe(v1Id);
+  });
+
+  test('malformed percent-encoding in a query key returns invalidDidUrl', async () => {
+    serveLog(fullLog);
+    const result = await resolver.resolve(`${did}?%ZZ=1`);
     expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
     expect(result.didDocument).toBeNull();
   });
 
-  test('unparseable versionTime returns invalidDidUrl', async () => {
+  test('malformed percent-encoding in a query value returns invalidDidUrl', async () => {
     serveLog(fullLog);
-    const result = await resolver.resolve(`${did}?versionTime=not-a-date`);
+    const result = await resolver.resolve(`${did}?versionId=%E0%A4%A`);
     expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
     expect(result.didDocument).toBeNull();
   });

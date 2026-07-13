@@ -1,4 +1,4 @@
-import { verify as ed25519Verify } from '@stablelib/ed25519';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { Elysia } from 'elysia';
 import { AbstractCrypto, resolveDID } from '../src';
 import type { DIDDoc, SigningInput, SigningOutput, Verifier } from '../src/types';
@@ -22,7 +22,7 @@ class ElysiaVerifier extends AbstractCrypto implements Verifier {
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     try {
-      return ed25519Verify(publicKey, message, signature);
+      return ed25519.verify(signature, message, publicKey, { zip215: false });
     } catch (error) {
       console.error('Ed25519 verification error:', error);
       return false;
@@ -48,12 +48,13 @@ const WELL_KNOWN_ALLOW_LIST = ['did.jsonl'];
 const getStatusCodeFromError = (errorType?: string): number => {
   switch (errorType) {
     case 'invalidDid':
+      return 400;
     case 'invalidDidUrl':
+      return 400;
+    case 'invalidOptions':
       return 400;
     case 'notFound':
       return 404;
-    case 'representationNotSupported':
-      return 406;
     default:
       return 500;
   }

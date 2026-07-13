@@ -1,12 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import type { DIDResolutionMeta } from '../src/interfaces';
-import { DidResolutionError } from '../src/interfaces';
 import {
-  assertSingleVersionSelector,
-  InvalidDidUrlError,
   mapErrorToCode,
   toErrorResult,
   toResolutionResult,
+  validateSingleVersionSelector,
+  WEBVH_ERROR_TYPES,
 } from '../src/resolver-result';
 
 const baseMeta: DIDResolutionMeta = {
@@ -23,39 +22,32 @@ const baseMeta: DIDResolutionMeta = {
   watchers: null,
 };
 
-describe('assertSingleVersionSelector', () => {
+describe('validateSingleVersionSelector', () => {
   test('allows zero selectors', () => {
-    expect(() => assertSingleVersionSelector({})).not.toThrow();
+    expect(validateSingleVersionSelector({})).toBeNull();
   });
   test('allows exactly one selector', () => {
-    expect(() => assertSingleVersionSelector({ versionId: '2-x' })).not.toThrow();
-    expect(() => assertSingleVersionSelector({ versionNumber: 2 })).not.toThrow();
-    expect(() => assertSingleVersionSelector({ versionTime: new Date() })).not.toThrow();
+    expect(validateSingleVersionSelector({ versionId: '2-x' })).toBeNull();
+    expect(validateSingleVersionSelector({ versionNumber: 2 })).toBeNull();
+    expect(validateSingleVersionSelector({ versionTime: new Date() })).toBeNull();
   });
   test('rejects versionId + versionNumber', () => {
-    expect(() => assertSingleVersionSelector({ versionId: '2-x', versionNumber: 2 })).toThrow(InvalidDidUrlError);
+    expect(validateSingleVersionSelector({ versionId: '2-x', versionNumber: 2 })?.code).toBe('invalidOptions');
   });
   test('rejects versionId + versionTime', () => {
-    expect(() => assertSingleVersionSelector({ versionId: '2-x', versionTime: new Date() })).toThrow(
-      InvalidDidUrlError
-    );
+    expect(validateSingleVersionSelector({ versionId: '2-x', versionTime: new Date() })?.code).toBe('invalidOptions');
   });
   test('rejects versionNumber + versionTime', () => {
-    expect(() => assertSingleVersionSelector({ versionNumber: 2, versionTime: new Date() })).toThrow(
-      InvalidDidUrlError
-    );
+    expect(validateSingleVersionSelector({ versionNumber: 2, versionTime: new Date() })?.code).toBe('invalidOptions');
   });
-  test('rejects all three', () => {
-    expect(() => assertSingleVersionSelector({ versionId: '2-x', versionNumber: 2, versionTime: new Date() })).toThrow(
-      InvalidDidUrlError
-    );
+  test('rejects all three, carrying the webvh registry problem type', () => {
+    const error = validateSingleVersionSelector({ versionId: '2-x', versionNumber: 2, versionTime: new Date() });
+    expect(error?.code).toBe('invalidOptions');
+    expect(error?.problemType).toBe(WEBVH_ERROR_TYPES.conflictingResolutionOptions);
   });
 });
 
 describe('mapErrorToCode', () => {
-  test('InvalidDidUrlError -> invalidDidUrl', () => {
-    expect(mapErrorToCode(new InvalidDidUrlError('x'))).toBe('invalidDidUrl');
-  });
   test('genuine log-fetch absence messages -> notFound', () => {
     expect(mapErrorToCode(new Error('HTTP error! status: 404'))).toBe('notFound');
     expect(mapErrorToCode(new Error('DID log not found for did:webvh:SCID:example.com'))).toBe('notFound');
@@ -102,7 +94,7 @@ describe('toResolutionResult', () => {
   test('maps a meta carrying an error to an error result', () => {
     const meta: DIDResolutionMeta = {
       ...baseMeta,
-      error: DidResolutionError.NotFound,
+      error: 'notFound',
       problemDetails: { type: 'x', title: 'y', detail: 'missing version' },
     };
     const result = toResolutionResult({ did: 'did:webvh:SCID:example.com', doc: null, meta });
@@ -125,7 +117,7 @@ describe('toResolutionResult', () => {
     const doc = { id: 'did:webvh:SCID:example.com' };
     const meta: DIDResolutionMeta = {
       ...baseMeta,
-      error: DidResolutionError.InvalidDid,
+      error: 'invalidDid',
       problemDetails: { type: 'x', title: 'y', detail: 'later entry failed witness verification' },
     };
     const result = toResolutionResult({ did: doc.id, doc, meta });
@@ -138,17 +130,32 @@ describe('toResolutionResult', () => {
 
 describe('toErrorResult', () => {
   test('builds an error result with code, detail, and synthesized problemDetails', () => {
-    const result = toErrorResult('invalidDidUrl', 'two selectors supplied', { controlled: false });
+    const result = toErrorResult('invalidOptions', 'two selectors supplied', { controlled: false });
     expect(result.didDocument).toBeNull();
-    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
     expect((result.didResolutionMetadata as { controlled?: boolean }).controlled).toBe(false);
     expect(result.didResolutionMetadata.message).toBe('two selectors supplied');
     const problemDetails = (
       result.didResolutionMetadata as { problemDetails?: { type: string; title: string; detail: string } }
     ).problemDetails;
     expect(problemDetails?.detail).toBe('two selectors supplied');
-    expect(problemDetails?.type).toContain('INVALID_DID_URL');
+    expect(problemDetails?.type).toContain('INVALID_OPTIONS');
     expect(problemDetails?.title.length).toBeGreaterThan(0);
     expect(result.didDocumentMetadata).toEqual({});
+  });
+
+  test('a problemType override replaces the default problemDetails.type', () => {
+    const result = toErrorResult('invalidOptions', 'conflicting selectors', {
+      problemType: WEBVH_ERROR_TYPES.conflictingResolutionOptions,
+    });
+    const problemDetails = (result.didResolutionMetadata as { problemDetails?: { type: string } }).problemDetails;
+    expect(problemDetails?.type).toBe(WEBVH_ERROR_TYPES.conflictingResolutionOptions);
+  });
+
+  test('malformed DID URL syntax uses invalidDidUrl', () => {
+    const result = toErrorResult('invalidDidUrl', 'Malformed percent-encoding in DID URL query.');
+    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    const problemDetails = (result.didResolutionMetadata as { problemDetails?: { type: string } }).problemDetails;
+    expect(problemDetails?.type).toContain('INVALID_DID_URL');
   });
 });
