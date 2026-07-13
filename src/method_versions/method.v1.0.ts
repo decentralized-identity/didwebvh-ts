@@ -11,10 +11,10 @@ import {
   SERVICE_TYPE_RELATIVE_REF,
   ServiceFragment,
 } from '../constants';
+import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography';
 import type {
   CreateDIDInterface,
   CreateDIDResult,
-  DataIntegrityProof,
   DeactivateDIDInterface,
   DIDDoc,
   DIDLog,
@@ -60,6 +60,50 @@ const requireDidId = (id: string | undefined): string => {
     throw new Error('DID document id is missing');
   }
   return id;
+};
+
+const sanitizeVerificationMethods = (
+  verificationMethods: CreateDIDInterface['verificationMethods']
+): CreateDIDInterface['verificationMethods'] => {
+  return verificationMethods?.map((vm) => {
+    if (vm.secretKeyMultibase) {
+      console.warn(
+        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
+      );
+      const { secretKeyMultibase, ...safeVm } = vm;
+      return safeVm;
+    }
+    return vm;
+  });
+};
+
+const signControllerEntry = async (entry: DIDLogEntry, created: string, signer: CreateDIDInterface['signer']) => {
+  const proofTemplate = createDataIntegrityProofTemplate({
+    verificationMethod: signer.getVerificationMethodId(),
+    created,
+    proofPurpose: 'assertionMethod',
+  });
+
+  return signDataIntegrityProof(entry, proofTemplate, signer);
+};
+
+const validateProposedEntry = async (
+  entry: DIDLogEntry,
+  updateKeys: string[],
+  witness: WitnessParameterResolution | undefined,
+  verifier: ResolutionOptions['verifier']
+) => {
+  const verified = await documentStateIsValid(
+    entry,
+    updateKeys,
+    witness,
+    true, // skipWitnessVerification
+    verifier
+  );
+
+  if (!verified) {
+    throw new Error(`version ${entry.versionId} is invalid.`);
+  }
 };
 
 const parseAndValidateVersionId = (versionId: string, expectedVersionNumber: number) => {
@@ -115,17 +159,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   }
   const createdDate = options.created ?? createDate();
 
-  // Safety guard: Strip secret keys from verification methods before creating DID document
-  const safeVerificationMethods = options.verificationMethods?.map((vm) => {
-    if (vm.secretKeyMultibase) {
-      console.warn(
-        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
-      );
-      const { secretKeyMultibase, ...safeVm } = vm;
-      return safeVm;
-    }
-    return vm;
-  });
+  const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
 
   let doc: DIDDoc;
   if (options.didDocument) {
@@ -176,27 +210,14 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   });
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;
-  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
-    type: 'DataIntegrityProof',
-    cryptosuite: 'eddsa-jcs-2022',
-    verificationMethod: options.signer.getVerificationMethodId(),
-    created: createdDate,
-    proofPurpose: 'assertionMethod',
-  };
-  const signedProof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
-  const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
-  prelimEntry.proof = allProofs;
+  prelimEntry.proof = [await signControllerEntry(prelimEntry, createdDate, options.signer)];
 
-  const verified = await documentStateIsValid(
+  await validateProposedEntry(
     { ...prelimEntry, versionId: `1-${logEntryHash2}` },
     params.updateKeys,
     params.witness,
-    true, // skipWitnessVerification
     options.verifier
   );
-  if (!verified) {
-    throw new Error(`version ${prelimEntry.versionId} is invalid.`);
-  }
 
   const didId = requireDidId(prelimEntry.state.id);
   if (didId !== didWithScid) {
@@ -654,17 +675,7 @@ export const updateDID = async (
     await newKeysAreInNextKeys(currentUpdateKeys ?? [], lastMeta.nextKeyHashes ?? []);
   }
 
-  // Safety guard: Strip secret keys from verification methods before creating DID document
-  const safeVerificationMethods = options.verificationMethods?.map((vm) => {
-    if (vm.secretKeyMultibase) {
-      console.warn(
-        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
-      );
-      const { secretKeyMultibase, ...safeVm } = vm;
-      return safeVm;
-    }
-    return vm;
-  });
+  const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
 
   // Compute controller DID id; rebuild with new address if moving, keep SCID stable.
   const requestedAddress = options.address;
@@ -756,24 +767,13 @@ export const updateDID = async (
   const logEntryHash = await deriveHash(logEntry);
   const versionId = `${versionNumber}-${logEntryHash}`;
   const prelimEntry = { ...logEntry, versionId };
-  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
-    type: 'DataIntegrityProof',
-    cryptosuite: 'eddsa-jcs-2022',
-    verificationMethod: options.signer.getVerificationMethodId(),
-    created: createdDate,
-    proofPurpose: 'assertionMethod',
-  };
-  const signedProof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
-  const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
-  prelimEntry.proof = allProofs;
+  prelimEntry.proof = [await signControllerEntry(prelimEntry, createdDate, options.signer)];
   const keysToVerify = lastMeta.prerotation ? currentUpdateKeys : lastMeta.updateKeys;
   if (!keysToVerify) {
     throw new Error('updateKeys could not be determined for update verification');
   }
-  const verified = await documentStateIsValid(prelimEntry, keysToVerify, lastMeta.witness, true, options.verifier);
-  if (!verified) {
-    throw new Error(`version ${prelimEntry.versionId} is invalid.`);
-  }
+
+  await validateProposedEntry(prelimEntry, keysToVerify, lastMeta.witness, options.verifier);
 
   const meta: DIDResolutionMeta = {
     ...lastMeta,
@@ -820,27 +820,9 @@ export const deactivateDID = async (
   const logEntryHash = await deriveHash(logEntry);
   const versionId = `${versionNumber}-${logEntryHash}`;
   const prelimEntry = { ...logEntry, versionId };
-  const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
-    type: 'DataIntegrityProof',
-    cryptosuite: 'eddsa-jcs-2022',
-    verificationMethod: options.signer.getVerificationMethodId(),
-    created: createdDate,
-    proofPurpose: 'assertionMethod',
-  };
-  const signedProof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
-  const allProofs: DataIntegrityProof[] = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
-  prelimEntry.proof = allProofs;
+  prelimEntry.proof = [await signControllerEntry(prelimEntry, createdDate, options.signer)];
 
-  const verified = await documentStateIsValid(
-    prelimEntry,
-    lastMeta.updateKeys,
-    lastMeta.witness,
-    true, // skipWitnessVerification
-    options.verifier
-  );
-  if (!verified) {
-    throw new Error(`version ${prelimEntry.versionId} is invalid.`);
-  }
+  await validateProposedEntry(prelimEntry, lastMeta.updateKeys, lastMeta.witness, options.verifier);
 
   const meta: DIDResolutionMeta = {
     ...lastMeta,

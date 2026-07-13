@@ -1,6 +1,11 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { documentStateIsValid } from '../src/assertions';
-import { AbstractCrypto, createDocumentSigner } from '../src/cryptography';
+import {
+  AbstractCrypto,
+  createDataIntegrityProofTemplate,
+  createDocumentSigner,
+  signDataIntegrityProof,
+} from '../src/cryptography';
 import type {
   DataIntegrityProofTemplate,
   DIDLogEntry,
@@ -10,7 +15,7 @@ import type {
   Verifier,
 } from '../src/interfaces';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
-import { countVerifiedWitnessApprovals } from '../src/witness';
+import { countVerifiedWitnessApprovals, createWitnessProof } from '../src/witness';
 
 // Mock crypto implementation for testing
 class MockCryptoImplementation extends AbstractCrypto implements Verifier {
@@ -83,6 +88,53 @@ describe('Injectable Cryptography Tests', () => {
     expect(signedDoc).toBeDefined();
     expect(signedDoc.proof).toBeDefined();
     expect(signedDoc.proof.proofValue).toBeDefined();
+  });
+
+  test('controller and witness signing preserve the same generic proof shape', async () => {
+    const created = '2024-03-06T00:00:00Z';
+    const verificationMethod = mockImplementation.getVerificationMethodId();
+    const controllerTemplate = createDataIntegrityProofTemplate({
+      verificationMethod,
+      created,
+      proofPurpose: 'assertionMethod',
+    });
+
+    const controllerProof = await signDataIntegrityProof(
+      {
+        versionId: '1-test',
+        versionTime: created,
+        parameters: {},
+        state: testDoc,
+      },
+      controllerTemplate,
+      mockImplementation
+    );
+
+    const witnessProof = await createWitnessProof(
+      async (document, proofTemplate) => {
+        const proof = await signDataIntegrityProof(document, proofTemplate!, mockImplementation);
+        return { proof };
+      },
+      '1-test',
+      verificationMethod,
+      created
+    );
+
+    expect(Object.keys(controllerProof).sort()).toEqual(Object.keys(witnessProof).sort());
+    expect(controllerProof).toMatchObject({
+      type: 'DataIntegrityProof',
+      cryptosuite: 'eddsa-jcs-2022',
+      verificationMethod,
+      created,
+      proofPurpose: 'assertionMethod',
+    });
+    expect(witnessProof).toMatchObject({
+      type: 'DataIntegrityProof',
+      cryptosuite: 'eddsa-jcs-2022',
+      verificationMethod,
+      created,
+      proofPurpose: 'assertionMethod',
+    });
   });
 
   test('Verify document with successful implementation', async () => {
