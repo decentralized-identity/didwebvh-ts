@@ -1,14 +1,10 @@
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
 import {
-  CONTEXT_LINKED_VP,
   ERROR_TYPE_INVALID_DID,
   ERROR_TYPE_NOT_FOUND,
   METHOD_PARAMETER_KEYS,
   METHOD_PROTOCOL_V1_0,
   PLACEHOLDER,
-  SERVICE_TYPE_LINKED_VP,
-  SERVICE_TYPE_RELATIVE_REF,
-  ServiceFragment,
 } from '../constants';
 import type {
   DIDDoc,
@@ -20,12 +16,11 @@ import type {
   WitnessProofFileEntry,
 } from '../interfaces';
 import {
+  addDefaultDidWebvhServices,
   deepClone,
   deriveHash,
-  getBaseUrl,
   parseDidWebvhIdentifier,
   replaceValueInObject,
-  serviceFragmentExists,
 } from '../utils';
 import { parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
@@ -328,26 +323,7 @@ export const resolveV1Log = async (
         didIdMatchCount++;
       }
 
-      doc.service = Array.isArray(doc.service) ? doc.service : [];
-      const baseUrl = getBaseUrl(did);
-      const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-
-      if (!serviceFragmentExists(doc.service, ServiceFragment.Files, did)) {
-        doc.service.push({
-          id: `${did}#files`,
-          type: SERVICE_TYPE_RELATIVE_REF,
-          serviceEndpoint: baseUrlWithTrailingSlash,
-        });
-      }
-
-      if (!serviceFragmentExists(doc.service, ServiceFragment.Whois, did)) {
-        doc.service.push({
-          '@context': CONTEXT_LINKED_VP,
-          id: `${did}#whois`,
-          type: SERVICE_TYPE_LINKED_VP,
-          serviceEndpoint: `${baseUrlWithTrailingSlash}whois.vp`,
-        });
-      }
+      doc = addDefaultDidWebvhServices(did, doc);
 
       if (options.versionNumber === versionNumber || options.versionId === meta.versionId) {
         if (!resolvedDoc) {

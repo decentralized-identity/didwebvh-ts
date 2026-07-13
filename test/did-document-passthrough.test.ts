@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createDID, updateDID } from '../src/method';
-import { generateParallelDidWeb } from '../src/utils';
+import { addDefaultDidWebvhServices, generateParallelDidWeb } from '../src/utils';
 import {
   asPublicVerificationMethods,
   createTestSigner,
@@ -165,6 +165,28 @@ describe('didDocument create pass-through', () => {
 });
 
 describe('generateParallelDidWeb', () => {
+  test('shared default-service helper adds fragment-form implicit services without mutating the input document', () => {
+    const did = 'did:webvh:zQmExample:example.com:path';
+    const originalDoc = {
+      id: did,
+      service: [
+        {
+          id: '#custom',
+          type: 'CustomService',
+          serviceEndpoint: 'https://example.com/path/custom',
+        },
+      ],
+    };
+
+    const augmentedDoc = addDefaultDidWebvhServices(did, originalDoc, { idStyle: 'fragment' });
+
+    expect(originalDoc.service).toHaveLength(1);
+    expect((originalDoc.service ?? []).some((service) => service.id === '#files')).toBe(false);
+    expect((originalDoc.service ?? []).some((service) => service.id === '#whois')).toBe(false);
+    expect((augmentedDoc.service ?? []).some((service) => service.id === '#files')).toBe(true);
+    expect((augmentedDoc.service ?? []).some((service) => service.id === '#whois')).toBe(true);
+  });
+
   test('generates did:web doc with correct id', async () => {
     const authKey = await generateTestVerificationMethod();
     const { did, doc } = await createDID({

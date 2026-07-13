@@ -5,6 +5,7 @@ import {
   METHOD,
   SERVICE_TYPE_LINKED_VP,
   SERVICE_TYPE_RELATIVE_REF,
+  ServiceFragment,
 } from './constants';
 import type {
   CreateDIDInterface,
@@ -524,35 +525,44 @@ export function serviceFragmentExists(services: ServiceEndpoint[], fragment: str
   });
 }
 
-export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc {
-  let webDoc = deepClone(didwebvhDoc);
+export function addDefaultDidWebvhServices(
+  did: string,
+  doc: DIDDoc,
+  options: { idStyle?: 'absolute' | 'fragment' } = {}
+): DIDDoc {
+  const services = Array.isArray(doc.service) ? [...doc.service] : [];
+  const baseUrl = getBaseUrl(did);
+  const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const idStyle = options.idStyle ?? 'absolute';
+  const createServiceId = (fragment: ServiceFragment) =>
+    idStyle === 'fragment' ? `#${fragment}` : `${did}#${fragment}`;
 
-  const domainPath = didwebvhDid.replace(/^did:webvh:[^:]+:/, '');
-  const httpsBase = `https://${decodeURIComponent(domainPath.replace(/:/g, '/'))}/`;
+  let changed = false;
 
-  const existingServiceIds = (webDoc.service ?? []).map((service: ServiceEndpoint) => service.id ?? '');
-  const implicitServices: ServiceEndpoint[] = [];
-
-  if (!existingServiceIds.some((id: string) => id.endsWith('#files'))) {
-    implicitServices.push({
-      id: '#files',
+  if (!serviceFragmentExists(services, ServiceFragment.Files, did)) {
+    services.push({
+      id: createServiceId(ServiceFragment.Files),
       type: SERVICE_TYPE_RELATIVE_REF,
-      serviceEndpoint: httpsBase,
+      serviceEndpoint: baseUrlWithTrailingSlash,
     });
+    changed = true;
   }
 
-  if (!existingServiceIds.some((id: string) => id.endsWith('#whois'))) {
-    implicitServices.push({
+  if (!serviceFragmentExists(services, ServiceFragment.Whois, did)) {
+    services.push({
       '@context': CONTEXT_LINKED_VP,
-      id: '#whois',
+      id: createServiceId(ServiceFragment.Whois),
       type: SERVICE_TYPE_LINKED_VP,
-      serviceEndpoint: `${httpsBase}whois.vp`,
+      serviceEndpoint: `${baseUrlWithTrailingSlash}whois.vp`,
     });
+    changed = true;
   }
 
-  if (implicitServices.length > 0) {
-    webDoc = { ...webDoc, service: [...(webDoc.service ?? []), ...implicitServices] };
-  }
+  return changed ? { ...doc, service: services } : doc;
+}
+
+export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc {
+  let webDoc = addDefaultDidWebvhServices(didwebvhDid, deepClone(didwebvhDoc), { idStyle: 'fragment' });
 
   const scidPrefix = didwebvhDid.replace(/^did:webvh:([^:]+):.*$/, 'did:webvh:$1:');
   webDoc = replaceValueInObject(webDoc, scidPrefix, 'did:web:');
