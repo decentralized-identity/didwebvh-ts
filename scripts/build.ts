@@ -1,67 +1,8 @@
-import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { BuildConfig } from 'bun';
-import pkg from '../package.json';
-
-// Library builds
-const browserConfig: BuildConfig = {
-  entrypoints: ['./src/index.ts'],
-  minify: true,
-  sourcemap: 'external',
-  target: 'browser',
-  format: 'esm',
-  outdir: './dist/browser',
-  define: {
-    'process.env.NODE_ENV': '"production"',
-    global: 'window',
-  },
-};
-
-const esmConfig: BuildConfig = {
-  entrypoints: ['./src/index.ts'],
-  minify: false,
-  sourcemap: 'external',
-  target: 'node',
-  format: 'esm',
-  outdir: './dist/esm',
-};
-
-const dynamicImportToCjsPlugin = {
-  name: 'dynamic-import-to-cjs',
-  setup(build: any) {
-    build.onLoad({ filter: /\.[jt]s$/ }, async (args: any) => {
-      const contents = await Bun.file(args.path).text();
-      // Replace dynamic imports with requires
-      const transformed = contents.replace(/await\s+import\((.*?)\)/g, 'require($1)');
-      return { contents: transformed };
-    });
-  },
-};
-
-const cjsConfig: BuildConfig = {
-  entrypoints: ['./src/index.ts'],
-  minify: false,
-  sourcemap: 'external',
-  target: 'node',
-  format: 'cjs',
-  outdir: './dist/cjs',
-  loader: {
-    '.js': 'js',
-  },
-  plugins: [dynamicImportToCjsPlugin],
-};
-
-const cliConfig: BuildConfig = {
-  entrypoints: ['./src/cli/index.ts'],
-  minify: false,
-  sourcemap: 'external',
-  target: 'node',
-  format: 'esm',
-  outdir: './dist/cli',
-  naming: {
-    entry: 'didwebvh.js',
-  },
-};
+import { build as esbuild } from 'esbuild';
+import pkg from '../package.json' with { type: 'json' };
 
 async function ensureDir(dir: string) {
   await mkdir(dir, { recursive: true });
@@ -69,7 +10,7 @@ async function ensureDir(dir: string) {
 
 function createDistPackageJson() {
   // Create a simplified package.json for distribution
-  const distPkg: any = {
+  const distPkg: Record<string, unknown> = {
     name: pkg.name,
     version: pkg.version,
     type: 'module',
@@ -98,12 +39,12 @@ function createDistPackageJson() {
   };
 
   // Only add optional fields if they exist in the source package.json
-  if ('description' in pkg) distPkg.description = pkg.description;
-  if ('author' in pkg) distPkg.author = pkg.author;
+  if ('description' in pkg) distPkg.description = (pkg as Record<string, unknown>).description;
+  if ('author' in pkg) distPkg.author = (pkg as Record<string, unknown>).author;
   if ('license' in pkg) distPkg.license = pkg.license;
   if ('repository' in pkg) distPkg.repository = pkg.repository;
-  if ('bugs' in pkg) distPkg.bugs = pkg.bugs;
-  if ('homepage' in pkg) distPkg.homepage = pkg.homepage;
+  if ('bugs' in pkg) distPkg.bugs = (pkg as Record<string, unknown>).bugs;
+  if ('homepage' in pkg) distPkg.homepage = (pkg as Record<string, unknown>).homepage;
 
   writeFileSync('./dist/package.json', JSON.stringify(distPkg, null, 2));
 }
@@ -129,23 +70,9 @@ This package includes:
   writeFileSync('./dist/README.md', distReadme);
 }
 
-async function renameCjsFiles() {
-  const cjsDir = './dist/cjs';
-  const files = readdirSync(cjsDir);
-
-  await Promise.all(
-    files
-      .filter((file) => file.endsWith('.js'))
-      .map((file) => renameSync(`${cjsDir}/${file}`, `${cjsDir}/${file.replace('.js', '.cjs')}`))
-  );
-}
-
 async function build() {
   // Clean dist directory first
-  await Bun.spawn(['rm', '-rf', 'dist'], {
-    stdout: 'inherit',
-    stderr: 'inherit',
-  }).exited;
+  execSync('rm -rf dist');
 
   // Create output directories
   console.log('\nCreating output directories...');
@@ -159,39 +86,52 @@ async function build() {
 
   // Build ESM for Node.js
   console.log('\nBuilding ESM bundle...');
-  const esmResult = await Bun.build(esmConfig);
-  if (!esmResult.success) {
-    console.error('ESM build failed:', esmResult.logs);
-    process.exit(1);
-  }
+  await esbuild({
+    entryPoints: ['src/index.ts'],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    outfile: 'dist/esm/index.js',
+    sourcemap: true,
+  });
 
   // Build CJS for Node.js
   console.log('\nBuilding CJS bundle...');
-  const cjsResult = await Bun.build(cjsConfig);
-  if (!cjsResult.success) {
-    console.error('CJS build failed:', cjsResult.logs);
-    process.exit(1);
-  }
-
-  // Rename CJS files to .cjs
-  console.log('\nRenaming CJS files...');
-  await renameCjsFiles();
+  await esbuild({
+    entryPoints: ['src/index.ts'],
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    outfile: 'dist/cjs/index.cjs',
+    sourcemap: true,
+  });
 
   // Build for Browser
   console.log('\nBuilding Browser bundle...');
-  const browserResult = await Bun.build(browserConfig);
-  if (!browserResult.success) {
-    console.error('Browser build failed:', browserResult.logs);
-    process.exit(1);
-  }
+  await esbuild({
+    entryPoints: ['src/index.ts'],
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    outfile: 'dist/browser/index.js',
+    sourcemap: true,
+    minify: true,
+    define: {
+      'process.env.NODE_ENV': '"production"',
+      global: 'globalThis',
+    },
+  });
 
   // Build CLI
   console.log('\nBuilding CLI...');
-  const cliResult = await Bun.build(cliConfig);
-  if (!cliResult.success) {
-    console.error('CLI build failed:', cliResult.logs);
-    process.exit(1);
-  }
+  await esbuild({
+    entryPoints: ['src/cli/index.ts'],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    outfile: 'dist/cli/didwebvh.js',
+    sourcemap: true,
+  });
 
   // Generate type declarations
   console.log('\nGenerating TypeScript declarations...');
@@ -206,9 +146,9 @@ async function build() {
       module: 'esnext',
       target: 'esnext',
       allowSyntheticDefaultImports: true,
-      esModuleInterop: true,
       skipLibCheck: true,
       rootDir: './src',
+      types: ['node'],
     },
     include: ['src/**/*'],
     exclude: ['node_modules', 'dist', 'test'],
@@ -216,25 +156,14 @@ async function build() {
 
   writeFileSync('tsconfig.declarations.json', JSON.stringify(declarationConfig, null, 2));
 
-  const tscResult = await Bun.spawn(['tsc', '--project', 'tsconfig.declarations.json'], {
-    stdout: 'inherit',
-    stderr: 'inherit',
-  }).exited;
-
-  // Clean up temporary config
-  await Bun.spawn(['rm', 'tsconfig.declarations.json']);
-
-  if (tscResult !== 0) {
-    console.error('TypeScript compilation failed');
-    process.exit(1);
+  try {
+    execSync('tsc --project tsconfig.declarations.json', { stdio: 'inherit' });
+  } finally {
+    execSync('rm -f tsconfig.declarations.json');
   }
 
   // Make CLI executable
-  const proc2 = Bun.spawn(['chmod', '+x', 'dist/cli/didwebvh.js'], {
-    stdout: 'inherit',
-    stderr: 'inherit',
-  });
-  await proc2.exited;
+  chmodSync('dist/cli/didwebvh.js', 0o755);
 
   // Create distribution package.json and README
   console.log('\nCreating distribution package files...');

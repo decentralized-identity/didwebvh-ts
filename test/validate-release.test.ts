@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { cmp, getLatestStrictSemverTagBefore, isSingleSemverBump, parseTag } from '../scripts/validate-release.mjs';
+import { cmp, getLatestStrictSemverTagBefore, isSingleSemverBump, parseTag } from '../scripts/validate-release.ts';
 
 describe('validate-release helpers', () => {
   test('parseTag accepts strict vMAJOR.MINOR.PATCH only', () => {

@@ -581,9 +581,7 @@ export async function fetchLogFromIdentifier(identifier: string, controlled: boo
 
       try {
         let text: string;
-        if (typeof Bun !== 'undefined' && Bun.file) {
-          text = (await Bun.file(logPath).text()).trim();
-        } else if (isNodeEnvironment) {
+        if (isNodeEnvironment) {
           const fs = await getFS();
           text = fs.readFileSync(logPath, 'utf8').trim();
         } else {
