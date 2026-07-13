@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { concatBuffers } from '../src/utils/buffer';
 
 describe('buffer utilities', () => {

@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'vitest';
 import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
@@ -108,7 +108,7 @@ describe('resolveDIDFromLog with verificationMethod', () => {
     expect(doc).not.toBeNull();
     expect(doc!.verificationMethod).toHaveLength(4);
     expect(doc!.verificationMethod![3].publicKeyMultibase).toBe(assertionKey.publicKeyMultibase);
-    expect(doc!.verificationMethod![3].id).toEndWith('externallyDefinedId');
+    expect(doc!.verificationMethod![3].id).toMatch(/externallyDefinedId$/);
     expect(meta.versionId.split('-')[0]).toBe('4');
   });
 

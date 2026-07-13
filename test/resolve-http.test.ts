@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, mock, spyOn, test } from 'bun:test';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { DidResolutionError } from '../src/interfaces';
 import { createDID, resolveDID } from '../src/method';
@@ -18,7 +18,7 @@ let consoleErrorSpy: { mockRestore: () => void } | undefined;
 // Stub the global fetch with a single canned response, returning the mock so
 // tests can assert on the requested URL.
 const stubFetchResponse = (body: string, init: { ok?: boolean; status?: number } = {}) => {
-  const fetchMock = mock().mockResolvedValue({
+  const fetchMock = vi.fn().mockResolvedValue({
     ok: init.ok ?? true,
     status: init.status ?? 200,
     text: async () => body,
@@ -29,11 +29,11 @@ const stubFetchResponse = (body: string, init: { ok?: boolean; status?: number }
 };
 
 const stubFetchFailure = (error: Error) => {
-  globalThis.fetch = mock().mockRejectedValue(error) as unknown as typeof fetch;
+  globalThis.fetch = vi.fn().mockRejectedValue(error) as unknown as typeof fetch;
 };
 
 const silenceConsoleError = () => {
-  consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
+  consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 };
 
 const restoreStubs = () => {
