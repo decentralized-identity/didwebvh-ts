@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/decentralized-identity/didwebvh-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/decentralized-identity/didwebvh-ts/actions/workflows/ci.yml)
 
-`didwebvh-ts` provides developers with a comprehensive library for working with Decentralized Identifiers (DIDs) following the `did:webvh` method specification. This Typescript-based toolkit is designed to facilitate the integration and management of DIDs within web applications, enabling secure identity verification and authentication processes. It includes functions for creating, resolving, updating and deactivating DIDs by managing DID documents. The package is built to ensure compatibility with the latest web development standards, offering a straightforward API that makes it easy to implement DID-based features in a variety of projects.
+`didwebvh-ts` provides developers with a comprehensive library for working with Decentralized Identifiers (DIDs) following the `did:webvh` method specification. This TypeScript-based toolkit is designed to facilitate the integration and management of DIDs within web applications, enabling secure identity verification and authentication processes. It includes functions for creating, resolving, updating and deactivating DIDs by managing DID documents. The package is built to ensure compatibility with the latest web development standards, offering a straightforward API that makes it easy to implement DID-based features in a variety of projects.
 
 ## Summary
 
@@ -13,42 +13,55 @@ The `didwebvh-ts` implementation of the [`did:webvh`]('https://identity.foundati
 The `examples` directory contains sample code demonstrating how to use the library:
 
 - **Resolver Examples**: The `examples` directory includes two resolver implementations:
-  - `elysia-resolver.ts`: (`bun run example:resolver`) A resolver built with the Elysia web framework
+  - `elysia-resolver.ts`: (`pnpm example:resolver`) A resolver built with the Elysia web framework
   - `express-resolver.ts`: A resolver built with Express.js
   Both examples demonstrate how to implement a DID resolver with different web frameworks. See the [Examples README](./examples/README.md) for more information.
-- **Signer Example**: The `examples/signer.ts` (`bun run example:signer`) file demonstrates how to implement a custom signer using `AbstractCrypto`.
+- **Signer Example**: The `examples/signer.ts` (`pnpm example:signer`) file demonstrates how to implement a custom signer using `AbstractCrypto`.
+
+## Toolchain
+
+This project uses:
+
+- Node.js (runtime and package execution)
+- TypeScript 7 (type-checking and language features)
+- Vitest (test runner)
+- pnpm (package management and scripts)
 
 ## Prerequisites
 
-Install [bun.sh](https://bun.sh/)
+Install the following:
+
+- Node.js 24+
+- pnpm (via Corepack or npm)
+
+With Corepack (recommended):
 
 ```bash
-curl -fsSL https://bun.sh/install | bash
+corepack enable
+corepack prepare pnpm@latest --activate
 ```
 
 ## Install dependencies
 
 ```bash
-bun install
+pnpm install
 ```
 
 ## Local development setup
 
-When running the examples from the source checkout, Bun needs to resolve the `didwebvh-ts` package name to your local code. Run the following once per clone:
+Build once before running local examples from source:
 
 ```bash
-bun run build        # generate the dist/ artifacts
-bun link             # register the local package globally
-bun link didwebvh-ts # create a symlinked dependency in node_modules
+pnpm build
 ```
 
-After linking, you can start the resolver example:
+Then start the resolver example:
 
 ```bash
-bun run server
+pnpm server
 ```
 
-If you ever need to refresh the build (for example after local code changes), rerun `bun run build`. The `bun link` commands only need to be repeated if you remove the symlink or clone the repo again.
+If you need to refresh generated artifacts after code changes, rerun `pnpm build`.
 
 ## Available Commands
 
@@ -56,71 +69,79 @@ The following commands are defined in the `package.json` file:
 
 1. `dev`: Run the Elysia resolver example in watch mode for development.
 
-   ```bash
-   bun run dev
-   ```
+```bash
+  pnpm dev
+```
 
-  This command runs: `bun --watch ./examples/elysia-resolver.ts` and starts the resolver at `http://localhost:3010` by default. Set `PORT` to use a different port.
+  This command runs: `tsx --watch ./examples/elysia-resolver.ts` and starts the resolver at `http://localhost:3010` by default. Set `PORT` to use a different port.
 
-1. `debug`: Run the Elysia resolver example in watch mode with the Bun debugger enabled.
+1. `debug`: Run the Elysia resolver example in watch mode with Node inspector enabled.
 
-   ```bash
-   bun run debug
-   ```
+```bash
+  pnpm debug
+```
 
-  This command runs: `bun --watch --inspect ./examples/elysia-resolver.ts`. Use the printed Bun Inspector URL only for debugger tooling; the resolver still runs at the configured app port, defaulting to `http://localhost:3010`.
+  This command runs: `tsx --watch --inspect ./examples/elysia-resolver.ts`. Use the printed inspector URL for debugger tooling; the resolver still runs at the configured app port, defaulting to `http://localhost:3010`.
 
 1. `server`: Alias for running the Elysia resolver example in watch mode.
 
-   ```bash
-   bun run server
-   ```
+```bash
+  pnpm server
+```
 
-  This command runs: `bun --watch ./examples/elysia-resolver.ts`
+  This command runs: `tsx --watch ./examples/elysia-resolver.ts`
 
 1. `test`: Run all tests.
 
-   ```bash
-   bun run test
-   ```
+```bash
+  pnpm test
+```
+
+  This command runs Vitest in non-watch mode.
 
 2. `test:watch`: Run tests in watch mode.
 
-   ```bash
-   bun run test:watch
-   ```
+```bash
+  pnpm test:watch
+```
 
 3. `test:bail`: Run tests in watch mode with bail and verbose options.
 
-   ```bash
-   bun run test:bail
-   ```
+```bash
+  pnpm test:bail
+```
 
 4. `test:log`: Run tests and save logs to a file.
 
-   ```bash
-   bun run test:log
-   ```
+```bash
+  pnpm test:log
+```
 
 5. `cli`: Run the CLI tool.
 
-   ```bash
-   bun run cli
-   ```
+```bash
+  pnpm cli
+```
 
-   The CLI accepts a `--watcher` option during create and update operations to specify one or more watcher URLs.
+The CLI accepts a `--watcher` option during create and update operations to specify one or more watcher URLs.
 
 6. `build`: Build the package.
 
-   ```bash
-   bun run build
-   ```
+```bash
+  pnpm build
+```
 
 7. `build:clean`: Clean the build directory.
 
-   ```bash
-   bun run build:clean
-   ```
+```bash
+  pnpm build:clean
+```
+
+8. `check`: Run TypeScript 7 type-checking without emitting files.
+
+```bash
+  pnpm check
+```
 
 ## Releasing
 
@@ -141,7 +162,7 @@ That will trigger the publish workflow, which will:
 
 - validate the tag + your repo permission
 - set `package.json` version from the tag (without the leading `v`)
-- run `bun test` and `bun run build`
+- run `pnpm test` and `pnpm build`
 - publish to npm
 
 ### npm authentication
