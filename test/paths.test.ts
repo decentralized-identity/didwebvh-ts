@@ -156,7 +156,7 @@ describe('Paths feature', () => {
     // Verification method ID should include the paths in the DID
     expect(doc.verificationMethod![0]!.id).toContain('example.com:secure:keys');
     // Verify the ID starts with the correct DID prefix
-    expect(doc.verificationMethod![0]!.id.startsWith(`${doc.id!}#`)).toBe(true);
+    expect(doc.verificationMethod![0]!.id?.startsWith(`${doc.id!}#`)).toBe(true);
   });
 
   test('rejects dot-segment in explicit paths array', async () => {

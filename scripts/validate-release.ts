@@ -116,6 +116,7 @@ async function main() {
 }
 
 import { fileURLToPath } from 'node:url';
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await main().catch((err) => {
     const message = err instanceof Error ? err.message : String(err);

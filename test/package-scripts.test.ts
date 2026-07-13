@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { describe, expect, test } from 'vitest';
 import pkg from '../package.json';
 
 describe('package scripts', () => {
