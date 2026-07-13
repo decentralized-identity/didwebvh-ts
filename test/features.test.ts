@@ -133,6 +133,32 @@ test('Resolve DID latest', async () => {
   expect(meta.versionId!.split('-')[0]).toBe('4');
 });
 
+test('Normal resolution path augments default #files and #whois services', async () => {
+  const key = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: key });
+
+  const created = await createDID({
+    address: 'example.com',
+    signer: createTestSigner(key),
+    updateKeys: [key.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(key),
+    verifier,
+  });
+
+  const resolved = await resolveDIDFromLog(created.log, { verifier });
+  const services = (resolved.didDocument?.service ?? []) as ServiceEndpoint[];
+  const filesService = services.find((service) => service.id?.endsWith('#files'));
+  const whoisService = services.find((service) => service.id?.endsWith('#whois'));
+
+  expect(filesService).toBeDefined();
+  expect(filesService?.id).toBe(`${created.did}#files`);
+  expect(filesService?.serviceEndpoint).toBe('https://example.com/');
+
+  expect(whoisService).toBeDefined();
+  expect(whoisService?.id).toBe(`${created.did}#whois`);
+  expect(whoisService?.serviceEndpoint).toBe('https://example.com/whois.vp');
+});
+
 test('Explicit versionId miss returns notFound without latest fallback', async () => {
   const resolved = await resolveDIDFromLog(log, {
     versionId: '999-non-existent-version-id',
