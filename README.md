@@ -188,6 +188,84 @@ The `didwebvh-ts` library provides the core functionality for resolving DIDs, bu
 
 For complete examples, see the [examples](./examples/) directory.
 
+## Runtime vs Adapter Boundary
+
+`didwebvh-ts` runtime now treats controlled DID context as an explicit caller concern.
+
+Runtime responsibilities:
+
+- DID method logic (create, resolve, update, deactivate)
+- DID log verification and version handling
+- Default remote DID log resolution when no caller context is provided
+
+Adapter responsibilities (CLI today, other wrappers in future):
+
+- Determine whether a DID is controlled by local state
+- Provide local DID log material when available
+- Provide any env/filesystem/repository integration
+
+The runtime does not infer ownership from `.env` or `process.env`.
+
+### Controlled DID Context Contract
+
+`resolveDID` accepts optional caller-provided controlled DID context on `ResolutionOptions`:
+
+```typescript
+type ControlledDidInfo = {
+  controlled: boolean;
+  didLog?: DIDLog;
+};
+
+type ResolutionOptions = {
+  // ...other options
+  controlledDidInfo?: ControlledDidInfo | null;
+};
+```
+
+Resolution precedence:
+
+0. Caller/wrapper determines local control before calling `resolveDID`.
+1. If `controlledDidInfo.didLog` is provided, runtime resolves from that log.
+2. Otherwise runtime uses default DID log retrieval.
+3. Provided `controlled` state is surfaced in the resolution result.
+
+## Integrator Guide
+
+### CLI-style adapter
+
+Use local `.env` or process environment as adapter inputs, determine control first, then pass explicit context into runtime:
+
+```typescript
+import { resolveDID } from 'didwebvh-ts';
+
+const controlledDidInfo = await getControlledDidInfoFromEnv(did);
+
+const result = await resolveDID(did, {
+  controlledDidInfo,
+});
+```
+
+### Agent-wrapper style adapter (credo-like)
+
+Resolve controlled state from agent repositories/storage instead of env.
+The repository method names below are illustrative pseudocode, not Credo API methods.
+
+```typescript
+import { resolveDID } from 'didwebvh-ts';
+
+const controlledDidInfo = await getControlledDidInfoFromCredoStores(did);
+
+const result = await resolveDID(did, {
+  controlledDidInfo,
+});
+```
+
+Execution behavior:
+
+1. `controlledDidInfo = { controlled: false }` -> runtime fetches DID log remotely.
+2. `controlledDidInfo = { controlled: true, didLog: <log> }` -> runtime resolves from local log.
+3. `controlledDidInfo = { controlled: true, didLog: undefined }` -> runtime still resolves remotely, but marks result as controlled.
+
 ### Resolution metadata notes (v1.0)
 
 For `did:webvh:1.0` resolution flows, resolver failures that invalidate the DID are surfaced using:

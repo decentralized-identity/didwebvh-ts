@@ -2,13 +2,13 @@
 ### Health check resolver
 GET http://localhost:3010/health
 
-### Resolve the DID with resolver
+### Resolve the DID with resolver (expected HTTP 200)
 GET http://localhost:3010/resolve/did:webvh:QmPEQVM1JPTyrvEgBcDXwjK4TeyLGSX1PxjgyeAisdWM1p:gist.githubusercontent.com:brianorwhatever:9c4633d18eb644f7a47f93a802691626:raw 
 
-### 400
+### Expected HTTP 200 (did:webvh:0.5 resolves; no 400)
 
 GET http://localhost:3010/resolve/did:webvh:potato:gist.githubusercontent.com:brianorwhatever:9c4633d18eb644f7a47f93a802691626:raw
 
-### 200
+### Expected HTTP 200 with meta.error=invalidDid payload (SCID mismatch)
 
 GET http://localhost:3010/resolve/did:webvh:QmVJ5nUYb9iugnUz4yDfbe8UFbhmnsvS2EAzSpSfPScRAn:opsecid.github.io

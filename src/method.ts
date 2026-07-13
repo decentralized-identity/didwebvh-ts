@@ -1,4 +1,5 @@
 import type {
+  ControlledDidInfo,
   CreateDIDInterface,
   CreateDIDResult,
   DeactivateDIDInterface,
@@ -12,7 +13,7 @@ import type {
 import { DidResolutionError } from './interfaces';
 import * as v0_5 from './method_versions/method.v0.5';
 import * as v1 from './method_versions/method.v1.0';
-import { fetchLogFromIdentifier, getActiveDIDs } from './utils';
+import { fetchLogFromIdentifier } from './utils';
 
 const LATEST_VERSION = '1.0';
 
@@ -62,14 +63,15 @@ export const resolveDID = async (
   did: string,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ) => {
-  const activeDIDs = await getActiveDIDs();
-  const controlled = activeDIDs.includes(did);
+  const controlledInfo: ControlledDidInfo | null | undefined = options.controlledDidInfo;
+
+  const controlled = controlledInfo?.controlled ?? false;
   // Extract the expected SCID from the DID string so the resolver can
   // verify the log's SCID matches what the DID claims.
   const didParts = did.split(':');
   const scid = didParts.length > 2 && didParts[0] === 'did' && didParts[1] === 'webvh' ? didParts[2] : undefined;
   try {
-    const log = await fetchLogFromIdentifier(did, controlled);
+    const log = controlledInfo?.didLog ?? (await fetchLogFromIdentifier(did, controlled));
     const version = getWebvhVersionFromLog(log);
     const optsWithScid = { ...options, scid, requestedDid: did };
     const result =

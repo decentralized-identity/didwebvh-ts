@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
-  config,
   decodeVerificationMethods,
   encodeVerificationMethods,
   getVerificationMethodsFromEnv,
-} from '../src/config';
+} from '../src/cli/persistence';
 import type { VerificationMethod } from '../src/interfaces';
 
 const originalDidVerificationMethods = process.env.DID_VERIFICATION_METHODS;
@@ -17,7 +19,7 @@ afterEach(() => {
   }
 });
 
-describe('config verification-method helpers', () => {
+describe('cli verification-method helpers', () => {
   test('round-trips verification methods via encode/decode', () => {
     const methods: VerificationMethod[] = [
       {
@@ -49,11 +51,12 @@ describe('config verification-method helpers', () => {
     expect(decodeVerificationMethods(encodedObject)).toEqual([]);
   });
 
-  test('returns empty array for missing env value', () => {
-    expect(getVerificationMethodsFromEnv(undefined)).toEqual([]);
+  test('returns empty array for missing env value', async () => {
+    const isolatedCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'didwebvh-cli-config-test-'));
+    expect(await getVerificationMethodsFromEnv({ cwd: isolatedCwd, env: {} })).toEqual([]);
   });
 
-  test('reads verification methods from DID_VERIFICATION_METHODS env', () => {
+  test('decodes verification methods from DID_VERIFICATION_METHODS env value', async () => {
     const methods: VerificationMethod[] = [
       {
         id: 'did:webvh:ghi:example.com#k3',
@@ -65,12 +68,13 @@ describe('config verification-method helpers', () => {
 
     process.env.DID_VERIFICATION_METHODS = encodeVerificationMethods(methods);
 
-    expect(config.getVerificationMethods()).toEqual(methods);
+    expect(await getVerificationMethodsFromEnv()).toEqual(methods);
   });
 
-  test('returns empty array when DID_VERIFICATION_METHODS is invalid', () => {
-    process.env.DID_VERIFICATION_METHODS = 'bad-value';
+  test('returns empty array when DID_VERIFICATION_METHODS env value is invalid', async () => {
+    const isolatedCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'didwebvh-cli-config-test-'));
+    const invalidEnv = { DID_VERIFICATION_METHODS: 'bad-value' };
 
-    expect(config.getVerificationMethods()).toEqual([]);
+    expect(await getVerificationMethodsFromEnv({ cwd: isolatedCwd, env: invalidEnv })).toEqual([]);
   });
 });

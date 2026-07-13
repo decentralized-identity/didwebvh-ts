@@ -1,5 +1,19 @@
-import { decodeVerificationMethods, encodeVerificationMethods } from '../config';
+import { base64 } from '@scure/base';
 import type { DIDLog, VerificationMethod } from '../interfaces';
+
+export const decodeVerificationMethods = (encoded: string): VerificationMethod[] => {
+  try {
+    const decoded = new TextDecoder().decode(base64.decode(encoded));
+    const parsed = JSON.parse(decoded) as unknown;
+    return Array.isArray(parsed) ? (parsed as VerificationMethod[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const encodeVerificationMethods = (methods: VerificationMethod[]): string => {
+  return base64.encode(new TextEncoder().encode(JSON.stringify(methods)));
+};
 
 type ProcessVersionsLike = { node?: string; bun?: string };
 
@@ -161,5 +175,41 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
     console.log('Verification method written to .env file successfully.');
   } catch (error) {
     console.error('Error writing verification method to .env file:', error);
+  }
+};
+
+export type VerificationMethodEnvReadOptions = {
+  cwd?: string;
+  env?: Record<string, string | undefined>;
+};
+
+export const getVerificationMethodsFromEnv = async (
+  options: VerificationMethodEnvReadOptions = {}
+): Promise<VerificationMethod[]> => {
+  const env = options.env ?? process.env;
+  const fromProcess = env.DID_VERIFICATION_METHODS;
+  if (fromProcess) {
+    const decoded = decodeVerificationMethods(fromProcess);
+    if (decoded.length > 0) return decoded;
+  }
+
+  const fs = await getFS();
+  const envFilePath = `${options.cwd ?? process.cwd()}/.env`;
+
+  if (!fs.existsSync(envFilePath)) {
+    return [];
+  }
+
+  try {
+    const envContent = fs.readFileSync(envFilePath, 'utf8');
+    const match = envContent.match(/^DID_VERIFICATION_METHODS=(.*)$/m);
+    if (!match?.[1]) {
+      return [];
+    }
+
+    return decodeVerificationMethods(match[1]);
+  } catch (error) {
+    console.error('Error reading verification methods from .env file:', error);
+    return [];
   }
 };

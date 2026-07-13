@@ -263,6 +263,18 @@ export interface ResolutionOptions {
   scid?: string;
   /** Internal: full requested DID used to enforce that state.id matches in ≥1 valid version. */
   requestedDid?: string;
+  /**
+   * Optional caller-provided local control context for this DID.
+   *
+   * The caller/wrapper determines local control (for example via wallet/repository lookup)
+   * before calling resolveDID and passes the result directly.
+   */
+  controlledDidInfo?: ControlledDidInfo | null;
+}
+
+export interface ControlledDidInfo {
+  controlled: boolean;
+  didLog?: DIDLog;
 }
 
 export interface WitnessProofFileEntry {
