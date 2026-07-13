@@ -1,4 +1,4 @@
-import { generateKeyPair, sign, verify } from '@stablelib/ed25519';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import {
   AbstractCrypto,
   createDID,
@@ -29,7 +29,9 @@ class ExampleCrypto extends AbstractCrypto implements Verifier, Signer {
         throw new Error('Secret key not found');
       }
       const { bytes: secretKey } = multibaseDecode(this.verificationMethod.secretKeyMultibase);
-      const proof = sign(secretKey.slice(2), await prepareDataForSigning(input.document, input.proof));
+      // Legacy stablelib secrets are seed||publicKey (64 bytes); noble signs with the 32-byte seed.
+      const seed = secretKey.slice(2).slice(0, 32);
+      const proof = ed25519.sign(await prepareDataForSigning(input.document, input.proof), seed);
       return {
         proofValue: multibaseEncode(proof, MultibaseEncoding.BASE58_BTC),
       };
@@ -41,7 +43,7 @@ class ExampleCrypto extends AbstractCrypto implements Verifier, Signer {
 
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     try {
-      return verify(publicKey, message, signature);
+      return ed25519.verify(signature, message, publicKey, { zip215: false });
     } catch (error) {
       console.error('Ed25519 verification error:', error);
       return false;
@@ -54,11 +56,11 @@ class ExampleCrypto extends AbstractCrypto implements Verifier, Signer {
 }
 
 export async function generateEd25519VerificationMethod(): Promise<VerificationMethod> {
-  const { secretKey, publicKey } = generateKeyPair();
+  const { secretKey, publicKey } = ed25519.keygen();
   return {
     type: 'Multikey',
     publicKeyMultibase: base58btc.encode(new Uint8Array([0xed, 0x01, ...publicKey])),
-    secretKeyMultibase: base58btc.encode(new Uint8Array([0x80, 0x26, ...secretKey])),
+    secretKeyMultibase: base58btc.encode(new Uint8Array([0x80, 0x26, ...secretKey, ...publicKey])),
     purpose: 'assertionMethod',
   };
 }
