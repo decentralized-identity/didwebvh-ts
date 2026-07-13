@@ -63,10 +63,7 @@ export const resolveDID = async (
   did: string,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ) => {
-  let controlledInfo: ControlledDidInfo | null | undefined;
-  if (options.resolveControlledDid) {
-    controlledInfo = await options.resolveControlledDid(did);
-  }
+  const controlledInfo: ControlledDidInfo | null | undefined = options.controlledDidInfo;
 
   const controlled = controlledInfo?.controlled ?? false;
   // Extract the expected SCID from the DID string so the resolver can

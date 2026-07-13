@@ -264,22 +264,17 @@ export interface ResolutionOptions {
   /** Internal: full requested DID used to enforce that state.id matches in ≥1 valid version. */
   requestedDid?: string;
   /**
-   * Optional caller bridge for controlled DID context.
+   * Optional caller-provided local control context for this DID.
    *
-   * When provided, runtime uses this callback to determine whether a DID is controlled
-   * and whether a local DID log should be used for resolution.
+   * The caller/wrapper determines local control (for example via wallet/repository lookup)
+   * before calling resolveDID and passes the result directly.
    */
-  resolveControlledDid?: (
-    did: string
-  ) => ControlledDidInfo | null | undefined | Promise<ControlledDidInfo | null | undefined>;
+  controlledDidInfo?: ControlledDidInfo | null;
 }
 
 export interface ControlledDidInfo {
-  did: string;
   controlled: boolean;
   didLog?: DIDLog;
-  verificationMethods?: VerificationMethod[];
-  keyRefs?: string[];
 }
 
 export interface WitnessProofFileEntry {

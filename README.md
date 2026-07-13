@@ -206,61 +206,42 @@ Adapter responsibilities (CLI today, other wrappers in future):
 
 The runtime does not infer ownership from `.env` or `process.env`.
 
-### Controlled DID Hook Contract
+### Controlled DID Context Contract
 
-`resolveDID` accepts an optional `resolveControlledDid` callback on `ResolutionOptions`:
+`resolveDID` accepts optional caller-provided controlled DID context on `ResolutionOptions`:
 
 ```typescript
 type ControlledDidInfo = {
-  did: string;
   controlled: boolean;
   didLog?: DIDLog;
-  verificationMethods?: VerificationMethod[];
-  keyRefs?: string[];
 };
 
 type ResolutionOptions = {
   // ...other options
-  resolveControlledDid?: (
-    did: string
-  ) => ControlledDidInfo | null | undefined | Promise<ControlledDidInfo | null | undefined>;
+  controlledDidInfo?: ControlledDidInfo | null;
 };
 ```
 
 Resolution precedence:
 
-0. Runtime executes `resolveControlledDid` first (when provided).
-1. If `resolveControlledDid` returns `didLog`, runtime resolves from that log.
+0. Caller/wrapper determines local control before calling `resolveDID`.
+1. If `controlledDidInfo.didLog` is provided, runtime resolves from that log.
 2. Otherwise runtime uses default DID log retrieval.
-3. Returned `controlled` state is surfaced in the resolution result.
+3. Provided `controlled` state is surfaced in the resolution result.
 
 ## Integrator Guide
 
 ### CLI-style adapter
 
-Use local `.env` or process environment as adapter inputs, then pass explicit context into runtime:
+Use local `.env` or process environment as adapter inputs, determine control first, then pass explicit context into runtime:
 
 ```typescript
 import { resolveDID } from 'didwebvh-ts';
 
+const controlledDidInfo = await getControlledDidInfoFromEnv(did);
+
 const result = await resolveDID(did, {
-  resolveControlledDid: async (candidateDid) => {
-    const verificationMethods = await readVerificationMethodsFromEnvOrDotEnv();
-    const match = verificationMethods.find((vm) => vm.controller === candidateDid);
-
-    if (!match) {
-      return { did: candidateDid, controlled: false };
-    }
-
-    const didLog = await tryReadDidLogFromLocalStore(candidateDid);
-
-    return {
-      did: candidateDid,
-      controlled: true,
-      didLog,
-      verificationMethods,
-    };
-  },
+  controlledDidInfo,
 });
 ```
 
@@ -272,40 +253,18 @@ The repository method names below are illustrative pseudocode, not Credo API met
 ```typescript
 import { resolveDID } from 'didwebvh-ts';
 
+const controlledDidInfo = await getControlledDidInfoFromCredoStores(did);
+
 const result = await resolveDID(did, {
-  resolveControlledDid: async (candidateDid) => {
-    // Check local ownership metadata first; this does not load DID log content yet.
-    const didRecord = await didRepository.findByDid(candidateDid);
-    if (!didRecord) {
-      // Not locally controlled: runtime will resolve remotely.
-      return { did: candidateDid, controlled: false };
-    }
-
-    // If you persist DID logs locally, return one here.
-    // If unavailable, return undefined and runtime will fall back to remote fetch.
-    const didLog = await loadLocalDidLogIfAvailable(candidateDid);
-    const verificationMethods = await keyMappingRepository.findVerificationMethods(candidateDid);
-
-    return {
-      did: candidateDid,
-      controlled: true,
-      didLog: didLog ?? undefined,
-      verificationMethods,
-      keyRefs: didRecord.keyRefs,
-    };
-  },
+  controlledDidInfo,
 });
 ```
 
 Execution behavior:
 
-1. `resolveControlledDid` returns `{ controlled: false }` -> runtime fetches DID log remotely.
-2. `resolveControlledDid` returns `{ controlled: true, didLog: <log> }` -> runtime resolves from local log.
-3. `resolveControlledDid` returns `{ controlled: true, didLog: undefined }` -> runtime still resolves remotely, but marks result as controlled.
-
-Migration note:
-
-- If your integration previously relied on implicit env-driven control, move that logic into your adapter and provide `resolveControlledDid` explicitly.
+1. `controlledDidInfo = { controlled: false }` -> runtime fetches DID log remotely.
+2. `controlledDidInfo = { controlled: true, didLog: <log> }` -> runtime resolves from local log.
+3. `controlledDidInfo = { controlled: true, didLog: undefined }` -> runtime still resolves remotely, but marks result as controlled.
 
 ### Resolution metadata notes (v1.0)
 

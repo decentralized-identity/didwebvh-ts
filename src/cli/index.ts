@@ -159,17 +159,44 @@ function createCustomCrypto(verificationMethod?: VerificationMethod): Signer & V
   return new CustomCryptoImplementation(verificationMethod);
 }
 
-async function resolveControlledDidFromEnv(did: string): Promise<ControlledDidInfo> {
+function getLocalDidLogPathFromDid(did: string): string | null {
+  const didParts = did.split(':');
+  if (didParts.length < 3 || didParts[0] !== 'did' || didParts[1] !== 'webvh') {
+    return null;
+  }
+
+  const fileIdentifier = didParts.slice(4).join(':');
+  return `./src/routes/${fileIdentifier || '.well-known'}/did.jsonl`;
+}
+
+async function loadDidLogFromPath(path: string): Promise<DIDLog> {
+  try {
+    return await readLogFromDisk(path);
+  } catch {
+    throw new Error(`Unable to read DID log from path: ${path}`);
+  }
+}
+
+async function getControlledDidInfoFromEnv(did: string): Promise<ControlledDidInfo> {
   const vms = await getVerificationMethodsFromEnv();
   const controlledVms = vms.filter((vm) => {
     const vmDid = vm.controller || vm.id?.split('#')[0];
     return vmDid === did;
   });
 
+  const controlled = controlledVms.length > 0;
+  let didLog: DIDLog | undefined;
+
+  if (controlled) {
+    const localLogPath = getLocalDidLogPathFromDid(did);
+    if (localLogPath) {
+      didLog = await loadDidLogFromPath(localLogPath).catch(() => undefined);
+    }
+  }
+
   return {
-    did,
-    controlled: controlledVms.length > 0,
-    verificationMethods: controlledVms.length > 0 ? controlledVms : undefined,
+    controlled,
+    didLog,
   };
 }
 
@@ -268,10 +295,10 @@ export async function handleCreate(args: string[]) {
 export async function handleResolve(args: string[]) {
   const options = parseOptions(args);
   const didIdentifier = options.did as string;
-  const logFile = options.log as string;
+  const logPath = options.log as string;
   const witnessFile = options['witness-file'] as string | undefined;
 
-  if (!didIdentifier && !logFile) {
+  if (!didIdentifier && !logPath) {
     console.error('Either --did or --log is required for resolve command');
     process.exit(1);
   }
@@ -290,13 +317,14 @@ export async function handleResolve(args: string[]) {
     let doc: unknown;
     let meta: unknown;
 
-    if (logFile) {
-      const log: DIDLog = await readLogFromDisk(logFile);
+    if (logPath) {
+      const log = await loadDidLogFromPath(logPath);
       ({ did, doc, meta } = await resolveDIDFromLog(log, resolutionOptions));
     } else {
+      const controlledDidInfo = await getControlledDidInfoFromEnv(didIdentifier);
       ({ did, doc, meta } = await resolveDID(didIdentifier, {
         ...resolutionOptions,
-        resolveControlledDid: resolveControlledDidFromEnv,
+        controlledDidInfo,
       }));
     }
 

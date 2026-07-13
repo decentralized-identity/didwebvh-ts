@@ -139,13 +139,9 @@ describe('resolveDID over HTTPS', () => {
 
     const result = await resolveDID(did, {
       verifier,
-      resolveControlledDid: async (candidateDid) => {
-        if (candidateDid !== did) return null;
-        return {
-          did,
-          controlled: true,
-          didLog: log,
-        };
+      controlledDidInfo: {
+        controlled: true,
+        didLog: log,
       },
     });
 
