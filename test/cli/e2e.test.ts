@@ -17,8 +17,7 @@ let verifier: TestCryptoImplementation;
 let savedEnv: string | null = null;
 
 // Run a CLI command as a subprocess. --env-file=.env is passed directly to
-// node so that process.env is populated from .env on startup — replicating
-// the dotenv behaviour bun provided automatically.
+// node so that process.env is populated from .env on startup.
 function runCli(args: string[]) {
   const result = spawnSync(process.execPath, ['--env-file=.env', '--import', 'tsx/esm', 'src/cli/index.ts', ...args], {
     cwd: process.cwd(),

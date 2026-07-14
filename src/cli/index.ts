@@ -25,7 +25,7 @@ import { signWitnessProofEntries } from '../witness';
 import { readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './persistence';
 
 const usage = `
-Usage: bun run cli [command] [options]
+Usage: pnpm cli -- [command] [options]
 
 Commands:
   create     Create a new DID
@@ -55,17 +55,17 @@ Options:
   --witness-secret [secret] Witness secret key multibase (matches witness-did order)
 
 Examples:
-  bun run cli create --address example.com --portable --witness did:key:z6Mk... --witness did:key:z6Mk...
-  bun run cli create --address https://example.com --portable
-  bun run cli create --address "example.com:3000" --portable
-  bun run cli create --address "did:webvh:example.com:3000" --portable
-  bun run cli resolve --did did:webvh:123456:example.com
-  bun run cli resolve --log ./did.jsonl --witness-file ./did-witness.json
-  bun run cli update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
-  bun run cli deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
-  bun run cli generate-witness-proof --version-id 1-abc123 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
-  bun run cli generate-witness-proof --version-id 1-abc123 --version-id 2-def456 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
-  bun run cli generate-vm
+  pnpm cli -- create --address example.com --portable --witness did:key:z6Mk... --witness did:key:z6Mk...
+  pnpm cli -- create --address https://example.com --portable
+  pnpm cli -- create --address "example.com:3000" --portable
+  pnpm cli -- create --address "did:webvh:example.com:3000" --portable
+  pnpm cli -- resolve --did did:webvh:123456:example.com
+  pnpm cli -- resolve --log ./did.jsonl --witness-file ./did-witness.json
+  pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
+  pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
+  pnpm cli -- generate-witness-proof --version-id 1-abc123 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
+  pnpm cli -- generate-witness-proof --version-id 1-abc123 --version-id 2-def456 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
+  pnpm cli -- generate-vm
 `;
 
 // Add this function at the top with the other constants
