@@ -11,13 +11,8 @@ import type {
   WitnessProofFileEntry,
 } from '../interfaces';
 import { buildProblemDetails } from '../resolver-result';
-import {
-  deepClone,
-  deriveHash,
-  parseAndValidateVersionId,
-  parseDidWebvhIdentifier,
-  replaceValueInObject,
-} from '../utils';
+import { deepClone, parseAndValidateVersionId, parseDidWebvhIdentifier, replaceValueInObject } from '../utils';
+import { deriveHash } from '../utils/crypto';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 

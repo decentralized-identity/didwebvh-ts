@@ -1,8 +1,8 @@
 import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces';
-import { createSCID, deriveNextKeyHash, parseDidKeyVerificationMethod, resolveVM } from './utils';
+import { parseDidKeyVerificationMethod, resolveVM } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
-import { createHash } from './utils/crypto';
+import { createHash, createSCID, deriveNextKeyHash } from './utils/crypto';
 import { decodeBase58Btc, decodeMultihash, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
 import { validateWitnessParameter } from './witness';
 

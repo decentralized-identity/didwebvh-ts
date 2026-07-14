@@ -12,7 +12,8 @@ export type { GetResolverConfig } from './resolver';
 export { getResolver } from './resolver';
 export type { ResolutionOptionsError, WebvhDocumentMetadata, WebvhResolutionMetadata } from './resolver-result';
 export { WEBVH_ERROR_TYPES } from './resolver-result';
-export { deriveNextKeyHash, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils';
+export { parseDidKeyDid, parseDidKeyVerificationMethod } from './utils';
+export { deriveNextKeyHash } from './utils/crypto';
 export { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats';
 export { defaultVerifier } from './verifier';
 export {

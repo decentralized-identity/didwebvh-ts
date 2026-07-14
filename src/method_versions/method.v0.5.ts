@@ -14,7 +14,8 @@ import type {
   UpdateDIDInterface,
   WitnessProofFileEntry,
 } from '../interfaces';
-import { createDate, createSCID, deepClone, deriveHash, normalizeDidAddress, replaceValueInObject } from '../utils';
+import { createDate, deepClone, normalizeDidAddress, replaceValueInObject } from '../utils';
+import { createSCID, deriveHash } from '../utils/crypto';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
 const VERSION = '0.5';

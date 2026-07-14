@@ -18,7 +18,8 @@ import type {
   UpdateDIDInterface,
   WitnessParameterResolution,
 } from '../interfaces';
-import { createSCID, deepClone, deriveHash, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils';
+import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils';
+import { createSCID, deriveHash } from '../utils/crypto';
 import { validateWitnessParameter } from '../witness';
 
 export interface PreparedEntry {

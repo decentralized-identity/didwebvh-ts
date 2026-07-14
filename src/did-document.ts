@@ -5,6 +5,7 @@ import {
   SERVICE_TYPE_LINKED_VP,
   SERVICE_TYPE_RELATIVE_REF,
   ServiceFragment,
+  VERIFICATION_RELATIONSHIPS,
 } from './constants';
 import type { DIDDoc, ServiceEndpoint, VerificationMethod } from './interfaces';
 import { deepClone, getBaseUrl, replaceValueInObject } from './utils';
@@ -21,14 +22,6 @@ type CreateDIDDocOptions = {
 };
 
 type ServiceIdStyle = 'absolute' | 'fragment';
-
-const VERIFICATION_RELATIONSHIPS = [
-  'authentication',
-  'assertionMethod',
-  'keyAgreement',
-  'capabilityDelegation',
-  'capabilityInvocation',
-] as const;
 
 type VerificationRelationship = (typeof VERIFICATION_RELATIONSHIPS)[number];
 

@@ -1,10 +1,8 @@
 import { config } from './config';
-import { DID_KEY_PREFIX, METHOD } from './constants';
+import { DID_KEY_PREFIX, METHOD, VERIFICATION_RELATIONSHIPS } from './constants';
 import type { DIDDoc, DIDLog, ParsedDidKeyVerificationMethod, WitnessProofFileEntry } from './interfaces';
 import { resolveDIDFromLog } from './method';
-import { canonicalizeStrict } from './utils/canonicalize';
-import { createHash } from './utils/crypto';
-import { createMultihash, encodeBase58Btc, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
+import { multibaseDecode } from './utils/multiformats';
 
 // Shared constants and types
 
@@ -562,15 +560,7 @@ const findVerificationMethodInDoc = (doc: DIDDoc, vmId: string) => {
     return directMatch;
   }
 
-  const relationships = [
-    'authentication',
-    'assertionMethod',
-    'keyAgreement',
-    'capabilityDelegation',
-    'capabilityInvocation',
-  ] as const;
-
-  for (const relationship of relationships) {
+  for (const relationship of VERIFICATION_RELATIONSHIPS) {
     const relationshipValues = doc[relationship];
     if (!Array.isArray(relationshipValues)) {
       continue;
@@ -672,42 +662,3 @@ export function bytesToHex(bytes: Uint8Array): string {
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
 }
-
-export const createSCID = async (logEntryHash: string): Promise<string> => {
-  return logEntryHash;
-};
-
-// Cache for deriveHash operations to avoid redundant computation
-const hashCache = new Map<string, string>();
-
-// Input must be strict JSON-compatible and must not contain explicit undefined values.
-export async function deriveHash(input: unknown): Promise<string> {
-  let cacheKey: string | undefined;
-
-  try {
-    cacheKey = JSON.stringify(input);
-    const cached = hashCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-  } catch {
-    cacheKey = undefined;
-  }
-
-  const data = canonicalizeStrict(input);
-  const hash = await createHash(data);
-  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
-  const result = encodeBase58Btc(multihash);
-
-  if (cacheKey !== undefined) {
-    hashCache.set(cacheKey, result);
-  }
-
-  return result;
-}
-
-export const deriveNextKeyHash = async (input: string): Promise<string> => {
-  const hash = await createHash(input);
-  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
-  return encodeBase58Btc(multihash);
-};
