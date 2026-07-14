@@ -10,10 +10,10 @@ import type {
   VerificationMethod,
   Verifier,
 } from './interfaces';
-import { createDate } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
+import { createDate } from './utils/iso8601-datetime';
 
 /**
  * Creates a Data Integrity proof template from explicit input values.

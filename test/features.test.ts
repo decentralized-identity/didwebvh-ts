@@ -1,8 +1,8 @@
 import { beforeAll, expect, test } from 'vitest';
 import type { CreateDIDResult, DIDLog, DIDLogEntry, ServiceEndpoint, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { createDate } from '../src/utils';
 import { deriveHash, deriveNextKeyHash } from '../src/utils/crypto';
+import { createDate } from '../src/utils/iso8601-datetime';
 import {
   asPublicVerificationMethods,
   createTestSigner,

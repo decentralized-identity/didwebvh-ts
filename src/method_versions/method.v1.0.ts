@@ -13,8 +13,13 @@ import type {
   UpdateDIDResult,
   WitnessProofFileEntry,
 } from '../interfaces';
-import { createDate, normalizeDidAddress } from '../utils';
-import { createNextVersionTime, MAX_FUTURE_SKEW_MS, validateUtcIso8601NotInFuture } from '../utils/iso8601-datetime';
+import { normalizeDidAddress } from '../utils';
+import {
+  createDate,
+  createNextVersionTime,
+  MAX_FUTURE_SKEW_MS,
+  validateUtcIso8601NotInFuture,
+} from '../utils/iso8601-datetime';
 import { validateWitnessParameter } from '../witness';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './method.v1.0.entries';
 import { resolveV1Log } from './method.v1.0.resolution';

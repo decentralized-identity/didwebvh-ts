@@ -71,6 +71,9 @@ export const ISO8601_DATETIME_REGEX = new RegExp(
 
 export const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
+export const createDate = (created?: Date | string) =>
+  new Date(created ?? Date.now()).toISOString().replace(/\.\d{1,3}Z$/, 'Z');
+
 /**
  * Parse and validate UTC ISO8601 versionTime per did:webvh spec.
  *
