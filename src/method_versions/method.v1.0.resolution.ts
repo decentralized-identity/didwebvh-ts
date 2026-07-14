@@ -23,12 +23,10 @@ import {
   parseDidWebvhIdentifier,
   replaceValueInObject,
 } from '../utils';
-import { parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
+import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
-
-const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 interface RequiredWitnessCheck {
   targetVersionId: string;

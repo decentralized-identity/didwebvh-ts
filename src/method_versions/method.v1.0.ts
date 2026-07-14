@@ -18,12 +18,10 @@ import {
   parseCanonicalAddress,
   validateMethodSpecificPathSegments,
 } from '../utils';
-import { createNextVersionTime, validateUtcIso8601NotInFuture } from '../utils/iso8601-datetime';
+import { createNextVersionTime, MAX_FUTURE_SKEW_MS, validateUtcIso8601NotInFuture } from '../utils/iso8601-datetime';
 import { validateWitnessParameter } from '../witness';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './method.v1.0.entries';
 import { resolveV1Log } from './method.v1.0.resolution';
-
-const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 const requireDidId = (id: string | undefined): string => {
   if (!id) {
