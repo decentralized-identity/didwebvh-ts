@@ -133,23 +133,6 @@ function parsePortNumber(rawPort: string): number {
   return portNum;
 }
 
-function toOptionalPaths(pathSegments: string[]): string[] | undefined {
-  return pathSegments.length > 0 ? pathSegments : undefined;
-}
-
-function toDidDomainComponent(host: string, port?: number): string {
-  return port ? `${host}%3A${port}` : host;
-}
-
-function toParsedAddress(host: string, port?: number, paths: string[] = []): ParsedAddress {
-  return {
-    canonicalHost: host,
-    canonicalPort: port,
-    didDomainComponent: toDidDomainComponent(host, port),
-    paths: toOptionalPaths(paths),
-  };
-}
-
 function parseRawHostPort(input: string): { host: string; port?: number } {
   if (!input.includes(':')) {
     return { host: input };
@@ -245,7 +228,7 @@ export function normalizeDidAddress({
   return {
     scid,
     didDomainComponent: parsed.didDomainComponent,
-    paths: toOptionalPaths(resolvedPaths),
+    paths: resolvedPaths.length > 0 ? resolvedPaths : undefined,
     locationKey,
     controller: `did:${METHOD}:${scid}:${locationKey}`,
   };
@@ -290,7 +273,12 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
       throw new Error('IP addresses are not allowed as hosts');
     }
 
-    return toParsedAddress(host, port, pathParts);
+    return {
+      canonicalHost: host,
+      canonicalPort: port,
+      didDomainComponent: port ? `${host}%3A${port}` : host,
+      paths: pathParts.length > 0 ? pathParts : undefined,
+    };
   }
 
   // Parse URL form: HTTPS everywhere.
@@ -314,7 +302,12 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
 
       validateMethodSpecificPathSegments(pathParts, 'URL pathname');
 
-      return toParsedAddress(host, port, pathParts);
+      return {
+        canonicalHost: host,
+        canonicalPort: port,
+        didDomainComponent: port ? `${host}%3A${port}` : host,
+        paths: pathParts.length > 0 ? pathParts : undefined,
+      };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (message.includes('not allowed')) throw e;
@@ -340,7 +333,12 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     throw new Error('IP addresses are not allowed as hosts');
   }
 
-  return toParsedAddress(host, port);
+  return {
+    canonicalHost: host,
+    canonicalPort: port,
+    didDomainComponent: port ? `${host}%3A${port}` : host,
+    paths: undefined,
+  };
 }
 
 export function parseDidWebvhIdentifier(did: string, context: string): ParsedDidWebvhIdentifier {
@@ -551,14 +549,6 @@ export function replaceCreateDidPlaceholders<T>(input: T, scid: string, did: str
   return replaceValueInObject(withScid, DID_PLACEHOLDER, did) as T;
 }
 
-export function convertWebvhIdToWebId(id: string): string {
-  const parts = id.split(':');
-  if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
-    throw new Error(`Invalid did:webvh id '${id}'`);
-  }
-  return `did:web:${parts.slice(3).join(':')}`;
-}
-
 export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsWeb?: boolean }): DIDDoc {
   if (doc.alsoKnownAs !== undefined && !Array.isArray(doc.alsoKnownAs)) {
     throw new Error('alsoKnownAs is not an array');
@@ -572,7 +562,11 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
   };
 
   if (opts.alsoKnownAsWeb) {
-    addAlias(convertWebvhIdToWebId(did));
+    const parts = did.split(':');
+    if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
+      throw new Error(`Invalid did:webvh id '${did}'`);
+    }
+    addAlias(`did:web:${parts.slice(3).join(':')}`);
   }
 
   if (aliases.length === 0) {
@@ -583,20 +577,6 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
     ...doc,
     alsoKnownAs: aliases,
   };
-}
-
-/**
- * Check if a service with the given fragment exists in the service array.
- * Matches both fragment form (e.g., '#files') and absolute form (e.g., 'did:webvh:...#files').
- */
-export function serviceFragmentExists(services: ServiceEndpoint[], fragment: string, did: string): boolean {
-  const fragmentForm = `#${fragment}`;
-  const absoluteForm = `${did}#${fragment}`;
-
-  return services.some((s: ServiceEndpoint) => {
-    const serviceId = s.id || '';
-    return serviceId === fragmentForm || serviceId === absoluteForm;
-  });
 }
 
 export function addDefaultDidWebvhServices(
@@ -612,8 +592,17 @@ export function addDefaultDidWebvhServices(
     idStyle === 'fragment' ? `#${fragment}` : `${did}#${fragment}`;
 
   let changed = false;
+  const hasServiceFragment = (fragment: string) => {
+    const fragmentForm = `#${fragment}`;
+    const absoluteForm = `${did}#${fragment}`;
 
-  if (!serviceFragmentExists(services, ServiceFragment.Files, did)) {
+    return services.some((service: ServiceEndpoint) => {
+      const serviceId = service.id || '';
+      return serviceId === fragmentForm || serviceId === absoluteForm;
+    });
+  };
+
+  if (!hasServiceFragment(ServiceFragment.Files)) {
     services.push({
       id: createServiceId(ServiceFragment.Files),
       type: SERVICE_TYPE_RELATIVE_REF,
@@ -622,7 +611,7 @@ export function addDefaultDidWebvhServices(
     changed = true;
   }
 
-  if (!serviceFragmentExists(services, ServiceFragment.Whois, did)) {
+  if (!hasServiceFragment(ServiceFragment.Whois)) {
     services.push({
       '@context': CONTEXT_LINKED_VP,
       id: createServiceId(ServiceFragment.Whois),
@@ -800,19 +789,18 @@ export function sanitizeVerificationMethods(
   });
 }
 
-// Helper function to generate a random string (replacement for nanoid)
-export const generateRandomId = (length: number = 8): string => {
-  const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  const charactersLength = characters.length;
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
-};
-
 export const createVMID = (vm: VerificationMethod, did: string | null) => {
-  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || generateRandomId(8)}`;
+  const randomSuffix = (() => {
+    const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    const charactersLength = characters.length;
+    for (let i = 0; i < 8; i++) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  })();
+
+  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || randomSuffix}`;
 };
 
 export const normalizeVMs = (
@@ -991,35 +979,29 @@ export const createSCID = async (logEntryHash: string): Promise<string> => {
 // Cache for deriveHash operations to avoid redundant computation
 const hashCache = new Map<string, string>();
 
-function getCachedHash(input: unknown): string | undefined {
-  try {
-    const key = JSON.stringify(input);
-    return hashCache.get(key);
-  } catch {
-    return undefined;
-  }
-}
-
-function setCachedHash(input: unknown, hash: string): void {
-  try {
-    const key = JSON.stringify(input);
-    hashCache.set(key, hash);
-  } catch {
-    // Ignore caching errors
-  }
-}
-
 // Input must be strict JSON-compatible and must not contain explicit undefined values.
 export async function deriveHash(input: unknown): Promise<string> {
-  const cached = getCachedHash(input);
-  if (cached) {
-    return cached;
+  let cacheKey: string | undefined;
+
+  try {
+    cacheKey = JSON.stringify(input);
+    const cached = hashCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  } catch {
+    cacheKey = undefined;
   }
+
   const data = canonicalizeStrict(input);
   const hash = await createHash(data);
   const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
   const result = encodeBase58Btc(multihash);
-  setCachedHash(input, result);
+
+  if (cacheKey !== undefined) {
+    hashCache.set(cacheKey, result);
+  }
+
   return result;
 }
 
