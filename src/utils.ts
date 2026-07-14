@@ -8,7 +8,6 @@ import {
   ServiceFragment,
 } from './constants';
 import type {
-  CreateDIDInterface,
   DIDDoc,
   DIDLog,
   ParsedDidKeyVerificationMethod,
@@ -720,15 +719,26 @@ export const deriveNextKeyHash = async (input: string): Promise<string> => {
   return encodeBase58Btc(multihash);
 };
 
-export const createDIDDoc = async (options: CreateDIDInterface): Promise<{ doc: DIDDoc }> => {
-  const { controller } = options;
-  const all = normalizeVMs(options.verificationMethods, controller);
+type CreateDIDDocOptions = {
+  did: string;
+  verificationMethods?: VerificationMethod[];
+  context?: string | string[] | object | object[];
+  authentication?: string[];
+  assertionMethod?: string[];
+  keyAgreement?: string[];
+  alsoKnownAs?: string[];
+  services?: ServiceEndpoint[];
+};
+
+export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDoc }> => {
+  const { did } = options;
+  const all = normalizeVMs(options.verificationMethods, did);
 
   // Create the base document
   const doc: DIDDoc = {
     '@context': options.context || BASE_CONTEXT,
-    id: controller,
-    controller,
+    id: did,
+    controller: did,
   };
 
   // Add verification methods and relationships from normalizeVMs

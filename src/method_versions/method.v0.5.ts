@@ -80,8 +80,7 @@ export const createDID = async (
 
   const { doc } = await createDIDDoc({
     ...options,
-    address: addressInput,
-    controller,
+    did: controller,
     verificationMethods: safeVerificationMethods,
   });
   const params = {
@@ -411,9 +410,8 @@ export const updateDID = async (
   const { domain, updated, services, assertionMethod, ...optionsForDoc } = options;
   const { doc } = await createDIDDoc({
     ...optionsForDoc,
-    controller: optionsForDoc.controller || lastEntry.state.id || '',
+    did: lastEntry.state.id || '',
     context: optionsForDoc.context || lastEntry.state['@context'],
-    updateKeys: optionsForDoc.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
 

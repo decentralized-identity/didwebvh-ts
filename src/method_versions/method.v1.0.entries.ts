@@ -22,6 +22,7 @@ import {
   replaceCreateDidPlaceholders,
   sanitizeVerificationMethods,
   validateCreateDidDocument,
+  validateMethodSpecificPathSegments,
 } from '../utils';
 import { validateWitnessParameter } from '../witness';
 
@@ -29,6 +30,51 @@ export interface PreparedEntry {
   entry: DIDLogEntry;
   resolvedNextKeyHashes?: string[];
 }
+
+const resolveNextDidContext = ({
+  options,
+  lastEntryDid,
+  parsedLastEntryDid,
+  portable,
+}: {
+  options: UpdateDIDInterface & {
+    services?: ServiceEndpoint[];
+    address?: string;
+    paths?: string[];
+  };
+  lastEntryDid: string;
+  parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
+  portable: boolean;
+}): { controller: string } => {
+  const requestedAddress = options.address;
+  if (!requestedAddress) {
+    return {
+      controller: lastEntryDid,
+    };
+  }
+
+  const parsedNewAddress = parseCanonicalAddress(requestedAddress);
+  const addressPaths = parsedNewAddress.paths || [];
+  const newLocationPaths =
+    options.paths !== undefined
+      ? [...addressPaths, ...options.paths]
+      : addressPaths.length
+        ? addressPaths
+        : (parsedLastEntryDid.paths ?? []);
+  validateMethodSpecificPathSegments(newLocationPaths, 'updateDID path segments');
+  const newLocationKey = newLocationPaths.length
+    ? `${parsedNewAddress.didDomainComponent}:${newLocationPaths.join(':')}`
+    : parsedNewAddress.didDomainComponent;
+  const controller = `did:${METHOD}:${parsedLastEntryDid.scid}:${newLocationKey}`;
+
+  if (controller !== lastEntryDid && !portable) {
+    throw new Error('Cannot move DID: portability is disabled');
+  }
+
+  return {
+    controller,
+  };
+};
 
 const signControllerEntry = async (entry: DIDLogEntry, created: string, signer: CreateDIDInterface['signer']) => {
   const proofTemplate = createDataIntegrityProofTemplate({
@@ -103,8 +149,7 @@ export async function prepareGenesisEntry({
 
     const didDocResult = await createDIDDoc({
       ...options,
-      paths: allPaths,
-      controller,
+      did: controller,
       verificationMethods: safeVerificationMethods,
     });
     doc = didDocResult.doc;
@@ -224,39 +269,17 @@ export async function prepareUpdateEntry({
 
   const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
 
-  const requestedAddress = options.address;
-  let controller: string;
-  let controllerPaths = parsedLastEntryDid.paths;
-  if (options.controller) {
-    controller = options.controller;
-  } else if (requestedAddress) {
-    const parsedNewAddress = parseCanonicalAddress(requestedAddress);
-    const addressPaths = parsedNewAddress.paths || [];
-    const newLocationPaths =
-      options.paths !== undefined
-        ? [...addressPaths, ...options.paths]
-        : addressPaths.length
-          ? addressPaths
-          : (parsedLastEntryDid.paths ?? []);
-    const newLocationKey = newLocationPaths.length
-      ? `${parsedNewAddress.didDomainComponent}:${newLocationPaths.join(':')}`
-      : parsedNewAddress.didDomainComponent;
-    controller = `did:${METHOD}:${parsedLastEntryDid.scid}:${newLocationKey}`;
-    controllerPaths = newLocationPaths.length ? newLocationPaths : undefined;
-
-    if (controller !== lastEntryDid && !lastMeta.portable) {
-      throw new Error('Cannot move DID: portability is disabled');
-    }
-  } else {
-    controller = lastEntryDid;
-  }
+  const { controller } = resolveNextDidContext({
+    options,
+    lastEntryDid,
+    parsedLastEntryDid,
+    portable: lastMeta.portable,
+  });
 
   const { doc: normalizedUpdateDoc } = await createDIDDoc({
     ...options,
-    controller,
+    did: controller,
     context: options.context || lastEntry.state['@context'],
-    paths: controllerPaths,
-    updateKeys: options.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
 

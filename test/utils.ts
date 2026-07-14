@@ -34,10 +34,8 @@ export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhe
   const controller = `did:${METHOD}:${PLACEHOLDER}:example.com`;
 
   const { doc } = await createDIDDoc({
-    controller,
+    did: controller,
     verificationMethods: asPublicVerificationMethods(authKey),
-    signer,
-    updateKeys: [authKey.publicKeyMultibase!],
   });
 
   const initialLogEntry: DIDLog[0] = {
