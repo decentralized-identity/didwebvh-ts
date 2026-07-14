@@ -1,11 +1,5 @@
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import {
-  ERROR_TYPE_INVALID_DID,
-  ERROR_TYPE_NOT_FOUND,
-  METHOD_PARAMETER_KEYS,
-  METHOD_PROTOCOL_V1_0,
-  PLACEHOLDER,
-} from '../constants';
+import { METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V1_0, PLACEHOLDER } from '../constants';
 import type {
   DIDDoc,
   DIDLog,
@@ -15,6 +9,7 @@ import type {
   WitnessParameterResolution,
   WitnessProofFileEntry,
 } from '../interfaces';
+import { buildProblemDetails } from '../resolver-result';
 import {
   addDefaultDidWebvhServices,
   deepClone,
@@ -366,11 +361,7 @@ export const resolveV1Log = async (
     if (resolvedMeta && (!hasExplicitHistoricalSelector || witnessThresholdFailure)) {
       const message = e instanceof Error ? e.message : String(e);
       resolvedMeta.error = 'invalidDid';
-      resolvedMeta.problemDetails = {
-        type: ERROR_TYPE_INVALID_DID,
-        title: 'The resolved DID is invalid.',
-        detail: message,
-      };
+      resolvedMeta.problemDetails = buildProblemDetails('invalidDid', message);
     }
   }
 
@@ -386,11 +377,11 @@ export const resolveV1Log = async (
         meta: {
           ...lastValidMeta,
           error: 'notFound',
-          problemDetails: {
-            type: ERROR_TYPE_NOT_FOUND,
-            title: 'The requested DID version was not found.',
-            detail: 'The supplied explicit version selector did not match any entry in the DID log.',
-          },
+          problemDetails: buildProblemDetails(
+            'notFound',
+            'The supplied explicit version selector did not match any entry in the DID log.',
+            { title: 'The requested DID version was not found.' }
+          ),
         },
       };
     }
