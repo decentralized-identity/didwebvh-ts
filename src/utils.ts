@@ -104,6 +104,33 @@ export interface ParsedDidWebvhIdentifier {
   locationKey: string;
 }
 
+export function parseAndValidateVersionId(versionId: string, expectedVersionNumber: number) {
+  const firstDashIndex = versionId.indexOf('-');
+  const lastDashIndex = versionId.lastIndexOf('-');
+
+  if (firstDashIndex === -1 || firstDashIndex !== lastDashIndex) {
+    throw new Error(`versionId '${versionId}' must contain exactly one '-' separator`);
+  }
+
+  const version = versionId.slice(0, firstDashIndex);
+  const entryHash = versionId.slice(firstDashIndex + 1);
+
+  if (!/^\d+$/.test(version)) {
+    throw new Error(`versionId '${versionId}' must have a numeric version prefix`);
+  }
+
+  if (entryHash.length === 0) {
+    throw new Error(`versionId '${versionId}' must have a non-empty hash component`);
+  }
+
+  const versionNumber = Number(version);
+  if (versionNumber !== expectedVersionNumber) {
+    throw new Error(`version '${version}' in log doesn't match expected '${expectedVersionNumber}'.`);
+  }
+
+  return { version, versionNumber, entryHash };
+}
+
 function isIPAddress(host: string): boolean {
   // Reject IPv4
   if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return true;

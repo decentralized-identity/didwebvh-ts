@@ -19,6 +19,7 @@ import {
   addDefaultDidWebvhServices,
   deepClone,
   deriveHash,
+  parseAndValidateVersionId,
   parseDidWebvhIdentifier,
   replaceValueInObject,
 } from '../utils';
@@ -41,33 +42,6 @@ const requireDidId = (id: string | undefined): string => {
   }
 
   return id;
-};
-
-const parseAndValidateVersionId = (versionId: string, expectedVersionNumber: number) => {
-  const firstDashIndex = versionId.indexOf('-');
-  const lastDashIndex = versionId.lastIndexOf('-');
-
-  if (firstDashIndex === -1 || firstDashIndex !== lastDashIndex) {
-    throw new Error(`versionId '${versionId}' must contain exactly one '-' separator`);
-  }
-
-  const version = versionId.slice(0, firstDashIndex);
-  const entryHash = versionId.slice(firstDashIndex + 1);
-
-  if (!/^\d+$/.test(version)) {
-    throw new Error(`versionId '${versionId}' must have a numeric version prefix`);
-  }
-
-  if (entryHash.length === 0) {
-    throw new Error(`versionId '${versionId}' must have a non-empty hash component`);
-  }
-
-  const versionNumber = Number(version);
-  if (versionNumber !== expectedVersionNumber) {
-    throw new Error(`version '${version}' in log doesn't match expected '${expectedVersionNumber}'.`);
-  }
-
-  return { version, versionNumber, entryHash };
 };
 
 const getEntryWitnessParameter = (parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined => {
