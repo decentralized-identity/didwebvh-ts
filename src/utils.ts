@@ -648,6 +648,20 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
 export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDoc }> => {
   const { did } = options;
   const all = normalizeVMs(options.verificationMethods, did);
+  const derivedProperties = [
+    'verificationMethod',
+    'authentication',
+    'assertionMethod',
+    'keyAgreement',
+    'capabilityDelegation',
+    'capabilityInvocation',
+  ] as const;
+  const directProperties = ['authentication', 'assertionMethod', 'keyAgreement', 'alsoKnownAs'] as const;
+  const assignIfPresent = <K extends keyof DIDDoc>(property: K, value: DIDDoc[K] | undefined) => {
+    if (value) {
+      doc[property] = value;
+    }
+  };
 
   // Create the base document
   const doc: DIDDoc = {
@@ -658,46 +672,14 @@ export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc:
 
   // Add verification methods and relationships from normalizeVMs
   if (all && typeof all === 'object') {
-    if (all.verificationMethod) {
-      doc.verificationMethod = all.verificationMethod;
-    }
-
-    if (all.authentication) {
-      doc.authentication = all.authentication;
-    }
-
-    if (all.assertionMethod) {
-      doc.assertionMethod = all.assertionMethod;
-    }
-
-    if (all.keyAgreement) {
-      doc.keyAgreement = all.keyAgreement;
-    }
-
-    if (all.capabilityDelegation) {
-      doc.capabilityDelegation = all.capabilityDelegation;
-    }
-
-    if (all.capabilityInvocation) {
-      doc.capabilityInvocation = all.capabilityInvocation;
+    for (const property of derivedProperties) {
+      assignIfPresent(property, all[property]);
     }
   }
 
   // Add direct properties from options
-  if (options.authentication) {
-    doc.authentication = options.authentication;
-  }
-
-  if (options.assertionMethod) {
-    doc.assertionMethod = options.assertionMethod;
-  }
-
-  if (options.keyAgreement) {
-    doc.keyAgreement = options.keyAgreement;
-  }
-
-  if (options.alsoKnownAs) {
-    doc.alsoKnownAs = options.alsoKnownAs;
+  for (const property of directProperties) {
+    assignIfPresent(property, options[property]);
   }
 
   if (options.services) {
@@ -879,8 +861,9 @@ export const resolveVM = async (vm: string) => {
 
 export const findVerificationMethod = (doc: DIDDoc, vmId: string): VerificationMethod | null => {
   // Check in the verificationMethod array
-  if (doc.verificationMethod?.some((vm) => vm.id === vmId)) {
-    return doc.verificationMethod.find((vm) => vm.id === vmId) ?? null;
+  const directMatch = doc.verificationMethod?.find((vm) => vm.id === vmId);
+  if (directMatch) {
+    return directMatch;
   }
 
   // Check in other verification method relationship arrays
@@ -891,23 +874,17 @@ export const findVerificationMethod = (doc: DIDDoc, vmId: string): VerificationM
     'capabilityInvocation',
     'capabilityDelegation',
   ];
+  const hasMatchingId = (item: unknown): item is VerificationMethod => {
+    if (typeof item !== 'object' || item === null) return false;
+    return (item as { id?: unknown }).id === vmId;
+  };
+
   for (const relationship of vmRelationships) {
     const relationshipValues = doc[relationship as keyof DIDDoc];
-    if (
-      Array.isArray(relationshipValues) &&
-      relationshipValues.some((item) => {
-        if (typeof item !== 'object' || item === null) return false;
-        const maybeId = (item as { id?: unknown }).id;
-        return maybeId === vmId;
-      })
-    ) {
-      const match = relationshipValues.find((item) => {
-        if (typeof item !== 'object' || item === null) return false;
-        const maybeId = (item as { id?: unknown }).id;
-        return maybeId === vmId;
-      });
-      if (match && typeof match === 'object') {
-        return match as VerificationMethod;
+    if (Array.isArray(relationshipValues)) {
+      const match = relationshipValues.find(hasMatchingId);
+      if (match) {
+        return match;
       }
     }
   }
