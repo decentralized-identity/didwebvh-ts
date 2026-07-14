@@ -243,6 +243,45 @@ export function validateMethodSpecificPathSegments(pathSegments: string[], conte
   }
 }
 
+export function normalizeDidAddress({
+  address,
+  scid,
+  paths,
+  fallbackPaths,
+  context,
+}: {
+  address: string;
+  scid: string;
+  paths?: string[];
+  fallbackPaths?: string[];
+  context: string;
+}): ParsedDidWebvhIdentifier & { controller: string } {
+  const parsed = parseCanonicalAddress(address);
+  const addressPaths = parsed.paths || [];
+  const resolvedPaths =
+    fallbackPaths !== undefined
+      ? paths !== undefined
+        ? [...addressPaths, ...paths]
+        : addressPaths.length
+          ? addressPaths
+          : fallbackPaths
+      : [...addressPaths, ...(paths || [])];
+
+  validateMethodSpecificPathSegments(resolvedPaths, context);
+
+  const locationKey = resolvedPaths.length
+    ? `${parsed.didDomainComponent}:${resolvedPaths.join(':')}`
+    : parsed.didDomainComponent;
+
+  return {
+    scid,
+    didDomainComponent: parsed.didDomainComponent,
+    paths: toOptionalPaths(resolvedPaths),
+    locationKey,
+    controller: `did:${METHOD}:${scid}:${locationKey}`,
+  };
+}
+
 export function parseCanonicalAddress(input: string): ParsedAddress {
   if (!input || typeof input !== 'string') {
     throw new Error('Address input must be a non-empty string');
@@ -336,7 +375,6 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
 }
 
 export function parseDidWebvhIdentifier(did: string, context: string): ParsedDidWebvhIdentifier {
-  const parsedAddress = parseCanonicalAddress(did);
   const didParts = did.split(':');
 
   if (didParts.length < 4 || didParts[0] !== 'did' || didParts[1] !== METHOD) {
@@ -348,15 +386,17 @@ export function parseDidWebvhIdentifier(did: string, context: string): ParsedDid
     throw new Error(`${context} must include SCID segment`);
   }
 
-  const locationKey = parsedAddress.paths?.length
-    ? `${parsedAddress.didDomainComponent}:${parsedAddress.paths.join(':')}`
-    : parsedAddress.didDomainComponent;
+  const normalizedAddress = normalizeDidAddress({
+    address: did,
+    scid,
+    context: 'did:webvh identifier',
+  });
 
   return {
     scid,
-    didDomainComponent: parsedAddress.didDomainComponent,
-    paths: parsedAddress.paths,
-    locationKey,
+    didDomainComponent: normalizedAddress.didDomainComponent,
+    paths: normalizedAddress.paths,
+    locationKey: normalizedAddress.locationKey,
   };
 }
 
@@ -375,22 +415,24 @@ export const getBaseUrl = (id: string) => {
     throw new Error('did:webvh identifier must not include query or fragment components');
   }
 
-  const parsed = parseCanonicalAddress(id);
+  const parsedDid = parseDidWebvhIdentifier(id, 'did:webvh identifier');
+  const parsedDomain = parseEncodedPortComponent(parsedDid.didDomainComponent);
   const protocol = 'https';
-  const host = toASCII(parsed.canonicalHost.normalize('NFC'));
-  const normalizedHost = parsed.canonicalPort ? `${host}:${parsed.canonicalPort}` : host;
-  const path = parsed.paths?.join('/') ?? '';
+  const host = toASCII(decodeHostComponent(parsedDomain.host).normalize('NFC'));
+  const normalizedHost = parsedDomain.port ? `${host}:${parsedDomain.port}` : host;
+  const path = parsedDid.paths?.join('/') ?? '';
 
   return `${protocol}://${normalizedHost}${path ? `/${path}` : ''}`;
 };
 
 export const getFileUrl = (id: string) => {
+  const parsedDid = parseDidWebvhIdentifier(id, 'did:webvh identifier');
   const baseUrl = getBaseUrl(id);
-  const domainEndIndex = baseUrl.indexOf('/', baseUrl.indexOf('://') + 3);
 
-  if (domainEndIndex !== -1) {
+  if (parsedDid.paths?.length) {
     return `${baseUrl}/did.jsonl`;
   }
+
   return `${baseUrl}/.well-known/did.jsonl`;
 };
 

@@ -20,9 +20,8 @@ import {
   createSCID,
   deepClone,
   deriveHash,
-  parseCanonicalAddress,
+  normalizeDidAddress,
   replaceValueInObject,
-  validateMethodSpecificPathSegments,
 } from '../utils';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
@@ -58,12 +57,12 @@ export const createDID = async (
     throw new Error('Either address or domain must be provided');
   }
 
-  const parsed = parseCanonicalAddress(addressInput);
-  const didDomainComponent = parsed.didDomainComponent;
-  const allPaths = [...(parsed.paths || []), ...(options.paths || [])];
-  validateMethodSpecificPathSegments(allPaths, 'createDID path segments');
-  const path = allPaths.length > 0 ? allPaths.join(':') : undefined;
-  const controller = `did:${METHOD}:${PLACEHOLDER}:${didDomainComponent}${path ? `:${path}` : ''}`;
+  const normalizedAddress = normalizeDidAddress({
+    address: addressInput,
+    scid: PLACEHOLDER,
+    paths: options.paths,
+    context: 'createDID path segments',
+  });
   const createdDate = createDate(options.created);
 
   // Safety guard: Strip secret keys from verification methods before creating DID document
@@ -80,7 +79,7 @@ export const createDID = async (
 
   const { doc } = await createDIDDoc({
     ...options,
-    did: controller,
+    did: normalizedAddress.controller,
     verificationMethods: safeVerificationMethods,
   });
   const params = {

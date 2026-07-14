@@ -1,5 +1,5 @@
 import { documentStateIsValid, newKeysAreInNextKeys } from '../assertions';
-import { METHOD, METHOD_PROTOCOL_V1_0, PLACEHOLDER } from '../constants';
+import { METHOD_PROTOCOL_V1_0, PLACEHOLDER } from '../constants';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography';
 import type {
   CreateDIDInterface,
@@ -17,12 +17,11 @@ import {
   deepClone,
   deriveHash,
   enrichAlsoKnownAs,
-  parseCanonicalAddress,
+  normalizeDidAddress,
   parseDidWebvhIdentifier,
   replaceCreateDidPlaceholders,
   sanitizeVerificationMethods,
   validateCreateDidDocument,
-  validateMethodSpecificPathSegments,
 } from '../utils';
 import { validateWitnessParameter } from '../witness';
 
@@ -53,19 +52,14 @@ const resolveNextDidContext = ({
     };
   }
 
-  const parsedNewAddress = parseCanonicalAddress(requestedAddress);
-  const addressPaths = parsedNewAddress.paths || [];
-  const newLocationPaths =
-    options.paths !== undefined
-      ? [...addressPaths, ...options.paths]
-      : addressPaths.length
-        ? addressPaths
-        : (parsedLastEntryDid.paths ?? []);
-  validateMethodSpecificPathSegments(newLocationPaths, 'updateDID path segments');
-  const newLocationKey = newLocationPaths.length
-    ? `${parsedNewAddress.didDomainComponent}:${newLocationPaths.join(':')}`
-    : parsedNewAddress.didDomainComponent;
-  const controller = `did:${METHOD}:${parsedLastEntryDid.scid}:${newLocationKey}`;
+  const normalizedAddress = normalizeDidAddress({
+    address: requestedAddress,
+    scid: parsedLastEntryDid.scid,
+    paths: options.paths,
+    fallbackPaths: parsedLastEntryDid.paths ?? [],
+    context: 'updateDID path segments',
+  });
+  const controller = normalizedAddress.controller;
 
   if (controller !== lastEntryDid && !portable) {
     throw new Error('Cannot move DID: portability is disabled');

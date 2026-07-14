@@ -1,4 +1,4 @@
-import { METHOD, PLACEHOLDER } from '../constants';
+import { PLACEHOLDER } from '../constants';
 import type {
   CreateDIDInterface,
   CreateDIDResult,
@@ -12,12 +12,7 @@ import type {
   UpdateDIDResult,
   WitnessProofFileEntry,
 } from '../interfaces';
-import {
-  createDate,
-  generateParallelDidWeb,
-  parseCanonicalAddress,
-  validateMethodSpecificPathSegments,
-} from '../utils';
+import { createDate, generateParallelDidWeb, normalizeDidAddress } from '../utils';
 import { createNextVersionTime, MAX_FUTURE_SKEW_MS, validateUtcIso8601NotInFuture } from '../utils/iso8601-datetime';
 import { validateWitnessParameter } from '../witness';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './method.v1.0.entries';
@@ -45,12 +40,12 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
     throw new Error('Address must be provided');
   }
 
-  const parsed = parseCanonicalAddress(addressInput);
-  const didDomainComponent = parsed.didDomainComponent;
-  const allPaths = [...(parsed.paths || []), ...(options.paths || [])];
-  validateMethodSpecificPathSegments(allPaths, 'createDID path segments');
-  const path = allPaths.length > 0 ? allPaths.join(':') : undefined;
-  const controller = `did:${METHOD}:${PLACEHOLDER}:${didDomainComponent}${path ? `:${path}` : ''}`;
+  const normalizedAddress = normalizeDidAddress({
+    address: addressInput,
+    scid: PLACEHOLDER,
+    paths: options.paths,
+    context: 'createDID path segments',
+  });
   if (options.created) {
     validateUtcIso8601NotInFuture(options.created, 'createDID created');
   }
@@ -58,8 +53,8 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
 
   const { entry } = await prepareGenesisEntry({
     options,
-    controller,
-    allPaths,
+    controller: normalizedAddress.controller,
+    allPaths: normalizedAddress.paths ?? [],
     createdDate,
   });
 
