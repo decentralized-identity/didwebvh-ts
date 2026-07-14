@@ -651,6 +651,10 @@ export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc:
   const derivedProperties = ['verificationMethod', ...VERIFICATION_RELATIONSHIPS] as const;
   const directProperties = ['authentication', 'assertionMethod', 'keyAgreement', 'alsoKnownAs'] as const;
   const assignIfPresent = <K extends keyof DIDDoc>(property: K, value: DIDDoc[K] | undefined) => {
+    if (Array.isArray(value) && value.length === 0) {
+      return;
+    }
+
     if (value) {
       doc[property] = value;
     }
@@ -796,7 +800,7 @@ export const normalizeVMs = (
   }
 
   // First collect all VMs
-  const vms: VerificationMethod[] = verificationMethod.map((vm) => ({
+  const vms = verificationMethod.map((vm) => ({
     ...vm,
     id: vm.id ?? createVMID(vm, did),
     // Default controller to the DID — required by W3C DID Core §5.2
@@ -804,26 +808,17 @@ export const normalizeVMs = (
   }));
   all.verificationMethod = vms;
 
-  // Then handle relationships - default to authentication if no purpose is specified
-  all.authentication = verificationMethod
-    .filter((vm) => !vm.purpose || vm.purpose === 'authentication')
-    .map((vm) => vm.id ?? createVMID(vm, did));
+  // Then handle relationships using explicit purpose values only
+  for (const vm of vms) {
+    const relationship = vm.purpose;
+    if (!relationship) {
+      continue;
+    }
 
-  all.assertionMethod = verificationMethod
-    .filter((vm) => vm.purpose === 'assertionMethod')
-    .map((vm) => vm.id ?? createVMID(vm, did));
-
-  all.keyAgreement = verificationMethod
-    .filter((vm) => vm.purpose === 'keyAgreement')
-    .map((vm) => vm.id ?? createVMID(vm, did));
-
-  all.capabilityDelegation = verificationMethod
-    .filter((vm) => vm.purpose === 'capabilityDelegation')
-    .map((vm) => vm.id ?? createVMID(vm, did));
-
-  all.capabilityInvocation = verificationMethod
-    .filter((vm) => vm.purpose === 'capabilityInvocation')
-    .map((vm) => vm.id ?? createVMID(vm, did));
+    if (VERIFICATION_RELATIONSHIPS.includes(relationship as VerificationRelationship)) {
+      all[relationship as VerificationRelationship].push(vm.id);
+    }
+  }
 
   return all;
 };
