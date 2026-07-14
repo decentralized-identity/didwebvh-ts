@@ -1,15 +1,15 @@
-import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { describe, expect, test } from 'vitest';
 import pkg from '../package.json';
 
 describe('package scripts', () => {
   test('dev starts the resolver without waiting for a debugger', () => {
-    expect(pkg.scripts.dev).toBe('bun --watch ./examples/elysia-resolver.ts');
+    expect(pkg.scripts.dev).toBe('tsx --watch ./examples/elysia-resolver.ts');
     expect(pkg.scripts.dev).not.toContain('--inspect');
   });
 
   test('debug mode is available as an explicit script', () => {
-    expect(pkg.scripts.debug).toBe('bun --watch --inspect ./examples/elysia-resolver.ts');
+    expect(pkg.scripts.debug).toBe('tsx --watch --inspect ./examples/elysia-resolver.ts');
   });
 
   test('resolver example port can be configured with PORT', () => {

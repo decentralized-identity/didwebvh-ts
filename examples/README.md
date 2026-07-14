@@ -2,15 +2,15 @@
 
 This directory contains example implementations of DID Web VH resolvers using different frameworks:
 
-1. **Elysia Resolver** - A resolver built with the Elysia framework (Bun)
+1. **Elysia Resolver** - A resolver built with the Elysia framework
 2. **Express Resolver** - A resolver built with Express (Node.js)
 
 Both examples demonstrate functioning DID resolution with proper Ed25519 cryptographic verification.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) - Fast JavaScript runtime and package manager
-- Node.js (for Express example)
+- Node.js
+- pnpm
 
 ## Running the Examples
 
@@ -19,7 +19,7 @@ Both examples demonstrate functioning DID resolution with proper Ed25519 cryptog
 The Elysia resolver demonstrates a resolver with a custom Ed25519 verifier that extends the `AbstractCrypto` class:
 
 ```bash
-bun examples/elysia-resolver.ts
+pnpm exec tsx examples/elysia-resolver.ts
 ```
 
 This will start the resolver on port 3010.
@@ -29,7 +29,7 @@ This will start the resolver on port 3010.
 The Express resolver demonstrates a resolver with an HSM Ed25519 implementation:
 
 ```bash
-bun examples/express-resolver.ts
+pnpm exec tsx examples/express-resolver.ts
 ```
 
 This will start the resolver on port 8000.

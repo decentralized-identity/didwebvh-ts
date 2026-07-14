@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { Elysia } from 'elysia';
 import { AbstractCrypto, resolveDID } from '../src';
@@ -119,7 +120,7 @@ const getFile = async ({
         ? `./src/routes/${path}/${file}`
         : `./src/routes/${file}`;
 
-    return await Bun.file(filePath).text();
+    return await readFile(filePath, 'utf8');
   } catch (e: unknown) {
     console.error(e);
     throw new Error(`Failed to resolve File: ${e instanceof Error ? e.message : String(e)}`);

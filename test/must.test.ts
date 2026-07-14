@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'vitest';
 import type {
   CreateDIDResult,
   DataIntegrityProofTemplate,
@@ -81,7 +81,7 @@ describe('did:webvh normative tests', async () => {
 
   test("Resolver encountering 'deactivated': false MUST return deactivated in metadata (negative)", async () => {
     const resolved = await resolveDIDFromLog(newLog1, { verifier: testImplementation });
-    expect(resolved.didDocumentMetadata.deactivated).toBeFalse();
+    expect(resolved.didDocumentMetadata.deactivated).toBe(false);
   });
 });
 

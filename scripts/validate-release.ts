@@ -1,22 +1,24 @@
 import { execSync } from 'node:child_process';
 
-function requireEnv(name) {
+type SemVer = { major: number; minor: number; patch: number };
+
+function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required env var ${name}`);
   return value;
 }
 
-export function parseTag(tag) {
+export function parseTag(tag: string): SemVer | null {
   const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
   if (!m) return null;
   return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
 }
 
-export function cmp(a, b) {
+export function cmp(a: SemVer, b: SemVer): number {
   return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
 }
 
-export function isSingleSemverBump(prev, next) {
+export function isSingleSemverBump(prev: SemVer, next: SemVer): boolean {
   // patch
   if (next.major === prev.major && next.minor === prev.minor && next.patch === prev.patch + 1) {
     return true;
@@ -32,7 +34,7 @@ export function isSingleSemverBump(prev, next) {
   return false;
 }
 
-async function ghJson(url, token) {
+async function ghJson(url: string, token: string): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -46,13 +48,13 @@ async function ghJson(url, token) {
   return await res.json();
 }
 
-export function getLatestStrictSemverTagBefore(allTags, nextTag) {
+export function getLatestStrictSemverTagBefore(allTags: string[], nextTag: string): string | null {
   const next = parseTag(nextTag);
   if (!next) return null;
 
   const parsed = allTags
     .map((t) => ({ tag: t, v: parseTag(t) }))
-    .filter((x) => x.v)
+    .filter((x): x is { tag: string; v: SemVer } => x.v !== null)
     .map((x) => ({ tag: x.tag, v: x.v }));
 
   let best = null;
@@ -79,7 +81,7 @@ async function main() {
   }
 
   const perm = await ghJson(`https://api.github.com/repos/${repo}/collaborators/${actor}/permission`, ghToken);
-  const permission = perm?.permission ?? '';
+  const permission = (perm?.permission as string) ?? '';
   if (!['admin', 'maintain', 'write'].includes(permission)) {
     throw new Error(`${actor} must have write/maintain/admin permission to publish. Detected: '${permission}'`);
   }
@@ -113,7 +115,9 @@ async function main() {
   console.log(`Semver bump ok: ${latestTag} -> ${tag}`);
 }
 
-if (import.meta.main) {
+import { fileURLToPath } from 'node:url';
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await main().catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`ERROR: ${message}`);

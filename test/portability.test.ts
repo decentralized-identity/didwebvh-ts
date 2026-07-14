@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'vitest';
 import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import {

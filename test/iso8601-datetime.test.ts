@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { createNextVersionTime, parseUtcIso8601VersionTime } from '../src/utils/iso8601-datetime';
 
 describe('ISO8601 DateTime Validation', () => {

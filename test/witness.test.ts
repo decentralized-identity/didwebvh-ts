@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'vitest';
 import type {
   CreateDIDResult,
   DataIntegrityProofTemplate,
@@ -440,7 +440,7 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
       witnessProofs: [...witnessProofs, { versionId: newVersionId, proof: deactivationProofs }],
     });
-    expect(resolved.didDocumentMetadata.witness).toBeEmpty();
+    expect(resolved.didDocumentMetadata.witness).toEqual({});
   });
 
   test('Verify witness proofs from did-witness.json', async () => {

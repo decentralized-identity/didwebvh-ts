@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test';
-import { cmp, getLatestStrictSemverTagBefore, isSingleSemverBump, parseTag } from '../scripts/validate-release.mjs';
+import { describe, expect, test } from 'vitest';
+import { cmp, getLatestStrictSemverTagBefore, isSingleSemverBump, parseTag } from '../scripts/validate-release.ts';
 
 describe('validate-release helpers', () => {
   test('parseTag accepts strict vMAJOR.MINOR.PATCH only', () => {
@@ -18,14 +18,14 @@ describe('validate-release helpers', () => {
 
   test('isSingleSemverBump allows exactly one major/minor/patch bump', () => {
     const v1 = parseTag('v1.2.3')!;
-    expect(isSingleSemverBump(v1, parseTag('v1.2.4')!)).toBeTrue();
-    expect(isSingleSemverBump(v1, parseTag('v1.3.0')!)).toBeTrue();
-    expect(isSingleSemverBump(v1, parseTag('v2.0.0')!)).toBeTrue();
+    expect(isSingleSemverBump(v1, parseTag('v1.2.4')!)).toBe(true);
+    expect(isSingleSemverBump(v1, parseTag('v1.3.0')!)).toBe(true);
+    expect(isSingleSemverBump(v1, parseTag('v2.0.0')!)).toBe(true);
 
-    expect(isSingleSemverBump(v1, parseTag('v1.2.5')!)).toBeFalse();
-    expect(isSingleSemverBump(v1, parseTag('v1.4.0')!)).toBeFalse();
-    expect(isSingleSemverBump(v1, parseTag('v2.1.0')!)).toBeFalse();
-    expect(isSingleSemverBump(v1, parseTag('v3.0.0')!)).toBeFalse();
+    expect(isSingleSemverBump(v1, parseTag('v1.2.5')!)).toBe(false);
+    expect(isSingleSemverBump(v1, parseTag('v1.4.0')!)).toBe(false);
+    expect(isSingleSemverBump(v1, parseTag('v2.1.0')!)).toBe(false);
+    expect(isSingleSemverBump(v1, parseTag('v3.0.0')!)).toBe(false);
   });
 
   test('cmp sorts by major/minor/patch', () => {

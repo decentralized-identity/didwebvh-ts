@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { getBaseUrl, getFileUrl } from '../src/utils';
 
 describe('Internationalized domain handling', () => {

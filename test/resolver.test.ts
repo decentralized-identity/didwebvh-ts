@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, mock, spyOn, test } from 'bun:test';
 import { Resolver } from 'did-resolver';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, updateDID } from '../src/method';
 import { getResolver } from '../src/resolver';
@@ -13,11 +13,11 @@ import {
 const toJsonl = (log: DIDLog) => log.map((entry) => JSON.stringify(entry)).join('\n');
 
 const originalFetch = globalThis.fetch;
-let consoleErrorSpy: { mockRestore: () => void } | undefined;
+let consoleErrorSpy: ReturnType<typeof vi.spyOn> | undefined;
 
 // Serve a fixed DID log JSONL over the mocked fetch so resolution-by-identifier works.
 const serveLog = (log: DIDLog) => {
-  globalThis.fetch = mock().mockResolvedValue({
+  globalThis.fetch = vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
     text: async () => toJsonl(log),
@@ -26,7 +26,7 @@ const serveLog = (log: DIDLog) => {
 };
 
 const serve404 = () => {
-  globalThis.fetch = mock().mockResolvedValue({
+  globalThis.fetch = vi.fn().mockResolvedValue({
     ok: false,
     status: 404,
     text: async () => '',
@@ -44,7 +44,7 @@ describe('getResolver integration', () => {
   let resolver: Resolver;
 
   beforeAll(async () => {
-    consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     authKey = await generateTestVerificationMethod();
     verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const created = await createDID({

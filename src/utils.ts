@@ -367,16 +367,13 @@ export const getFileUrl = (id: string) => {
   return `${baseUrl}/.well-known/did.jsonl`;
 };
 
-type ProcessVersionsLike = { node?: string; bun?: string };
+type ProcessVersionsLike = { node?: string };
 
-// Environment detection - treat React Native like a browser, but Bun as Node-like
+// Environment detection - treat React Native like a browser and only allow Node.js for filesystem access.
 const isNodeEnvironment =
   typeof process !== 'undefined' &&
   typeof window === 'undefined' &&
-  !!(
-    (process.versions as ProcessVersionsLike | undefined)?.node ||
-    (process.versions as ProcessVersionsLike | undefined)?.bun
-  );
+  !!(process.versions as ProcessVersionsLike | undefined)?.node;
 
 // Avoid bundlers including `fs`: hide the specifier from static analyzers
 const fsModuleSpecifier = ['node', 'fs'].join(':');
@@ -418,7 +415,7 @@ const getFS = async (): Promise<FsModule> => {
         return module;
       } catch {}
     }
-    // Fallback to dynamic import (Bun/ESM)
+    // Fallback to dynamic import for ESM runtimes.
     try {
       const module = (await import(fsModuleSpecifier)) as FsModule;
       fsModule = module;
@@ -581,9 +578,7 @@ export async function fetchLogFromIdentifier(identifier: string, controlled: boo
 
       try {
         let text: string;
-        if (typeof Bun !== 'undefined' && Bun.file) {
-          text = (await Bun.file(logPath).text()).trim();
-        } else if (isNodeEnvironment) {
+        if (isNodeEnvironment) {
           const fs = await getFS();
           text = fs.readFileSync(logPath, 'utf8').trim();
         } else {
