@@ -60,11 +60,11 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/types/index.d.ts",
       "react-native": "./dist/cjs/index.cjs",
       "browser": "./dist/browser/index.js",
       "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.cjs",
-      "types": "./dist/types/index.d.ts"
+      "require": "./dist/cjs/index.cjs"
     },
     "./types": {
       "types": "./dist/types/types.d.ts"
