@@ -13,19 +13,19 @@ This is a TypeScript library implementing the `did:webvh` specification for Dece
 
 ```bash
 # Run all tests
-bun test
+pnpm test
 
 # Run a single test file
-bun test test/happy-path.test.ts
+pnpm test -- test/happy-path.test.ts
 
 # Run tests with verbose output, stopping on first failure
-bun test --watch --bail --verbose
+pnpm test:bail
 
 # Build distribution artifacts
-bun run build
+pnpm build
 
 # Clean and rebuild
-bun run build:clean
+pnpm build:clean
 ```
 
 There is no separate lint command — TypeScript strict mode serves as the type-checking step.
@@ -70,7 +70,7 @@ The library builds to four targets: ESM (`dist/esm/`), CommonJS (`dist/cjs/`), b
 
 ### Test Utilities
 
-**[test/utils.ts](test/utils.ts)** provides `TestCryptoImplementation` (Ed25519 mock), `createTestSigner()`, `createTestVerifier()`, and `createMockDIDLog()` for use across all test files. Tests use Bun's native test runner — no Jest or Vitest.
+**[test/utils.ts](test/utils.ts)** provides `TestCryptoImplementation` (Ed25519 mock), `createTestSigner()`, `createTestVerifier()`, and `createMockDIDLog()` for use across all test files. Tests use Vitest.
 
 ### Examples
 
