@@ -213,11 +213,12 @@ describe('Happy Path Tests', () => {
     expect(updatedDoc.alsoKnownAs![0]).toBe(alias);
   });
 
-  test('Update DID with controller', async () => {
+  test('Update DID ignores controller override input', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
+    const injectedController = 'did:example:123';
 
-    const { log: initialLog } = await createDID({
+    const { did: createdDid, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
@@ -225,16 +226,16 @@ describe('Happy Path Tests', () => {
       verifier,
     });
 
-    const controller = 'did:example:123';
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      controller,
+      controller: injectedController,
       verifier,
-    });
+    } as unknown as Parameters<typeof updateDID>[0]);
 
-    expect(updatedDoc.controller).toBe(controller);
+    expect(updatedDoc.id).toBe(createdDid);
+    expect(updatedDoc.id).not.toBe(injectedController);
   });
 
   test('Update DID with future update key', async () => {

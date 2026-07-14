@@ -29,6 +29,51 @@ interface RequiredWitnessCheck {
   witness: WitnessParameterResolution;
 }
 
+const enforceRequiredWitnessChecks = async ({
+  requiredWitnessChecks,
+  witnessProofs,
+  did,
+  resolutionLog,
+  verifier,
+  onThresholdFailure,
+}: {
+  requiredWitnessChecks: RequiredWitnessCheck[];
+  witnessProofs: WitnessProofFileEntry[] | undefined;
+  did: string;
+  resolutionLog: DIDLog;
+  verifier: ResolutionOptions['verifier'];
+  onThresholdFailure: () => void;
+}): Promise<void> => {
+  let resolvedWitnessProofs = witnessProofs;
+  if (!resolvedWitnessProofs) {
+    resolvedWitnessProofs = await fetchWitnessProofs(did);
+  }
+
+  const publishedVersionNumbers = new Map(resolutionLog.map((entry, index) => [entry.versionId, index + 1]));
+
+  for (const check of requiredWitnessChecks) {
+    const candidateProofs = resolvedWitnessProofs.filter((witnessProof) => {
+      const proofVersionNumber = publishedVersionNumbers.get(witnessProof.versionId);
+      return proofVersionNumber !== undefined && proofVersionNumber >= check.targetVersionNumber;
+    });
+
+    const approvals = await countVerifiedWitnessApprovals(
+      resolutionLog[check.targetVersionNumber - 1],
+      candidateProofs,
+      check.witness,
+      verifier
+    );
+    const threshold = parseInt((check.witness.threshold ?? 0).toString(), 10);
+
+    if (approvals < threshold) {
+      onThresholdFailure();
+      throw new Error(
+        `Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`
+      );
+    }
+  }
+};
+
 const requireDidId = (id: string | undefined): string => {
   if (!id) {
     throw new Error('DID document id is missing');
@@ -326,33 +371,16 @@ export const resolveV1Log = async (
       throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
     }
     if (requiredWitnessChecks.length > 0) {
-      if (!options.witnessProofs) {
-        options.witnessProofs = await fetchWitnessProofs(did);
-      }
-
-      const publishedVersionNumbers = new Map(resolutionLog.map((entry, index) => [entry.versionId, index + 1]));
-
-      for (const check of requiredWitnessChecks) {
-        const candidateProofs = (options.witnessProofs ?? []).filter((witnessProof) => {
-          const proofVersionNumber = publishedVersionNumbers.get(witnessProof.versionId);
-          return proofVersionNumber !== undefined && proofVersionNumber >= check.targetVersionNumber;
-        });
-
-        const approvals = await countVerifiedWitnessApprovals(
-          resolutionLog[check.targetVersionNumber - 1],
-          candidateProofs,
-          check.witness,
-          options.verifier
-        );
-        const threshold = parseInt((check.witness.threshold ?? 0).toString(), 10);
-
-        if (approvals < threshold) {
+      await enforceRequiredWitnessChecks({
+        requiredWitnessChecks,
+        witnessProofs: options.witnessProofs,
+        did,
+        resolutionLog,
+        verifier: options.verifier,
+        onThresholdFailure: () => {
           witnessThresholdFailure = true;
-          throw new Error(
-            `Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`
-          );
-        }
-      }
+        },
+      });
     }
   } catch (e) {
     if (!resolvedDoc) {
