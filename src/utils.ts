@@ -56,17 +56,17 @@ type CreateDIDDocOptions = {
   services?: ServiceEndpoint[];
 };
 
-type NormalizedVerificationMethods = Required<
-  Pick<
-    DIDDoc,
-    | 'verificationMethod'
-    | 'authentication'
-    | 'assertionMethod'
-    | 'keyAgreement'
-    | 'capabilityDelegation'
-    | 'capabilityInvocation'
-  >
->;
+const VERIFICATION_RELATIONSHIPS = [
+  'authentication',
+  'assertionMethod',
+  'keyAgreement',
+  'capabilityDelegation',
+  'capabilityInvocation',
+] as const;
+
+type VerificationRelationship = (typeof VERIFICATION_RELATIONSHIPS)[number];
+
+type NormalizedVerificationMethods = Required<Pick<DIDDoc, 'verificationMethod' | VerificationRelationship>>;
 
 // Version parsing/validation utilities
 
@@ -648,14 +648,7 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
 export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDoc }> => {
   const { did } = options;
   const all = normalizeVMs(options.verificationMethods, did);
-  const derivedProperties = [
-    'verificationMethod',
-    'authentication',
-    'assertionMethod',
-    'keyAgreement',
-    'capabilityDelegation',
-    'capabilityInvocation',
-  ] as const;
+  const derivedProperties = ['verificationMethod', ...VERIFICATION_RELATIONSHIPS] as const;
   const directProperties = ['authentication', 'assertionMethod', 'keyAgreement', 'alsoKnownAs'] as const;
   const assignIfPresent = <K extends keyof DIDDoc>(property: K, value: DIDDoc[K] | undefined) => {
     if (value) {
@@ -867,19 +860,12 @@ export const findVerificationMethod = (doc: DIDDoc, vmId: string): VerificationM
   }
 
   // Check in other verification method relationship arrays
-  const vmRelationships = [
-    'authentication',
-    'assertionMethod',
-    'keyAgreement',
-    'capabilityInvocation',
-    'capabilityDelegation',
-  ];
   const hasMatchingId = (item: unknown): item is VerificationMethod => {
     if (typeof item !== 'object' || item === null) return false;
     return (item as { id?: unknown }).id === vmId;
   };
 
-  for (const relationship of vmRelationships) {
+  for (const relationship of VERIFICATION_RELATIONSHIPS) {
     const relationshipValues = doc[relationship as keyof DIDDoc];
     if (Array.isArray(relationshipValues)) {
       const match = relationshipValues.find(hasMatchingId);
