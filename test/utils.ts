@@ -12,7 +12,7 @@ import type {
   VerificationMethod,
   Verifier,
 } from '../src/interfaces';
-import { createSCID, deriveHash } from '../src/utils';
+import { createSCID, deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats';
 
 export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
