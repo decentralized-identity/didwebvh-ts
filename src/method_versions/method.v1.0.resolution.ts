@@ -1,5 +1,6 @@
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import { METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V1_0, PLACEHOLDER } from '../constants';
+import { METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants';
+import { addDefaultDidWebvhServices } from '../did-document';
 import type {
   DIDDoc,
   DIDLog,
@@ -11,7 +12,6 @@ import type {
 } from '../interfaces';
 import { buildProblemDetails } from '../resolver-result';
 import {
-  addDefaultDidWebvhServices,
   deepClone,
   deriveHash,
   parseAndValidateVersionId,
@@ -207,10 +207,10 @@ export const resolveV1Log = async (
         meta.watchers = parameters.watchers ?? null;
 
         const logEntry = {
-          versionId: PLACEHOLDER,
+          versionId: SCID_PLACEHOLDER,
           versionTime: meta.created,
-          parameters: replaceValueInObject(parameters, meta.scid, PLACEHOLDER),
-          state: replaceValueInObject(newDoc, meta.scid, PLACEHOLDER),
+          parameters: replaceValueInObject(parameters, meta.scid, SCID_PLACEHOLDER),
+          state: replaceValueInObject(newDoc, meta.scid, SCID_PLACEHOLDER),
         };
 
         const logEntryHash = await deriveHash(logEntry);
@@ -223,7 +223,7 @@ export const resolveV1Log = async (
           throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
         }
 
-        const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
+        const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, meta.scid);
 
         const logEntryHash2 = await deriveHash(prelimEntry);
         const verified = await documentStateIsValid(

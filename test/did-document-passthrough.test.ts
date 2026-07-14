@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
+import { addDefaultDidWebvhServices, generateParallelDidWeb } from '../src/did-document';
 import { createDID, updateDID } from '../src/method';
-import { addDefaultDidWebvhServices, generateParallelDidWeb } from '../src/utils';
 import {
   asPublicVerificationMethods,
   createTestSigner,

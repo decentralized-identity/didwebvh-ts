@@ -1,6 +1,7 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { METHOD, PLACEHOLDER } from '../src/constants';
+import { METHOD, SCID_PLACEHOLDER } from '../src/constants';
 import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography';
+import { createDIDDoc, replaceCreateDidPlaceholders } from '../src/did-document';
 import type {
   DIDLog,
   DIDLogEntry,
@@ -11,7 +12,7 @@ import type {
   VerificationMethod,
   Verifier,
 } from '../src/interfaces';
-import { createDIDDoc, createSCID, deriveHash, replaceCreateDidPlaceholders } from '../src/utils';
+import { createSCID, deriveHash } from '../src/utils';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats';
 
 export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
@@ -31,7 +32,7 @@ export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
 export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhead: number): Promise<DIDLog> => {
   const futureCreated = new Date(Date.now() + minutesAhead * 60 * 1000).toISOString();
   const signer = createTestSigner(authKey);
-  const controller = `did:${METHOD}:${PLACEHOLDER}:example.com`;
+  const controller = `did:${METHOD}:${SCID_PLACEHOLDER}:example.com`;
 
   const { doc } = await createDIDDoc({
     did: controller,
@@ -39,11 +40,11 @@ export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhe
   });
 
   const initialLogEntry: DIDLog[0] = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: futureCreated,
     parameters: {
       method: `did:${METHOD}:1.0`,
-      scid: PLACEHOLDER,
+      scid: SCID_PLACEHOLDER,
       updateKeys: [authKey.publicKeyMultibase!],
       portable: false,
       nextKeyHashes: [],

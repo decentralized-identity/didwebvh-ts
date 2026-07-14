@@ -1,6 +1,13 @@
 import { documentStateIsValid, newKeysAreInNextKeys } from '../assertions';
-import { METHOD_PROTOCOL_V1_0, PLACEHOLDER } from '../constants';
+import { METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography';
+import {
+  createDIDDoc,
+  enrichAlsoKnownAs,
+  replaceCreateDidPlaceholders,
+  sanitizeVerificationMethods,
+  validateCreateDidDocument,
+} from '../did-document';
 import type {
   CreateDIDInterface,
   DeactivateDIDInterface,
@@ -11,18 +18,7 @@ import type {
   UpdateDIDInterface,
   WitnessParameterResolution,
 } from '../interfaces';
-import {
-  createDIDDoc,
-  createSCID,
-  deepClone,
-  deriveHash,
-  enrichAlsoKnownAs,
-  normalizeDidAddress,
-  parseDidWebvhIdentifier,
-  replaceCreateDidPlaceholders,
-  sanitizeVerificationMethods,
-  validateCreateDidDocument,
-} from '../utils';
+import { createSCID, deepClone, deriveHash, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils';
 import { validateWitnessParameter } from '../witness';
 
 export interface PreparedEntry {
@@ -154,7 +150,7 @@ export async function prepareGenesisEntry({
   });
 
   const params = {
-    scid: PLACEHOLDER,
+    scid: SCID_PLACEHOLDER,
     updateKeys: options.updateKeys,
     portable: options.portable ?? false,
     nextKeyHashes: options.nextKeyHashes ?? [],
@@ -164,7 +160,7 @@ export async function prepareGenesisEntry({
   };
 
   const initialLogEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: createdDate,
     parameters: {
       method: METHOD_PROTOCOL_V1_0,
@@ -175,7 +171,7 @@ export async function prepareGenesisEntry({
 
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   params.scid = await createSCID(initialLogEntryHash);
-  const didWithScid = controller.replaceAll(PLACEHOLDER, params.scid);
+  const didWithScid = controller.replaceAll(SCID_PLACEHOLDER, params.scid);
   const entry = replaceCreateDidPlaceholders(initialLogEntry, params.scid, didWithScid);
   entry.state = enrichAlsoKnownAs(entry.state, didWithScid, {
     alsoKnownAsWeb: options.alsoKnownAsWeb,

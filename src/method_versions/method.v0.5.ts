@@ -1,5 +1,6 @@
 import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import { METHOD, PLACEHOLDER } from '../constants';
+import { METHOD, SCID_PLACEHOLDER } from '../constants';
+import { addDefaultDidWebvhServices, createDIDDoc } from '../did-document';
 import type {
   CreateDIDInterface,
   DataIntegrityProof,
@@ -13,16 +14,7 @@ import type {
   UpdateDIDInterface,
   WitnessProofFileEntry,
 } from '../interfaces';
-import {
-  addDefaultDidWebvhServices,
-  createDate,
-  createDIDDoc,
-  createSCID,
-  deepClone,
-  deriveHash,
-  normalizeDidAddress,
-  replaceValueInObject,
-} from '../utils';
+import { createDate, createSCID, deepClone, deriveHash, normalizeDidAddress, replaceValueInObject } from '../utils';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
 const VERSION = '0.5';
@@ -59,7 +51,7 @@ export const createDID = async (
 
   const normalizedAddress = normalizeDidAddress({
     address: addressInput,
-    scid: PLACEHOLDER,
+    scid: SCID_PLACEHOLDER,
     paths: options.paths,
     context: 'createDID path segments',
   });
@@ -83,7 +75,7 @@ export const createDID = async (
     verificationMethods: safeVerificationMethods,
   });
   const params = {
-    scid: PLACEHOLDER,
+    scid: SCID_PLACEHOLDER,
     updateKeys: options.updateKeys,
     portable: options.portable ?? false,
     nextKeyHashes: options.nextKeyHashes ?? [],
@@ -96,7 +88,7 @@ export const createDID = async (
     deactivated: false,
   };
   const initialLogEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: createdDate,
     parameters: {
       method: PROTOCOL,
@@ -107,7 +99,7 @@ export const createDID = async (
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   params.scid = await createSCID(initialLogEntryHash);
   initialLogEntry.state = doc;
-  const prelimEntry = JSON.parse(JSON.stringify(initialLogEntry).replaceAll(PLACEHOLDER, params.scid));
+  const prelimEntry = JSON.parse(JSON.stringify(initialLogEntry).replaceAll(SCID_PLACEHOLDER, params.scid));
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;
   const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
@@ -214,10 +206,10 @@ export const resolveDIDFromLog = async (
         meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
         // Optimized: Use efficient object manipulation instead of JSON stringify/parse
         const logEntry = {
-          versionId: PLACEHOLDER,
+          versionId: SCID_PLACEHOLDER,
           versionTime: meta.created,
-          parameters: replaceValueInObject(parameters, meta.scid, PLACEHOLDER),
-          state: replaceValueInObject(newDoc, meta.scid, PLACEHOLDER),
+          parameters: replaceValueInObject(parameters, meta.scid, SCID_PLACEHOLDER),
+          state: replaceValueInObject(newDoc, meta.scid, SCID_PLACEHOLDER),
         };
 
         const logEntryHash = await deriveHash(logEntry);
@@ -227,7 +219,7 @@ export const resolveDIDFromLog = async (
         }
 
         // Optimized: Direct object manipulation instead of JSON stringify/parse
-        const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
+        const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, meta.scid);
         const logEntryHash2 = await deriveHash(prelimEntry);
         const verified = await documentStateIsValid(
           { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
@@ -430,7 +422,7 @@ export const updateDID = async (
   }
 
   const logEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: createdDate,
     parameters: params,
     state: doc,
@@ -494,7 +486,7 @@ export const deactivateDID = async (
     deactivated: true,
   };
   const logEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: createdDate,
     parameters: params,
     state: lastEntry.state,

@@ -1,4 +1,5 @@
-import { PLACEHOLDER } from '../constants';
+import { SCID_PLACEHOLDER } from '../constants';
+import { generateParallelDidWeb } from '../did-document';
 import type {
   CreateDIDInterface,
   CreateDIDResult,
@@ -12,7 +13,7 @@ import type {
   UpdateDIDResult,
   WitnessProofFileEntry,
 } from '../interfaces';
-import { createDate, generateParallelDidWeb, normalizeDidAddress } from '../utils';
+import { createDate, normalizeDidAddress } from '../utils';
 import { createNextVersionTime, MAX_FUTURE_SKEW_MS, validateUtcIso8601NotInFuture } from '../utils/iso8601-datetime';
 import { validateWitnessParameter } from '../witness';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './method.v1.0.entries';
@@ -42,7 +43,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
 
   const normalizedAddress = normalizeDidAddress({
     address: addressInput,
-    scid: PLACEHOLDER,
+    scid: SCID_PLACEHOLDER,
     paths: options.paths,
     context: 'createDID path segments',
   });
