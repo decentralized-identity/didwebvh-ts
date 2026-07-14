@@ -20,73 +20,10 @@ import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
 
+// Shared constants and types
+
 const DID_KEY_PREFIX = 'did:key:';
-
-// did:key parsing helpers
-
-function validateDidKeyMultibase(keyMultibase: string): void {
-  if (!keyMultibase) {
-    throw new Error('Malformed did:key identifier');
-  }
-
-  try {
-    multibaseDecode(keyMultibase);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Malformed did:key identifier: ${message}`);
-  }
-}
-
-export function parseDidKeyDid(input: string): { did: string; keyMultibase: string } {
-  if (typeof input !== 'string') {
-    throw new Error('did:key DID must be a string');
-  }
-
-  const match = input.match(/^did:key:([^#/?]+)$/);
-  if (!match) {
-    throw new Error('Malformed did:key DID');
-  }
-
-  const keyMultibase = match[1];
-  validateDidKeyMultibase(keyMultibase);
-
-  return {
-    did: `${DID_KEY_PREFIX}${keyMultibase}`,
-    keyMultibase,
-  };
-}
-
-export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerificationMethod {
-  if (typeof input !== 'string') {
-    throw new Error('did:key verificationMethod must be a string');
-  }
-
-  if (input.startsWith('#')) {
-    throw new Error('did:key verificationMethod must be an absolute DID URL');
-  }
-
-  const match = input.match(/^did:key:([^#/?]+)(?:#([^#/?]+))?$/);
-  if (!match) {
-    throw new Error('Malformed did:key verificationMethod');
-  }
-
-  const parsedDid = parseDidKeyDid(`${DID_KEY_PREFIX}${match[1]}`);
-  const fragment = match[2];
-
-  // If fragment is present, it MUST equal the body multibase exactly
-  if (fragment && fragment !== parsedDid.keyMultibase) {
-    throw new Error(
-      `did:key verificationMethod fragment must equal body multibase. ` +
-        `Expected fragment '${parsedDid.keyMultibase}' but got '${fragment}'`
-    );
-  }
-
-  return {
-    did: parsedDid.did,
-    fragment,
-    keyMultibase: parsedDid.keyMultibase,
-  };
-}
+export const DID_PLACEHOLDER = '{DID}';
 
 // Canonical address parser for strict parity with didwebvh-rs
 interface ParsedAddress {
@@ -102,6 +39,36 @@ export interface ParsedDidWebvhIdentifier {
   paths?: string[];
   locationKey: string;
 }
+
+type ProcessVersionsLike = { node?: string };
+
+type FsModule = typeof import('node:fs');
+type GlobalRequire = (id: string) => FsModule;
+
+type CreateDIDDocOptions = {
+  did: string;
+  verificationMethods?: VerificationMethod[];
+  context?: string | string[] | object | object[];
+  authentication?: string[];
+  assertionMethod?: string[];
+  keyAgreement?: string[];
+  alsoKnownAs?: string[];
+  services?: ServiceEndpoint[];
+};
+
+type NormalizedVerificationMethods = Required<
+  Pick<
+    DIDDoc,
+    | 'verificationMethod'
+    | 'authentication'
+    | 'assertionMethod'
+    | 'keyAgreement'
+    | 'capabilityDelegation'
+    | 'capabilityInvocation'
+  >
+>;
+
+// Version parsing/validation utilities
 
 export function parseAndValidateVersionId(versionId: string, expectedVersionNumber: number) {
   const firstDashIndex = versionId.indexOf('-');
@@ -129,6 +96,8 @@ export function parseAndValidateVersionId(versionId: string, expectedVersionNumb
 
   return { version, versionNumber, entryHash };
 }
+
+// Address normalization and did:webvh identifier parsing
 
 function isIPAddress(host: string): boolean {
   // Reject IPv4
@@ -400,7 +369,7 @@ export function parseDidWebvhIdentifier(did: string, context: string): ParsedDid
   };
 }
 
-// URL and DID document helper utilities
+// URL and filesystem/network log loading
 
 const toASCII = (domain: string): string => {
   try {
@@ -436,8 +405,6 @@ export const getFileUrl = (id: string) => {
   return `${baseUrl}/.well-known/did.jsonl`;
 };
 
-type ProcessVersionsLike = { node?: string };
-
 // Environment detection - treat React Native like a browser and only allow Node.js for filesystem access.
 const isNodeEnvironment =
   typeof process !== 'undefined' &&
@@ -447,9 +414,6 @@ const isNodeEnvironment =
 // Avoid bundlers including `fs`: hide the specifier from static analyzers
 const fsModuleSpecifier = ['node', 'fs'].join(':');
 // We'll resolve require dynamically only in Node runtimes; otherwise use dynamic import with a non-literal
-
-type FsModule = typeof import('node:fs');
-type GlobalRequire = (id: string) => FsModule;
 
 let fsModule: FsModule | null = null;
 let fsImportPromise: Promise<FsModule> | null = null;
@@ -507,7 +471,68 @@ const getFS = async (): Promise<FsModule> => {
   return fsImportPromise;
 };
 
-export const DID_PLACEHOLDER = '{DID}';
+export async function fetchLogFromIdentifier(identifier: string, controlled: boolean = false): Promise<DIDLog> {
+  const parseDidLogText = (text: string): DIDLog => {
+    return text.split('\n').map((line) => JSON.parse(line));
+  };
+
+  try {
+    if (controlled) {
+      const didParts = identifier.split(':');
+      const fileIdentifier = didParts.slice(4).join(':');
+      const logPath = `./src/routes/${fileIdentifier || '.well-known'}/did.jsonl`;
+
+      try {
+        let text: string;
+        if (isNodeEnvironment) {
+          const fs = await getFS();
+          text = fs.readFileSync(logPath, 'utf8').trim();
+        } else {
+          throw new Error('Local log retrieval not supported in this environment');
+        }
+        if (!text) {
+          return [];
+        }
+        return parseDidLogText(text);
+      } catch (error) {
+        throw new Error(`Error reading local DID log: ${error}`);
+      }
+    }
+
+    const url = getFileUrl(identifier);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const text = (await response.text()).trim();
+    if (!text) {
+      throw new Error(`DID log not found for ${identifier}`);
+    }
+    return parseDidLogText(text);
+  } catch (error) {
+    console.error('Error fetching DID log:', error);
+    throw error;
+  }
+}
+
+export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileEntry[]> {
+  try {
+    const url = getFileUrl(did).replace('did.jsonl', 'did-witness.json');
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      return [];
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching witness proofs:', error);
+    return [];
+  }
+}
+
+// DID document assembly and service helpers
 
 export function validateCreateDidDocument(didDocument: DIDDoc): void {
   if (!didDocument || typeof didDocument !== 'object') {
@@ -558,22 +583,6 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
     ...doc,
     alsoKnownAs: aliases,
   };
-}
-
-export function sanitizeVerificationMethods(
-  verificationMethods?: VerificationMethod[]
-): VerificationMethod[] | undefined {
-  return verificationMethods?.map((vm) => {
-    if (vm.secretKeyMultibase) {
-      console.warn(
-        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
-      );
-      const { secretKeyMultibase, ...safeVm } = vm;
-      return safeVm;
-    }
-
-    return vm;
-  });
 }
 
 /**
@@ -647,128 +656,6 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc)
   };
 }
 
-export function deepClone<T>(obj: T): T {
-  if (obj === null || typeof obj !== 'object') return obj;
-  if (obj instanceof Date) return new Date(obj.getTime()) as T;
-  if (Array.isArray(obj)) return obj.map((item) => deepClone(item)) as T;
-
-  const cloned: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    cloned[key] = deepClone(value);
-  }
-  return cloned as T;
-}
-
-export async function fetchLogFromIdentifier(identifier: string, controlled: boolean = false): Promise<DIDLog> {
-  const parseDidLogText = (text: string): DIDLog => {
-    return text.split('\n').map((line) => JSON.parse(line));
-  };
-
-  try {
-    if (controlled) {
-      const didParts = identifier.split(':');
-      const fileIdentifier = didParts.slice(4).join(':');
-      const logPath = `./src/routes/${fileIdentifier || '.well-known'}/did.jsonl`;
-
-      try {
-        let text: string;
-        if (isNodeEnvironment) {
-          const fs = await getFS();
-          text = fs.readFileSync(logPath, 'utf8').trim();
-        } else {
-          throw new Error('Local log retrieval not supported in this environment');
-        }
-        if (!text) {
-          return [];
-        }
-        return parseDidLogText(text);
-      } catch (error) {
-        throw new Error(`Error reading local DID log: ${error}`);
-      }
-    }
-
-    const url = getFileUrl(identifier);
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const text = (await response.text()).trim();
-    if (!text) {
-      throw new Error(`DID log not found for ${identifier}`);
-    }
-    return parseDidLogText(text);
-  } catch (error) {
-    console.error('Error fetching DID log:', error);
-    throw error;
-  }
-}
-
-export const createDate = (created?: Date | string) =>
-  new Date(created ?? Date.now()).toISOString().replace(/\.\d{1,3}Z$/, 'Z');
-
-export function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-export const createSCID = async (logEntryHash: string): Promise<string> => {
-  return logEntryHash;
-};
-
-// Cache for deriveHash operations to avoid redundant computation
-const hashCache = new Map<string, string>();
-
-function getCachedHash(input: unknown): string | undefined {
-  try {
-    const key = JSON.stringify(input);
-    return hashCache.get(key);
-  } catch {
-    return undefined;
-  }
-}
-
-function setCachedHash(input: unknown, hash: string): void {
-  try {
-    const key = JSON.stringify(input);
-    hashCache.set(key, hash);
-  } catch {
-    // Ignore caching errors
-  }
-}
-
-// Input must be strict JSON-compatible and must not contain explicit undefined values.
-export async function deriveHash(input: unknown): Promise<string> {
-  const cached = getCachedHash(input);
-  if (cached) {
-    return cached;
-  }
-  const data = canonicalizeStrict(input);
-  const hash = await createHash(data);
-  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
-  const result = encodeBase58Btc(multihash);
-  setCachedHash(input, result);
-  return result;
-}
-
-export const deriveNextKeyHash = async (input: string): Promise<string> => {
-  const hash = await createHash(input);
-  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
-  return encodeBase58Btc(multihash);
-};
-
-type CreateDIDDocOptions = {
-  did: string;
-  verificationMethods?: VerificationMethod[];
-  context?: string | string[] | object | object[];
-  authentication?: string[];
-  assertionMethod?: string[];
-  keyAgreement?: string[];
-  alsoKnownAs?: string[];
-  services?: ServiceEndpoint[];
-};
-
 export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDoc }> => {
   const { did } = options;
   const all = normalizeVMs(options.verificationMethods, did);
@@ -831,6 +718,88 @@ export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc:
   return { doc };
 };
 
+// Verification method normalization/resolution helpers
+
+function validateDidKeyMultibase(keyMultibase: string): void {
+  if (!keyMultibase) {
+    throw new Error('Malformed did:key identifier');
+  }
+
+  try {
+    multibaseDecode(keyMultibase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Malformed did:key identifier: ${message}`);
+  }
+}
+
+export function parseDidKeyDid(input: string): { did: string; keyMultibase: string } {
+  if (typeof input !== 'string') {
+    throw new Error('did:key DID must be a string');
+  }
+
+  const match = input.match(/^did:key:([^#/?]+)$/);
+  if (!match) {
+    throw new Error('Malformed did:key DID');
+  }
+
+  const keyMultibase = match[1];
+  validateDidKeyMultibase(keyMultibase);
+
+  return {
+    did: `${DID_KEY_PREFIX}${keyMultibase}`,
+    keyMultibase,
+  };
+}
+
+export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerificationMethod {
+  if (typeof input !== 'string') {
+    throw new Error('did:key verificationMethod must be a string');
+  }
+
+  if (input.startsWith('#')) {
+    throw new Error('did:key verificationMethod must be an absolute DID URL');
+  }
+
+  const match = input.match(/^did:key:([^#/?]+)(?:#([^#/?]+))?$/);
+  if (!match) {
+    throw new Error('Malformed did:key verificationMethod');
+  }
+
+  const parsedDid = parseDidKeyDid(`${DID_KEY_PREFIX}${match[1]}`);
+  const fragment = match[2];
+
+  // If fragment is present, it MUST equal the body multibase exactly
+  if (fragment && fragment !== parsedDid.keyMultibase) {
+    throw new Error(
+      `did:key verificationMethod fragment must equal body multibase. ` +
+        `Expected fragment '${parsedDid.keyMultibase}' but got '${fragment}'`
+    );
+  }
+
+  return {
+    did: parsedDid.did,
+    fragment,
+    keyMultibase: parsedDid.keyMultibase,
+  };
+}
+
+export function sanitizeVerificationMethods(
+  verificationMethods?: VerificationMethod[]
+): VerificationMethod[] | undefined {
+  return verificationMethods?.map((vm) => {
+    if (vm.secretKeyMultibase) {
+      console.warn(
+        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
+      );
+      const { secretKeyMultibase, ...safeVm } = vm;
+      return safeVm;
+    }
+
+    return vm;
+  });
+}
+
 // Helper function to generate a random string (replacement for nanoid)
 export const generateRandomId = (length: number = 8): string => {
   const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -845,18 +814,6 @@ export const generateRandomId = (length: number = 8): string => {
 export const createVMID = (vm: VerificationMethod, did: string | null) => {
   return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || generateRandomId(8)}`;
 };
-
-type NormalizedVerificationMethods = Required<
-  Pick<
-    DIDDoc,
-    | 'verificationMethod'
-    | 'authentication'
-    | 'assertionMethod'
-    | 'keyAgreement'
-    | 'capabilityDelegation'
-    | 'capabilityInvocation'
-  >
->;
 
 export const normalizeVMs = (
   verificationMethod: VerificationMethod[] | undefined,
@@ -987,20 +944,18 @@ export async function getActiveDIDs(): Promise<string[]> {
   return activeDIDs;
 }
 
-export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileEntry[]> {
-  try {
-    const url = getFileUrl(did).replace('did.jsonl', 'did-witness.json');
+// Generic object utilities
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      return [];
-    }
+export function deepClone<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj instanceof Date) return new Date(obj.getTime()) as T;
+  if (Array.isArray(obj)) return obj.map((item) => deepClone(item)) as T;
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching witness proofs:', error);
-    return [];
+  const cloned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    cloned[key] = deepClone(value);
   }
+  return cloned as T;
 }
 
 export function replaceValueInObject<T>(obj: T, searchValue: string, replaceValue: string): T {
@@ -1019,3 +974,57 @@ export function replaceValueInObject<T>(obj: T, searchValue: string, replaceValu
   }
   return obj;
 }
+
+export const createDate = (created?: Date | string) =>
+  new Date(created ?? Date.now()).toISOString().replace(/\.\d{1,3}Z$/, 'Z');
+
+export function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export const createSCID = async (logEntryHash: string): Promise<string> => {
+  return logEntryHash;
+};
+
+// Cache for deriveHash operations to avoid redundant computation
+const hashCache = new Map<string, string>();
+
+function getCachedHash(input: unknown): string | undefined {
+  try {
+    const key = JSON.stringify(input);
+    return hashCache.get(key);
+  } catch {
+    return undefined;
+  }
+}
+
+function setCachedHash(input: unknown, hash: string): void {
+  try {
+    const key = JSON.stringify(input);
+    hashCache.set(key, hash);
+  } catch {
+    // Ignore caching errors
+  }
+}
+
+// Input must be strict JSON-compatible and must not contain explicit undefined values.
+export async function deriveHash(input: unknown): Promise<string> {
+  const cached = getCachedHash(input);
+  if (cached) {
+    return cached;
+  }
+  const data = canonicalizeStrict(input);
+  const hash = await createHash(data);
+  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
+  const result = encodeBase58Btc(multihash);
+  setCachedHash(input, result);
+  return result;
+}
+
+export const deriveNextKeyHash = async (input: string): Promise<string> => {
+  const hash = await createHash(input);
+  const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
+  return encodeBase58Btc(multihash);
+};
