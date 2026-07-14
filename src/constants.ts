@@ -35,6 +35,8 @@ export const VERIFICATION_RELATIONSHIPS = [
   'capabilityInvocation',
 ] as const;
 
+export type VerificationRelationship = (typeof VERIFICATION_RELATIONSHIPS)[number];
+
 // Service type constants
 export const SERVICE_TYPE_RELATIVE_REF = 'relativeRef';
 export const SERVICE_TYPE_LINKED_VP = 'LinkedVerifiablePresentation';

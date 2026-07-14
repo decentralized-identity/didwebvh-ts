@@ -1,7 +1,9 @@
+import type { VerificationRelationship } from './constants';
 import {
   BASE_CONTEXT,
   CONTEXT_LINKED_VP,
   DID_PLACEHOLDER,
+  SCID_PLACEHOLDER,
   SERVICE_TYPE_LINKED_VP,
   SERVICE_TYPE_RELATIVE_REF,
   ServiceFragment,
@@ -23,8 +25,6 @@ type CreateDIDDocOptions = {
 
 type ServiceIdStyle = 'absolute' | 'fragment';
 
-type VerificationRelationship = (typeof VERIFICATION_RELATIONSHIPS)[number];
-
 type NormalizedVerificationMethods = Required<Pick<DIDDoc, 'verificationMethod' | VerificationRelationship>>;
 
 export function validateCreateDidDocument(didDocument: DIDDoc): void {
@@ -34,7 +34,7 @@ export function validateCreateDidDocument(didDocument: DIDDoc): void {
   if (typeof didDocument.id !== 'string') {
     throw new Error("didDocument 'id' field must be a string");
   }
-  if (!didDocument.id.includes('{SCID}') && !didDocument.id.includes(DID_PLACEHOLDER)) {
+  if (!didDocument.id.includes(SCID_PLACEHOLDER) && !didDocument.id.includes(DID_PLACEHOLDER)) {
     throw new Error("didDocument.id must contain a '{SCID}' or '{DID}' placeholder");
   }
 }
