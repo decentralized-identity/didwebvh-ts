@@ -37,6 +37,58 @@ interface RequiredWitnessCheck {
   witness: WitnessParameterResolution;
 }
 
+interface ResolvedVersionSnapshot {
+  did: string;
+  doc: DIDDoc | null;
+  meta: DIDResolutionMeta;
+}
+
+interface LastValidVersionSnapshot {
+  did: string;
+  doc: DIDDoc | null;
+  meta: DIDResolutionMeta;
+}
+
+interface ResolutionContext {
+  meta: DIDResolutionMeta;
+  host: string;
+  previousVersionTime: Date | undefined;
+  did: string;
+  doc: DIDDoc | null;
+  resolvedSnapshot: ResolvedVersionSnapshot | null;
+  lastValidSnapshot: LastValidVersionSnapshot | null;
+  requiredWitnessChecks: RequiredWitnessCheck[];
+  didIdMatchCount: number;
+  witnessThresholdFailure: boolean;
+}
+
+const createInitialResolutionContext = (): ResolutionContext => {
+  return {
+    meta: {
+      versionId: '',
+      created: '',
+      updated: '',
+      deactivated: false,
+      portable: false,
+      scid: '',
+      updateKeys: [],
+      nextKeyHashes: [],
+      prerotation: false,
+      witness: undefined,
+      watchers: null,
+    },
+    host: '',
+    previousVersionTime: undefined,
+    did: '',
+    doc: null,
+    resolvedSnapshot: null,
+    lastValidSnapshot: null,
+    requiredWitnessChecks: [],
+    didIdMatchCount: 0,
+    witnessThresholdFailure: false,
+  };
+};
+
 const enforceRequiredWitnessChecks = async ({
   requiredWitnessChecks,
   witnessProofs,
@@ -112,104 +164,84 @@ export const resolveV1Log = async (
   if (protocol !== METHOD_PROTOCOL_V1_0) {
     throw new Error(`'${protocol}' is not a supported method version.`);
   }
-  let did = '';
-  let doc: DIDDoc | null = null;
-  let resolvedDoc: DIDDoc | null = null;
-  let resolvedDid: string | null = null;
-  let lastValidDoc: DIDDoc | null = null;
-  let lastValidDid: string | null = null;
-  const meta: DIDResolutionMeta = {
-    versionId: '',
-    created: '',
-    updated: '',
-    deactivated: false,
-    portable: false,
-    scid: '',
-    updateKeys: [],
-    nextKeyHashes: [],
-    prerotation: false,
-    witness: undefined,
-    watchers: null,
-  };
-  let resolvedMeta: DIDResolutionMeta | null = null;
-  let lastValidMeta: DIDResolutionMeta | null = null;
+  const resolutionContext = createInitialResolutionContext();
   let i = 0;
   const hasExplicitHistoricalSelector =
     options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
-  let didIdMatchCount = 0;
-  let host = '';
-  let previousVersionTime: Date | undefined;
   const activeMethod = METHOD_PROTOCOL_V1_0;
-  const requiredWitnessChecks: RequiredWitnessCheck[] = [];
-  let witnessThresholdFailure = false;
 
   try {
     while (i < resolutionLog.length) {
-      const { versionId, versionTime, parameters, state, proof } = resolutionLog[i];
+      const { versionId, versionTime, parameters, state: entryState, proof } = resolutionLog[i];
       const { version, versionNumber, entryHash } = parseAndValidateVersionId(versionId, i + 1);
-      const previousWitness = meta.witness ? deepClone(meta.witness) : undefined;
-      meta.versionId = versionId;
+      const previousWitness = resolutionContext.meta.witness ? deepClone(resolutionContext.meta.witness) : undefined;
+      resolutionContext.meta.versionId = versionId;
       if (!versionTime) {
         throw new Error(`version '${version}' is missing versionTime`);
       }
 
       const currentVersionTime = parseUtcIso8601VersionTime(versionTime, `version '${version}' versionTime`);
-      if (previousVersionTime && currentVersionTime.getTime() <= previousVersionTime.getTime()) {
+      if (
+        resolutionContext.previousVersionTime &&
+        currentVersionTime.getTime() <= resolutionContext.previousVersionTime.getTime()
+      ) {
         throw new Error(`versionTime for version '${version}' must be greater than previous entry time`);
       }
       const maxAllowedFutureTime = Date.now() + MAX_FUTURE_SKEW_MS;
       if (currentVersionTime.getTime() > maxAllowedFutureTime) {
         throw new Error(`versionTime for version '${version}' must not be more than 5 minutes in the future`);
       }
-      previousVersionTime = currentVersionTime;
-      meta.updated = versionTime;
-      let newDoc = state;
+      resolutionContext.previousVersionTime = currentVersionTime;
+      resolutionContext.meta.updated = versionTime;
+      let newDoc = entryState;
       const parsedStateDid = parseDidWebvhIdentifier(requireDidDocumentId(newDoc.id), `version '${version}' state.id`);
 
       if (version === '1') {
-        meta.created = versionTime;
-        newDoc = state;
-        host = parsedStateDid.locationKey;
-        meta.scid = parameters.scid as string;
-        if (options.scid && options.scid !== meta.scid) {
-          throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${meta.scid}'`);
+        resolutionContext.meta.created = versionTime;
+        newDoc = entryState;
+        resolutionContext.host = parsedStateDid.locationKey;
+        resolutionContext.meta.scid = parameters.scid as string;
+        if (options.scid && options.scid !== resolutionContext.meta.scid) {
+          throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${resolutionContext.meta.scid}'`);
         }
-        meta.portable = parameters.portable ?? meta.portable;
-        meta.updateKeys = parameters.updateKeys as string[];
-        meta.nextKeyHashes = parameters.nextKeyHashes || [];
-        meta.prerotation = meta.nextKeyHashes.length > 0;
-        meta.witness = parameters.witness || meta.witness;
-        meta.watchers = parameters.watchers ?? null;
+        resolutionContext.meta.portable = parameters.portable ?? resolutionContext.meta.portable;
+        resolutionContext.meta.updateKeys = parameters.updateKeys as string[];
+        resolutionContext.meta.nextKeyHashes = parameters.nextKeyHashes || [];
+        resolutionContext.meta.prerotation = resolutionContext.meta.nextKeyHashes.length > 0;
+        resolutionContext.meta.witness = parameters.witness || resolutionContext.meta.witness;
+        resolutionContext.meta.watchers = parameters.watchers ?? null;
 
         const logEntry = {
           versionId: SCID_PLACEHOLDER,
-          versionTime: meta.created,
-          parameters: replaceValueInObject(parameters, meta.scid, SCID_PLACEHOLDER),
-          state: replaceValueInObject(newDoc, meta.scid, SCID_PLACEHOLDER),
+          versionTime: resolutionContext.meta.created,
+          parameters: replaceValueInObject(parameters, resolutionContext.meta.scid, SCID_PLACEHOLDER),
+          state: replaceValueInObject(newDoc, resolutionContext.meta.scid, SCID_PLACEHOLDER),
         };
 
         const logEntryHash = await deriveHash(logEntry);
-        meta.previousLogEntryHash = logEntryHash;
-        if (!(await scidIsFromHash(meta.scid, logEntryHash))) {
-          throw new Error(`SCID '${meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
+        resolutionContext.meta.previousLogEntryHash = logEntryHash;
+        if (!(await scidIsFromHash(resolutionContext.meta.scid, logEntryHash))) {
+          throw new Error(`SCID '${resolutionContext.meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
         }
 
-        if (parsedStateDid.scid !== meta.scid) {
-          throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
+        if (parsedStateDid.scid !== resolutionContext.meta.scid) {
+          throw new Error(
+            `SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${resolutionContext.meta.scid}'`
+          );
         }
 
-        const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, meta.scid);
+        const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, resolutionContext.meta.scid);
 
         const logEntryHash2 = await deriveHash(prelimEntry);
         const verified = await documentStateIsValid(
           { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
-          meta.updateKeys,
-          meta.witness,
+          resolutionContext.meta.updateKeys,
+          resolutionContext.meta.witness,
           false,
           options.verifier
         );
         if (!verified) {
-          throw new Error(`version ${meta.versionId} failed verification of the proof.`);
+          throw new Error(`version ${resolutionContext.meta.versionId} failed verification of the proof.`);
         }
       } else {
         if (hasOwn(parameters, METHOD_PARAMETER_KEYS.method)) {
@@ -226,151 +258,172 @@ export const resolveV1Log = async (
           throw new Error(`version '${version}' must not contain SCID parameter`);
         }
 
-        if (parameters.portable === true && !meta.portable) {
+        if (parameters.portable === true && !resolutionContext.meta.portable) {
           throw new Error(
             `version '${version}' cannot set portable: true; portability can only be enabled in the first entry`
           );
         }
 
         if (hasOwn(parameters, METHOD_PARAMETER_KEYS.portable) && parameters.portable === false) {
-          meta.portable = false;
+          resolutionContext.meta.portable = false;
         }
 
-        if (parsedStateDid.scid !== meta.scid) {
-          throw new Error(`SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${meta.scid}'`);
+        if (parsedStateDid.scid !== resolutionContext.meta.scid) {
+          throw new Error(
+            `SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${resolutionContext.meta.scid}'`
+          );
         }
 
         const newLocation = parsedStateDid.locationKey;
-        if (!meta.portable && newLocation !== host) {
+        if (!resolutionContext.meta.portable && newLocation !== resolutionContext.host) {
           throw new Error('Cannot move DID: portability is disabled');
-        } else if (newLocation !== host) {
-          host = newLocation;
+        } else if (newLocation !== resolutionContext.host) {
+          resolutionContext.host = newLocation;
         }
 
         const { proof: _proof, ...entryWithoutProof } = resolutionLog[i];
         const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: resolutionLog[i - 1].versionId });
         if (!hashChainValid(recomputedHash, entryHash)) {
-          throw new Error(`Hash chain broken at '${meta.versionId}'`);
+          throw new Error(`Hash chain broken at '${resolutionContext.meta.versionId}'`);
         }
 
-        const keys = meta.prerotation ? (parameters.updateKeys as string[]) : meta.updateKeys;
-        const verified = await documentStateIsValid(resolutionLog[i], keys, meta.witness, false, options.verifier);
+        const keys = resolutionContext.meta.prerotation
+          ? (parameters.updateKeys as string[])
+          : resolutionContext.meta.updateKeys;
+        const verified = await documentStateIsValid(
+          resolutionLog[i],
+          keys,
+          resolutionContext.meta.witness,
+          false,
+          options.verifier
+        );
         if (!verified) {
-          throw new Error(`version ${meta.versionId} failed verification of the proof.`);
+          throw new Error(`version ${resolutionContext.meta.versionId} failed verification of the proof.`);
         }
 
-        if (meta.prerotation) {
-          await newKeysAreInNextKeys(parameters.updateKeys ?? [], meta.nextKeyHashes ?? []);
+        if (resolutionContext.meta.prerotation) {
+          await newKeysAreInNextKeys(parameters.updateKeys ?? [], resolutionContext.meta.nextKeyHashes ?? []);
         }
 
         if (hasOwn(parameters, METHOD_PARAMETER_KEYS.updateKeys)) {
-          meta.updateKeys = parameters.updateKeys ?? [];
+          resolutionContext.meta.updateKeys = parameters.updateKeys ?? [];
         }
         if (parameters.deactivated === true) {
-          meta.deactivated = true;
+          resolutionContext.meta.deactivated = true;
         }
         if (hasOwn(parameters, METHOD_PARAMETER_KEYS.nextKeyHashes)) {
-          meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
-          meta.prerotation = meta.nextKeyHashes.length > 0;
+          resolutionContext.meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
+          resolutionContext.meta.prerotation = resolutionContext.meta.nextKeyHashes.length > 0;
         }
         const normalizedWitness = resolveWitnessParameter(parameters);
 
         if (normalizedWitness !== undefined) {
-          meta.witness = normalizedWitness;
+          resolutionContext.meta.witness = normalizedWitness;
         }
-        if (meta.witness?.witnesses?.length) {
-          validateWitnessParameter(meta.witness);
+        if (resolutionContext.meta.witness?.witnesses?.length) {
+          validateWitnessParameter(resolutionContext.meta.witness);
         }
         if (hasOwn(parameters, METHOD_PARAMETER_KEYS.watchers)) {
-          meta.watchers = parameters.watchers ?? null;
+          resolutionContext.meta.watchers = parameters.watchers ?? null;
         }
       }
 
-      const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, meta.witness);
+      const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, resolutionContext.meta.witness);
       if (requiredWitness) {
-        requiredWitnessChecks.push({
-          targetVersionId: meta.versionId,
+        resolutionContext.requiredWitnessChecks.push({
+          targetVersionId: resolutionContext.meta.versionId,
           targetVersionNumber: versionNumber,
           witness: requiredWitness,
         });
       }
 
-      doc = deepClone(newDoc);
-      did = requireDidDocumentId(doc.id);
+      resolutionContext.doc = deepClone(newDoc);
+      resolutionContext.did = requireDidDocumentId(resolutionContext.doc.id);
 
-      if (options.requestedDid && did === options.requestedDid) {
-        didIdMatchCount++;
+      if (options.requestedDid && resolutionContext.did === options.requestedDid) {
+        resolutionContext.didIdMatchCount++;
       }
 
-      doc = addDefaultDidWebvhServices(did, doc);
+      resolutionContext.doc = addDefaultDidWebvhServices(resolutionContext.did, resolutionContext.doc);
 
-      if (options.versionNumber === versionNumber || options.versionId === meta.versionId) {
-        if (!resolvedDoc) {
-          resolvedDoc = deepClone(doc);
-          resolvedDid = did;
-          resolvedMeta = { ...meta };
+      if (options.versionNumber === versionNumber || options.versionId === resolutionContext.meta.versionId) {
+        if (!resolutionContext.resolvedSnapshot) {
+          resolutionContext.resolvedSnapshot = {
+            doc: deepClone(resolutionContext.doc),
+            did: resolutionContext.did,
+            meta: { ...resolutionContext.meta },
+          };
         }
       }
-      if (options.versionTime && options.versionTime > new Date(meta.updated)) {
+      if (options.versionTime && options.versionTime > new Date(resolutionContext.meta.updated)) {
         if (resolutionLog[i + 1] && options.versionTime < new Date(resolutionLog[i + 1].versionTime)) {
-          if (!resolvedDoc) {
-            resolvedDoc = deepClone(doc);
-            resolvedDid = did;
-            resolvedMeta = { ...meta };
+          if (!resolutionContext.resolvedSnapshot) {
+            resolutionContext.resolvedSnapshot = {
+              doc: deepClone(resolutionContext.doc),
+              did: resolutionContext.did,
+              meta: { ...resolutionContext.meta },
+            };
           }
         } else if (!resolutionLog[i + 1]) {
-          if (!resolvedDoc) {
-            resolvedDoc = deepClone(doc);
-            resolvedDid = did;
-            resolvedMeta = { ...meta };
+          if (!resolutionContext.resolvedSnapshot) {
+            resolutionContext.resolvedSnapshot = {
+              doc: deepClone(resolutionContext.doc),
+              did: resolutionContext.did,
+              meta: { ...resolutionContext.meta },
+            };
           }
         }
       }
 
-      lastValidDoc = deepClone(doc);
-      lastValidDid = did;
-      lastValidMeta = { ...meta };
+      resolutionContext.lastValidSnapshot = {
+        doc: deepClone(resolutionContext.doc),
+        did: resolutionContext.did,
+        meta: { ...resolutionContext.meta },
+      };
 
       i++;
     }
 
-    if (options.requestedDid && didIdMatchCount === 0) {
+    if (options.requestedDid && resolutionContext.didIdMatchCount === 0) {
       throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
     }
-    if (requiredWitnessChecks.length > 0) {
+    if (resolutionContext.requiredWitnessChecks.length > 0) {
       await enforceRequiredWitnessChecks({
-        requiredWitnessChecks,
+        requiredWitnessChecks: resolutionContext.requiredWitnessChecks,
         witnessProofs: options.witnessProofs,
-        did,
+        did: resolutionContext.did,
         resolutionLog,
         verifier: options.verifier,
         onThresholdFailure: () => {
-          witnessThresholdFailure = true;
+          resolutionContext.witnessThresholdFailure = true;
         },
       });
     }
   } catch (e) {
-    if (!resolvedDoc) {
+    if (!resolutionContext.resolvedSnapshot) {
       throw e;
     }
-    if (resolvedMeta && (!hasExplicitHistoricalSelector || witnessThresholdFailure)) {
+    if (
+      resolutionContext.resolvedSnapshot.meta &&
+      (!hasExplicitHistoricalSelector || resolutionContext.witnessThresholdFailure)
+    ) {
       const message = e instanceof Error ? e.message : String(e);
-      resolvedMeta.error = 'invalidDid';
-      resolvedMeta.problemDetails = buildProblemDetails('invalidDid', message);
+      resolutionContext.resolvedSnapshot.meta.error = 'invalidDid';
+      resolutionContext.resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
     }
   }
 
-  if (!resolvedDoc) {
+  if (!resolutionContext.resolvedSnapshot) {
     if (hasExplicitHistoricalSelector) {
-      if (!lastValidMeta || !lastValidDid) {
+      if (!resolutionContext.lastValidSnapshot) {
         throw new Error('DID resolution failed: No valid result available for explicit selector');
       }
 
       return {
-        did: lastValidDid,
+        did: resolutionContext.lastValidSnapshot.did,
         doc: null,
         meta: {
-          ...lastValidMeta,
+          ...resolutionContext.lastValidSnapshot.meta,
           error: 'notFound',
           problemDetails: buildProblemDetails(
             'notFound',
@@ -381,36 +434,41 @@ export const resolveV1Log = async (
       };
     }
 
-    resolvedMeta = lastValidMeta;
-    resolvedDid = lastValidDid;
-    if (resolvedMeta && !(resolvedMeta.deactivated && !hasExplicitHistoricalSelector)) {
-      resolvedDoc = lastValidDoc;
+    resolutionContext.resolvedSnapshot = resolutionContext.lastValidSnapshot;
+    if (
+      resolutionContext.resolvedSnapshot &&
+      !(resolutionContext.resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector)
+    ) {
+      resolutionContext.resolvedSnapshot = {
+        ...resolutionContext.resolvedSnapshot,
+        doc: resolutionContext.lastValidSnapshot?.doc ?? null,
+      };
     }
   }
 
-  if (!resolvedMeta) {
+  if (!resolutionContext.resolvedSnapshot?.meta) {
     throw new Error('DID resolution failed: No valid metadata found');
   }
 
-  if (!resolvedDid) {
+  if (!resolutionContext.resolvedSnapshot.did) {
     throw new Error('DID resolution failed: No valid identifier found');
   }
 
-  if (resolvedMeta.deactivated && !hasExplicitHistoricalSelector) {
+  if (resolutionContext.resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector) {
     return {
-      did: resolvedDid,
+      did: resolutionContext.resolvedSnapshot.did,
       doc: null,
-      meta: resolvedMeta,
+      meta: resolutionContext.resolvedSnapshot.meta,
     };
   }
 
-  if (!resolvedDoc) {
+  if (!resolutionContext.resolvedSnapshot.doc) {
     throw new Error('DID resolution failed: No valid document found');
   }
 
   return {
-    did: resolvedDid,
-    doc: resolvedDoc,
-    meta: resolvedMeta,
+    did: resolutionContext.resolvedSnapshot.did,
+    doc: resolutionContext.resolvedSnapshot.doc,
+    meta: resolutionContext.resolvedSnapshot.meta,
   };
 };
