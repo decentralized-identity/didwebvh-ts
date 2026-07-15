@@ -367,6 +367,33 @@ const getRequiredWitnessForEntry = (
   return undefined;
 };
 
+const finalizeResolutionChecks = async ({
+  resolutionContext,
+  options,
+  resolutionLog,
+}: {
+  resolutionContext: ResolutionContext;
+  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+  resolutionLog: DIDLog;
+}): Promise<void> => {
+  if (options.requestedDid && resolutionContext.didIdMatchCount === 0) {
+    throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
+  }
+
+  if (resolutionContext.requiredWitnessChecks.length > 0) {
+    await enforceRequiredWitnessChecks({
+      requiredWitnessChecks: resolutionContext.requiredWitnessChecks,
+      witnessProofs: options.witnessProofs,
+      did: resolutionContext.did,
+      resolutionLog,
+      verifier: options.verifier,
+      onThresholdFailure: () => {
+        resolutionContext.witnessThresholdFailure = true;
+      },
+    });
+  }
+};
+
 export const resolveV1Log = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
@@ -455,21 +482,11 @@ export const resolveV1Log = async (
       i++;
     }
 
-    if (options.requestedDid && resolutionContext.didIdMatchCount === 0) {
-      throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
-    }
-    if (resolutionContext.requiredWitnessChecks.length > 0) {
-      await enforceRequiredWitnessChecks({
-        requiredWitnessChecks: resolutionContext.requiredWitnessChecks,
-        witnessProofs: options.witnessProofs,
-        did: resolutionContext.did,
-        resolutionLog,
-        verifier: options.verifier,
-        onThresholdFailure: () => {
-          resolutionContext.witnessThresholdFailure = true;
-        },
-      });
-    }
+    await finalizeResolutionChecks({
+      resolutionContext,
+      options,
+      resolutionLog,
+    });
   } catch (e) {
     const resolvedSnapshot = resolutionContext.resolvedSnapshot;
     if (!resolvedSnapshot) {
