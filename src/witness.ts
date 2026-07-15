@@ -133,6 +133,22 @@ export async function signWitnessProofEntries(
   );
 }
 
+export function resolveWitnessParameter(parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined {
+  if ('witness' in parameters) {
+    return parameters.witness ?? {};
+  }
+
+  if ((parameters as { witnesses?: { id: string }[]; witnessThreshold?: string | number }).witnesses) {
+    const legacyParameters = parameters as { witnesses: { id: string }[]; witnessThreshold?: string | number };
+    return {
+      witnesses: legacyParameters.witnesses,
+      threshold: legacyParameters.witnessThreshold || legacyParameters.witnesses.length,
+    };
+  }
+
+  return undefined;
+}
+
 export function validateWitnessParameter(witness: WitnessParameterResolution): void {
   if (!witness.witnesses || !Array.isArray(witness.witnesses) || witness.witnesses.length === 0) {
     throw new Error('Witness list cannot be empty');

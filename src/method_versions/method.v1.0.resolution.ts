@@ -20,7 +20,12 @@ import {
 } from '../utils';
 import { deriveHash } from '../utils/crypto';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
-import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
+import {
+  countVerifiedWitnessApprovals,
+  fetchWitnessProofs,
+  resolveWitnessParameter,
+  validateWitnessParameter,
+} from '../witness';
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
 
@@ -75,22 +80,6 @@ const enforceRequiredWitnessChecks = async ({
   }
 };
 
-const getEntryWitnessParameter = (parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined => {
-  if ('witness' in parameters) {
-    return parameters.witness ?? {};
-  }
-
-  if ((parameters as { witnesses?: { id: string }[]; witnessThreshold?: string | number }).witnesses) {
-    const legacyParameters = parameters as { witnesses: { id: string }[]; witnessThreshold?: string | number };
-    return {
-      witnesses: legacyParameters.witnesses,
-      threshold: legacyParameters.witnessThreshold || legacyParameters.witnesses.length,
-    };
-  }
-
-  return undefined;
-};
-
 const isWitnessActive = (witness?: WitnessParameterResolution | null): witness is WitnessParameterResolution => {
   if (!witness?.witnesses || witness.witnesses.length === 0) {
     return false;
@@ -105,7 +94,7 @@ const getRequiredWitnessForEntry = (
   parameters: DIDLogEntry['parameters'],
   currentWitness: WitnessParameterResolution | undefined
 ): WitnessParameterResolution | undefined => {
-  const explicitWitness = getEntryWitnessParameter(parameters);
+  const explicitWitness = resolveWitnessParameter(parameters);
 
   if (isWitnessActive(previousWitness)) {
     return deepClone(previousWitness);
@@ -291,18 +280,10 @@ export const resolveV1Log = async (
           meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
           meta.prerotation = meta.nextKeyHashes.length > 0;
         }
-        const legacyParameters = parameters as typeof parameters & {
-          witnesses?: { id: string }[];
-          witnessThreshold?: string | number;
-        };
+        const normalizedWitness = resolveWitnessParameter(parameters);
 
-        if (hasOwn(parameters, METHOD_PARAMETER_KEYS.witness)) {
-          meta.witness = parameters.witness;
-        } else if (legacyParameters.witnesses) {
-          meta.witness = {
-            witnesses: legacyParameters.witnesses,
-            threshold: legacyParameters.witnessThreshold || legacyParameters.witnesses.length,
-          };
+        if (normalizedWitness !== undefined) {
+          meta.witness = normalizedWitness;
         }
         if (meta.witness?.witnesses?.length) {
           validateWitnessParameter(meta.witness);
