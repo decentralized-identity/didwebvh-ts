@@ -13,7 +13,7 @@ import type {
   UpdateDIDResult,
   WitnessProofFileEntry,
 } from '../interfaces';
-import { normalizeDidAddress } from '../utils';
+import { normalizeDidAddress, requireDidDocumentId } from '../utils';
 import {
   createDate,
   createNextVersionTime,
@@ -23,13 +23,6 @@ import {
 import { validateWitnessParameter } from '../witness';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './method.v1.0.entries';
 import { resolveV1Log } from './method.v1.0.resolution';
-
-const requireDidId = (id: string | undefined): string => {
-  if (!id) {
-    throw new Error('DID document id is missing');
-  }
-  return id;
-};
 
 export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
   if (!options.updateKeys) {
@@ -64,7 +57,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
     createdDate,
   });
 
-  const didId = requireDidId(entry.state.id);
+  const didId = requireDidDocumentId(entry.state.id);
   const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(didId, entry.state) : undefined;
 
   return {
@@ -142,7 +135,7 @@ export const updateDID = async (
   };
 
   const hasWebAlias = (entry.state.alsoKnownAs ?? []).some((alias: string) => alias.startsWith('did:web:'));
-  const updatedDidId = requireDidId(entry.state.id);
+  const updatedDidId = requireDidDocumentId(entry.state.id);
   const webDoc = hasWebAlias ? generateParallelDidWeb(updatedDidId, entry.state) : undefined;
 
   return {
@@ -182,7 +175,7 @@ export const deactivateDID = async (
     updateKeys: entry.parameters.updateKeys ?? lastMeta.updateKeys,
   };
 
-  const didId = requireDidId(entry.state.id);
+  const didId = requireDidDocumentId(entry.state.id);
 
   return {
     did: didId,

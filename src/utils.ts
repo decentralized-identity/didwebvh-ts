@@ -55,6 +55,14 @@ export function parseAndValidateVersionId(versionId: string, expectedVersionNumb
   return { version, versionNumber, entryHash };
 }
 
+export function requireDidDocumentId(id: string | undefined): string {
+  if (!id) {
+    throw new Error('DID document id is missing');
+  }
+
+  return id;
+}
+
 // Address normalization and did:webvh identifier parsing
 
 function isIPAddress(host: string): boolean {

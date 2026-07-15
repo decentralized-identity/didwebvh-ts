@@ -11,7 +11,13 @@ import type {
   WitnessProofFileEntry,
 } from '../interfaces';
 import { buildProblemDetails } from '../resolver-result';
-import { deepClone, parseAndValidateVersionId, parseDidWebvhIdentifier, replaceValueInObject } from '../utils';
+import {
+  deepClone,
+  parseAndValidateVersionId,
+  parseDidWebvhIdentifier,
+  replaceValueInObject,
+  requireDidDocumentId,
+} from '../utils';
 import { deriveHash } from '../utils/crypto';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
@@ -67,14 +73,6 @@ const enforceRequiredWitnessChecks = async ({
       );
     }
   }
-};
-
-const requireDidId = (id: string | undefined): string => {
-  if (!id) {
-    throw new Error('DID document id is missing');
-  }
-
-  return id;
 };
 
 const getEntryWitnessParameter = (parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined => {
@@ -184,7 +182,7 @@ export const resolveV1Log = async (
       previousVersionTime = currentVersionTime;
       meta.updated = versionTime;
       let newDoc = state;
-      const parsedStateDid = parseDidWebvhIdentifier(requireDidId(newDoc.id), `version '${version}' state.id`);
+      const parsedStateDid = parseDidWebvhIdentifier(requireDidDocumentId(newDoc.id), `version '${version}' state.id`);
 
       if (version === '1') {
         meta.created = versionTime;
@@ -324,7 +322,7 @@ export const resolveV1Log = async (
       }
 
       doc = deepClone(newDoc);
-      did = requireDidId(doc.id);
+      did = requireDidDocumentId(doc.id);
 
       if (options.requestedDid && did === options.requestedDid) {
         didIdMatchCount++;
