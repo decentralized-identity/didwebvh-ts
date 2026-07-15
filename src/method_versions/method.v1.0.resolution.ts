@@ -43,7 +43,7 @@ interface ResolutionSnapshot {
   meta: DIDResolutionMeta;
 }
 
-interface ResolutionContext {
+interface ResolverContext {
   meta: DIDResolutionMeta;
   host: string;
   previousVersionTime: Date | undefined;
@@ -68,7 +68,7 @@ interface ParsedResolutionEntryContext {
   parsedStateDid: ReturnType<typeof parseDidWebvhIdentifier>;
 }
 
-const createInitialResolutionContext = (): ResolutionContext => {
+const createInitialResolverContext = (): ResolverContext => {
   return {
     meta: {
       versionId: '',
@@ -95,7 +95,7 @@ const createInitialResolutionContext = (): ResolutionContext => {
   };
 };
 
-const validateAndParseResolutionEntry = ({
+const validateAndParseLogEntry = ({
   entry,
   expectedVersionNumber,
   previousVersionTime,
@@ -137,77 +137,77 @@ const validateAndParseResolutionEntry = ({
 };
 
 const processV1GenesisEntry = async ({
-  resolutionContext,
+  resolverContext,
   entryContext,
   options,
 }: {
-  resolutionContext: ResolutionContext;
+  resolverContext: ResolverContext;
   entryContext: ParsedResolutionEntryContext;
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
 }): Promise<DIDDoc> => {
   const { entry: sourceEntry, parsedStateDid } = entryContext;
   const { versionTime, parameters, proof } = sourceEntry;
 
-  resolutionContext.meta.created = versionTime;
-  resolutionContext.host = parsedStateDid.locationKey;
-  resolutionContext.meta.scid = parameters.scid as string;
-  if (options.scid && options.scid !== resolutionContext.meta.scid) {
-    throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${resolutionContext.meta.scid}'`);
+  resolverContext.meta.created = versionTime;
+  resolverContext.host = parsedStateDid.locationKey;
+  resolverContext.meta.scid = parameters.scid as string;
+  if (options.scid && options.scid !== resolverContext.meta.scid) {
+    throw new Error(`SCID in DID '${options.scid}' does not match SCID in log '${resolverContext.meta.scid}'`);
   }
-  resolutionContext.meta.portable = parameters.portable ?? resolutionContext.meta.portable;
-  resolutionContext.meta.updateKeys = parameters.updateKeys as string[];
-  resolutionContext.meta.nextKeyHashes = parameters.nextKeyHashes || [];
-  resolutionContext.meta.prerotation = resolutionContext.meta.nextKeyHashes.length > 0;
-  resolutionContext.meta.witness = parameters.witness || resolutionContext.meta.witness;
-  resolutionContext.meta.watchers = parameters.watchers ?? null;
+  resolverContext.meta.portable = parameters.portable ?? resolverContext.meta.portable;
+  resolverContext.meta.updateKeys = parameters.updateKeys as string[];
+  resolverContext.meta.nextKeyHashes = parameters.nextKeyHashes || [];
+  resolverContext.meta.prerotation = resolverContext.meta.nextKeyHashes.length > 0;
+  resolverContext.meta.witness = parameters.witness || resolverContext.meta.witness;
+  resolverContext.meta.watchers = parameters.watchers ?? null;
 
   const logEntry = {
     versionId: SCID_PLACEHOLDER,
-    versionTime: resolutionContext.meta.created,
-    parameters: replaceValueInObject(parameters, resolutionContext.meta.scid, SCID_PLACEHOLDER),
-    state: replaceValueInObject(sourceEntry.state, resolutionContext.meta.scid, SCID_PLACEHOLDER),
+    versionTime: resolverContext.meta.created,
+    parameters: replaceValueInObject(parameters, resolverContext.meta.scid, SCID_PLACEHOLDER),
+    state: replaceValueInObject(sourceEntry.state, resolverContext.meta.scid, SCID_PLACEHOLDER),
   };
 
   const logEntryHash = await deriveHash(logEntry);
-  resolutionContext.meta.previousLogEntryHash = logEntryHash;
-  if (!(await scidIsFromHash(resolutionContext.meta.scid, logEntryHash))) {
-    throw new Error(`SCID '${resolutionContext.meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
+  resolverContext.meta.previousLogEntryHash = logEntryHash;
+  if (!(await scidIsFromHash(resolverContext.meta.scid, logEntryHash))) {
+    throw new Error(`SCID '${resolverContext.meta.scid}' not derived from logEntryHash '${logEntryHash}'`);
   }
 
-  if (parsedStateDid.scid !== resolutionContext.meta.scid) {
+  if (parsedStateDid.scid !== resolverContext.meta.scid) {
     throw new Error(
-      `SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${resolutionContext.meta.scid}'`
+      `SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${resolverContext.meta.scid}'`
     );
   }
 
-  const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, resolutionContext.meta.scid);
+  const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, resolverContext.meta.scid);
 
   const logEntryHash2 = await deriveHash(prelimEntry);
   const verified = await documentStateIsValid(
     { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
-    resolutionContext.meta.updateKeys,
-    resolutionContext.meta.witness,
+    resolverContext.meta.updateKeys,
+    resolverContext.meta.witness,
     false,
     options.verifier
   );
   if (!verified) {
-    throw new Error(`version ${resolutionContext.meta.versionId} failed verification of the proof.`);
+    throw new Error(`version ${resolverContext.meta.versionId} failed verification of the proof.`);
   }
 
   return sourceEntry.state;
 };
 
 const processV1SubsequentEntry = async ({
-  resolutionContext,
+  resolverContext,
   entryContext,
-  resolutionLog,
+  logEntries,
   entryIndex,
   activeMethod,
   options,
 }: {
-  resolutionContext: ResolutionContext;
+  resolverContext: ResolverContext;
   entryContext: ParsedResolutionEntryContext;
-  resolutionLog: DIDLog;
+  logEntries: DIDLog;
   entryIndex: number;
   activeMethod: string;
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
@@ -232,73 +232,71 @@ const processV1SubsequentEntry = async ({
     throw new Error(`version '${version}' must not contain SCID parameter`);
   }
 
-  if (parameters.portable === true && !resolutionContext.meta.portable) {
+  if (parameters.portable === true && !resolverContext.meta.portable) {
     throw new Error(
       `version '${version}' cannot set portable: true; portability can only be enabled in the first entry`
     );
   }
 
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.portable) && parameters.portable === false) {
-    resolutionContext.meta.portable = false;
+    resolverContext.meta.portable = false;
   }
 
-  if (parsedStateDid.scid !== resolutionContext.meta.scid) {
+  if (parsedStateDid.scid !== resolverContext.meta.scid) {
     throw new Error(
-      `SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${resolutionContext.meta.scid}'`
+      `SCID in state.id '${parsedStateDid.scid}' does not match SCID in log '${resolverContext.meta.scid}'`
     );
   }
 
   const newLocation = parsedStateDid.locationKey;
-  if (!resolutionContext.meta.portable && newLocation !== resolutionContext.host) {
+  if (!resolverContext.meta.portable && newLocation !== resolverContext.host) {
     throw new Error('Cannot move DID: portability is disabled');
-  } else if (newLocation !== resolutionContext.host) {
-    resolutionContext.host = newLocation;
+  } else if (newLocation !== resolverContext.host) {
+    resolverContext.host = newLocation;
   }
 
-  const { proof: _proof, ...entryWithoutProof } = resolutionLog[entryIndex];
-  const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: resolutionLog[entryIndex - 1].versionId });
+  const { proof: _proof, ...entryWithoutProof } = logEntries[entryIndex];
+  const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: logEntries[entryIndex - 1].versionId });
   if (!hashChainValid(recomputedHash, entryHash)) {
-    throw new Error(`Hash chain broken at '${resolutionContext.meta.versionId}'`);
+    throw new Error(`Hash chain broken at '${resolverContext.meta.versionId}'`);
   }
 
-  const keys = resolutionContext.meta.prerotation
-    ? (parameters.updateKeys as string[])
-    : resolutionContext.meta.updateKeys;
+  const keys = resolverContext.meta.prerotation ? (parameters.updateKeys as string[]) : resolverContext.meta.updateKeys;
   const verified = await documentStateIsValid(
-    resolutionLog[entryIndex],
+    logEntries[entryIndex],
     keys,
-    resolutionContext.meta.witness,
+    resolverContext.meta.witness,
     false,
     options.verifier
   );
   if (!verified) {
-    throw new Error(`version ${resolutionContext.meta.versionId} failed verification of the proof.`);
+    throw new Error(`version ${resolverContext.meta.versionId} failed verification of the proof.`);
   }
 
-  if (resolutionContext.meta.prerotation) {
-    await newKeysAreInNextKeys(parameters.updateKeys ?? [], resolutionContext.meta.nextKeyHashes ?? []);
+  if (resolverContext.meta.prerotation) {
+    await newKeysAreInNextKeys(parameters.updateKeys ?? [], resolverContext.meta.nextKeyHashes ?? []);
   }
 
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.updateKeys)) {
-    resolutionContext.meta.updateKeys = parameters.updateKeys ?? [];
+    resolverContext.meta.updateKeys = parameters.updateKeys ?? [];
   }
   if (parameters.deactivated === true) {
-    resolutionContext.meta.deactivated = true;
+    resolverContext.meta.deactivated = true;
   }
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.nextKeyHashes)) {
-    resolutionContext.meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
-    resolutionContext.meta.prerotation = resolutionContext.meta.nextKeyHashes.length > 0;
+    resolverContext.meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
+    resolverContext.meta.prerotation = resolverContext.meta.nextKeyHashes.length > 0;
   }
   const normalizedWitness = resolveWitnessParameter(parameters);
 
   if (normalizedWitness !== undefined) {
-    resolutionContext.meta.witness = normalizedWitness;
+    resolverContext.meta.witness = normalizedWitness;
   }
-  if (resolutionContext.meta.witness?.witnesses?.length) {
-    validateWitnessParameter(resolutionContext.meta.witness);
+  if (resolverContext.meta.witness?.witnesses?.length) {
+    validateWitnessParameter(resolverContext.meta.witness);
   }
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.watchers)) {
-    resolutionContext.meta.watchers = parameters.watchers ?? null;
+    resolverContext.meta.watchers = parameters.watchers ?? null;
   }
 
   return sourceEntry.state;
@@ -308,14 +306,14 @@ const enforceRequiredWitnessChecks = async ({
   requiredWitnessChecks,
   witnessProofs,
   did,
-  resolutionLog,
+  logEntries,
   verifier,
   onThresholdFailure,
 }: {
   requiredWitnessChecks: RequiredWitnessCheck[];
   witnessProofs: WitnessProofFileEntry[] | undefined;
   did: string;
-  resolutionLog: DIDLog;
+  logEntries: DIDLog;
   verifier: ResolutionOptions['verifier'];
   onThresholdFailure: () => void;
 }): Promise<void> => {
@@ -324,7 +322,7 @@ const enforceRequiredWitnessChecks = async ({
     resolvedWitnessProofs = await fetchWitnessProofs(did);
   }
 
-  const publishedVersionNumbers = new Map(resolutionLog.map((entry, index) => [entry.versionId, index + 1]));
+  const publishedVersionNumbers = new Map(logEntries.map((entry, index) => [entry.versionId, index + 1]));
 
   for (const check of requiredWitnessChecks) {
     const candidateProofs = resolvedWitnessProofs.filter((witnessProof) => {
@@ -333,7 +331,7 @@ const enforceRequiredWitnessChecks = async ({
     });
 
     const approvals = await countVerifiedWitnessApprovals(
-      resolutionLog[check.targetVersionNumber - 1],
+      logEntries[check.targetVersionNumber - 1],
       candidateProofs,
       check.witness,
       verifier
@@ -368,133 +366,154 @@ const getRequiredWitnessForEntry = (
 };
 
 const finalizeResolutionChecks = async ({
-  resolutionContext,
+  resolverContext,
   options,
-  resolutionLog,
+  logEntries,
 }: {
-  resolutionContext: ResolutionContext;
+  resolverContext: ResolverContext;
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
-  resolutionLog: DIDLog;
+  logEntries: DIDLog;
 }): Promise<void> => {
-  if (options.requestedDid && resolutionContext.didIdMatchCount === 0) {
+  if (options.requestedDid && resolverContext.didIdMatchCount === 0) {
     throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
   }
 
-  if (resolutionContext.requiredWitnessChecks.length > 0) {
+  if (resolverContext.requiredWitnessChecks.length > 0) {
     await enforceRequiredWitnessChecks({
-      requiredWitnessChecks: resolutionContext.requiredWitnessChecks,
+      requiredWitnessChecks: resolverContext.requiredWitnessChecks,
       witnessProofs: options.witnessProofs,
-      did: resolutionContext.did,
-      resolutionLog,
+      did: resolverContext.did,
+      logEntries,
       verifier: options.verifier,
       onThresholdFailure: () => {
-        resolutionContext.witnessThresholdFailure = true;
+        resolverContext.witnessThresholdFailure = true;
       },
     });
   }
+};
+
+const processResolvedLogEntries = async ({
+  resolverContext,
+  logEntries,
+  options,
+}: {
+  resolverContext: ResolverContext;
+  logEntries: DIDLog;
+  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+}): Promise<void> => {
+  const activeMethod = METHOD_PROTOCOL_V1_0;
+
+  // Process each log entry in order and update resolution context.
+  for (let entryIndex = 0; entryIndex < logEntries.length; entryIndex++) {
+    const entryContext = validateAndParseLogEntry({
+      entry: logEntries[entryIndex],
+      expectedVersionNumber: entryIndex + 1,
+      previousVersionTime: resolverContext.previousVersionTime,
+    });
+    const {
+      entry: { versionTime, parameters },
+      parsedVersion: { versionId, version, versionNumber },
+    } = entryContext;
+
+    const previousWitness = resolverContext.meta.witness ? deepClone(resolverContext.meta.witness) : undefined;
+    resolverContext.meta.versionId = versionId;
+    resolverContext.previousVersionTime = entryContext.currentVersionTime;
+    resolverContext.meta.updated = versionTime;
+
+    const resolvedEntryDoc =
+      version === '1'
+        ? await processV1GenesisEntry({ resolverContext, entryContext, options })
+        : await processV1SubsequentEntry({
+            resolverContext,
+            entryContext,
+            logEntries,
+            entryIndex,
+            activeMethod,
+            options,
+          });
+
+    const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, resolverContext.meta.witness);
+    if (requiredWitness) {
+      resolverContext.requiredWitnessChecks.push({
+        targetVersionId: resolverContext.meta.versionId,
+        targetVersionNumber: versionNumber,
+        witness: requiredWitness,
+      });
+    }
+
+    resolverContext.doc = deepClone(resolvedEntryDoc);
+    resolverContext.did = requireDidDocumentId(resolverContext.doc.id);
+
+    if (options.requestedDid && resolverContext.did === options.requestedDid) {
+      resolverContext.didIdMatchCount++;
+    }
+
+    resolverContext.doc = addDefaultDidWebvhServices(resolverContext.did, resolverContext.doc);
+
+    const nextEntry = logEntries[entryIndex + 1];
+    const captureByVersion =
+      options.versionNumber === versionNumber || options.versionId === resolverContext.meta.versionId;
+    const captureByTime =
+      options.versionTime !== undefined &&
+      options.versionTime > new Date(resolverContext.meta.updated) &&
+      (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
+
+    if (!resolverContext.resolvedSnapshot && (captureByVersion || captureByTime)) {
+      resolverContext.resolvedSnapshot = {
+        doc: deepClone(resolverContext.doc),
+        did: resolverContext.did,
+        meta: { ...resolverContext.meta },
+      };
+    }
+
+    resolverContext.lastValidSnapshot = {
+      doc: deepClone(resolverContext.doc),
+      did: resolverContext.did,
+      meta: { ...resolverContext.meta },
+    };
+  }
+
+  // Run post-iteration invariants and witness enforcement.
+  await finalizeResolutionChecks({
+    resolverContext,
+    options,
+    logEntries,
+  });
 };
 
 export const resolveV1Log = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
-  const resolutionLog = log.map((l) => deepClone(l));
-  if (resolutionLog.length === 0) {
+  // Stage 1: initialize resolution input and context.
+  const logEntries = log.map((l) => deepClone(l));
+  if (logEntries.length === 0) {
     throw new Error(`Log identity binding check failed: no entries to process`);
   }
-  const protocol = resolutionLog[0]?.parameters?.method;
+  const protocol = logEntries[0]?.parameters?.method;
   if (protocol !== METHOD_PROTOCOL_V1_0) {
     throw new Error(`'${protocol}' is not a supported method version.`);
   }
-  const resolutionContext = createInitialResolutionContext();
-  let i = 0;
+  const resolverContext = createInitialResolverContext();
   const hasExplicitHistoricalSelector =
     options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
-  const activeMethod = METHOD_PROTOCOL_V1_0;
 
   try {
-    while (i < resolutionLog.length) {
-      const entryContext = validateAndParseResolutionEntry({
-        entry: resolutionLog[i],
-        expectedVersionNumber: i + 1,
-        previousVersionTime: resolutionContext.previousVersionTime,
-      });
-      const {
-        entry: { versionTime, parameters },
-        parsedVersion: { versionId, version, versionNumber },
-      } = entryContext;
-      const previousWitness = resolutionContext.meta.witness ? deepClone(resolutionContext.meta.witness) : undefined;
-      resolutionContext.meta.versionId = versionId;
-      resolutionContext.previousVersionTime = entryContext.currentVersionTime;
-      resolutionContext.meta.updated = versionTime;
-      const newDoc =
-        version === '1'
-          ? await processV1GenesisEntry({ resolutionContext, entryContext, options })
-          : await processV1SubsequentEntry({
-              resolutionContext,
-              entryContext,
-              resolutionLog,
-              entryIndex: i,
-              activeMethod,
-              options,
-            });
-
-      const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, resolutionContext.meta.witness);
-      if (requiredWitness) {
-        resolutionContext.requiredWitnessChecks.push({
-          targetVersionId: resolutionContext.meta.versionId,
-          targetVersionNumber: versionNumber,
-          witness: requiredWitness,
-        });
-      }
-
-      resolutionContext.doc = deepClone(newDoc);
-      resolutionContext.did = requireDidDocumentId(resolutionContext.doc.id);
-
-      if (options.requestedDid && resolutionContext.did === options.requestedDid) {
-        resolutionContext.didIdMatchCount++;
-      }
-
-      resolutionContext.doc = addDefaultDidWebvhServices(resolutionContext.did, resolutionContext.doc);
-
-      const nextEntry = resolutionLog[i + 1];
-      const captureByVersion =
-        options.versionNumber === versionNumber || options.versionId === resolutionContext.meta.versionId;
-      const captureByTime =
-        options.versionTime !== undefined &&
-        options.versionTime > new Date(resolutionContext.meta.updated) &&
-        (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
-
-      if (!resolutionContext.resolvedSnapshot && (captureByVersion || captureByTime)) {
-        resolutionContext.resolvedSnapshot = {
-          doc: deepClone(resolutionContext.doc),
-          did: resolutionContext.did,
-          meta: { ...resolutionContext.meta },
-        };
-      }
-
-      resolutionContext.lastValidSnapshot = {
-        doc: deepClone(resolutionContext.doc),
-        did: resolutionContext.did,
-        meta: { ...resolutionContext.meta },
-      };
-
-      i++;
-    }
-
-    await finalizeResolutionChecks({
-      resolutionContext,
+    // Stage 2: process log entries and enforce post-loop checks.
+    await processResolvedLogEntries({
+      resolverContext,
+      logEntries,
       options,
-      resolutionLog,
     });
   } catch (e) {
-    const resolvedSnapshot = resolutionContext.resolvedSnapshot;
+    // Stage 3: preserve a captured historical result when possible.
+    const resolvedSnapshot = resolverContext.resolvedSnapshot;
     if (!resolvedSnapshot) {
       throw e;
     }
 
     const decorateError =
-      resolvedSnapshot.meta && (!hasExplicitHistoricalSelector || resolutionContext.witnessThresholdFailure);
+      resolvedSnapshot.meta && (!hasExplicitHistoricalSelector || resolverContext.witnessThresholdFailure);
     if (decorateError) {
       const message = e instanceof Error ? e.message : String(e);
       resolvedSnapshot.meta.error = 'invalidDid';
@@ -502,10 +521,11 @@ export const resolveV1Log = async (
     }
   }
 
-  let resolvedSnapshot = resolutionContext.resolvedSnapshot;
+  // Stage 4: finalize fallback selection and shape the response.
+  let resolvedSnapshot = resolverContext.resolvedSnapshot;
 
   if (!resolvedSnapshot && hasExplicitHistoricalSelector) {
-    const lastValidSnapshot = resolutionContext.lastValidSnapshot;
+    const lastValidSnapshot = resolverContext.lastValidSnapshot;
     if (!lastValidSnapshot) {
       throw new Error('DID resolution failed: No valid result available for explicit selector');
     }
@@ -526,7 +546,7 @@ export const resolveV1Log = async (
   }
 
   if (!resolvedSnapshot) {
-    resolvedSnapshot = resolutionContext.lastValidSnapshot;
+    resolvedSnapshot = resolverContext.lastValidSnapshot;
     if (resolvedSnapshot && !resolvedSnapshot.meta.deactivated) {
       resolvedSnapshot = {
         ...resolvedSnapshot,
@@ -534,7 +554,7 @@ export const resolveV1Log = async (
       };
     }
 
-    resolutionContext.resolvedSnapshot = resolvedSnapshot;
+    resolverContext.resolvedSnapshot = resolvedSnapshot;
   }
 
   if (!resolvedSnapshot?.meta) {
