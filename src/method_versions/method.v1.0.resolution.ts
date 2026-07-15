@@ -23,6 +23,7 @@ import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601
 import {
   countVerifiedWitnessApprovals,
   fetchWitnessProofs,
+  hasActiveWitnessRequirement,
   normalizeWitnessThreshold,
   resolveWitnessParameter,
   validateWitnessParameter,
@@ -81,15 +82,6 @@ const enforceRequiredWitnessChecks = async ({
   }
 };
 
-const isWitnessActive = (witness?: WitnessParameterResolution | null): witness is WitnessParameterResolution => {
-  if (!witness?.witnesses || witness.witnesses.length === 0) {
-    return false;
-  }
-
-  const threshold = normalizeWitnessThreshold(witness.threshold);
-  return threshold > 0;
-};
-
 const getRequiredWitnessForEntry = (
   previousWitness: WitnessParameterResolution | undefined,
   parameters: DIDLogEntry['parameters'],
@@ -97,11 +89,11 @@ const getRequiredWitnessForEntry = (
 ): WitnessParameterResolution | undefined => {
   const explicitWitness = resolveWitnessParameter(parameters);
 
-  if (isWitnessActive(previousWitness)) {
+  if (hasActiveWitnessRequirement(previousWitness)) {
     return deepClone(previousWitness);
   }
 
-  if (explicitWitness !== undefined && isWitnessActive(currentWitness)) {
+  if (explicitWitness !== undefined && hasActiveWitnessRequirement(currentWitness)) {
     return deepClone(currentWitness);
   }
 

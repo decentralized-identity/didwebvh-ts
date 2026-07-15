@@ -153,6 +153,17 @@ export function normalizeWitnessThreshold(threshold: string | number | undefined
   return parseInt((threshold ?? 0).toString(), 10);
 }
 
+export function hasActiveWitnessRequirement(
+  witness?: WitnessParameterResolution | null
+): witness is WitnessParameterResolution {
+  if (!witness?.witnesses || witness.witnesses.length === 0) {
+    return false;
+  }
+
+  const threshold = normalizeWitnessThreshold(witness.threshold);
+  return threshold > 0;
+}
+
 export function validateWitnessParameter(witness: WitnessParameterResolution): void {
   if (!witness.witnesses || !Array.isArray(witness.witnesses) || witness.witnesses.length === 0) {
     throw new Error('Witness list cannot be empty');
