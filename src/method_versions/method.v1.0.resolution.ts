@@ -68,6 +68,198 @@ interface ParsedResolutionEntryContext {
   parsedStateDid: ReturnType<typeof parseDidWebvhIdentifier>;
 }
 
+export const resolveV1Log = async (
+  log: DIDLog,
+  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
+): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
+  // Stage 1: initialize resolution input and context.
+  const logEntries = log.map((l) => deepClone(l));
+  if (logEntries.length === 0) {
+    throw new Error(`Log identity binding check failed: no entries to process`);
+  }
+  const protocol = logEntries[0]?.parameters?.method;
+  if (protocol !== METHOD_PROTOCOL_V1_0) {
+    throw new Error(`'${protocol}' is not a supported method version.`);
+  }
+  const resolverContext = createInitialResolverContext();
+  const hasExplicitHistoricalSelector =
+    options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
+
+  try {
+    // Stage 2: process log entries and enforce post-loop checks.
+    await processResolvedLogEntries({
+      resolverContext,
+      logEntries,
+      options,
+    });
+  } catch (e) {
+    // Stage 3: preserve a captured historical result when possible.
+    const resolvedSnapshot = resolverContext.resolvedSnapshot;
+    if (!resolvedSnapshot) {
+      throw e;
+    }
+
+    const decorateError =
+      resolvedSnapshot.meta && (!hasExplicitHistoricalSelector || resolverContext.witnessThresholdFailure);
+    if (decorateError) {
+      const message = e instanceof Error ? e.message : String(e);
+      resolvedSnapshot.meta.error = 'invalidDid';
+      resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
+    }
+  }
+
+  // Stage 4: finalize fallback selection and shape the response.
+  let resolvedSnapshot = resolverContext.resolvedSnapshot;
+
+  if (!resolvedSnapshot && hasExplicitHistoricalSelector) {
+    const lastValidSnapshot = resolverContext.lastValidSnapshot;
+    if (!lastValidSnapshot) {
+      throw new Error('DID resolution failed: No valid result available for explicit selector');
+    }
+
+    return {
+      did: lastValidSnapshot.did,
+      doc: null,
+      meta: {
+        ...lastValidSnapshot.meta,
+        error: 'notFound',
+        problemDetails: buildProblemDetails(
+          'notFound',
+          'The supplied explicit version selector did not match any entry in the DID log.',
+          { title: 'The requested DID version was not found.' }
+        ),
+      },
+    };
+  }
+
+  if (!resolvedSnapshot) {
+    resolvedSnapshot = resolverContext.lastValidSnapshot;
+    if (resolvedSnapshot && !resolvedSnapshot.meta.deactivated) {
+      resolvedSnapshot = {
+        ...resolvedSnapshot,
+        doc: resolvedSnapshot.doc ?? null,
+      };
+    }
+
+    resolverContext.resolvedSnapshot = resolvedSnapshot;
+  }
+
+  if (!resolvedSnapshot?.meta) {
+    throw new Error('DID resolution failed: No valid metadata found');
+  }
+
+  if (!resolvedSnapshot.did) {
+    throw new Error('DID resolution failed: No valid identifier found');
+  }
+
+  if (resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector) {
+    return {
+      did: resolvedSnapshot.did,
+      doc: null,
+      meta: resolvedSnapshot.meta,
+    };
+  }
+
+  if (!resolvedSnapshot.doc) {
+    throw new Error('DID resolution failed: No valid document found');
+  }
+
+  return {
+    did: resolvedSnapshot.did,
+    doc: resolvedSnapshot.doc,
+    meta: resolvedSnapshot.meta,
+  };
+};
+
+const processResolvedLogEntries = async ({
+  resolverContext,
+  logEntries,
+  options,
+}: {
+  resolverContext: ResolverContext;
+  logEntries: DIDLog;
+  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+}): Promise<void> => {
+  const activeMethod = METHOD_PROTOCOL_V1_0;
+
+  // Process each log entry in order and update resolution context.
+  for (let entryIndex = 0; entryIndex < logEntries.length; entryIndex++) {
+    const entryContext = validateAndParseLogEntry({
+      entry: logEntries[entryIndex],
+      expectedVersionNumber: entryIndex + 1,
+      previousVersionTime: resolverContext.previousVersionTime,
+    });
+    const {
+      entry: { versionTime, parameters },
+      parsedVersion: { versionId, version, versionNumber },
+    } = entryContext;
+
+    const previousWitness = resolverContext.meta.witness ? deepClone(resolverContext.meta.witness) : undefined;
+    resolverContext.meta.versionId = versionId;
+    resolverContext.previousVersionTime = entryContext.currentVersionTime;
+    resolverContext.meta.updated = versionTime;
+
+    const resolvedEntryDoc =
+      version === '1'
+        ? await processV1GenesisEntry({ resolverContext, entryContext, options })
+        : await processV1SubsequentEntry({
+            resolverContext,
+            entryContext,
+            logEntries,
+            entryIndex,
+            activeMethod,
+            options,
+          });
+
+    const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, resolverContext.meta.witness);
+    if (requiredWitness) {
+      resolverContext.requiredWitnessChecks.push({
+        targetVersionId: resolverContext.meta.versionId,
+        targetVersionNumber: versionNumber,
+        witness: requiredWitness,
+      });
+    }
+
+    resolverContext.doc = deepClone(resolvedEntryDoc);
+    resolverContext.did = requireDidDocumentId(resolverContext.doc.id);
+
+    if (options.requestedDid && resolverContext.did === options.requestedDid) {
+      resolverContext.didIdMatchCount++;
+    }
+
+    resolverContext.doc = addDefaultDidWebvhServices(resolverContext.did, resolverContext.doc);
+
+    const nextEntry = logEntries[entryIndex + 1];
+    const captureByVersion =
+      options.versionNumber === versionNumber || options.versionId === resolverContext.meta.versionId;
+    const captureByTime =
+      options.versionTime !== undefined &&
+      options.versionTime > new Date(resolverContext.meta.updated) &&
+      (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
+
+    if (!resolverContext.resolvedSnapshot && (captureByVersion || captureByTime)) {
+      resolverContext.resolvedSnapshot = {
+        doc: deepClone(resolverContext.doc),
+        did: resolverContext.did,
+        meta: { ...resolverContext.meta },
+      };
+    }
+
+    resolverContext.lastValidSnapshot = {
+      doc: deepClone(resolverContext.doc),
+      did: resolverContext.did,
+      meta: { ...resolverContext.meta },
+    };
+  }
+
+  // Run post-iteration invariants and witness enforcement.
+  await finalizeResolutionChecks({
+    resolverContext,
+    options,
+    logEntries,
+  });
+};
+
 const createInitialResolverContext = (): ResolverContext => {
   return {
     meta: {
@@ -302,51 +494,6 @@ const processV1SubsequentEntry = async ({
   return sourceEntry.state;
 };
 
-const enforceRequiredWitnessChecks = async ({
-  requiredWitnessChecks,
-  witnessProofs,
-  did,
-  logEntries,
-  verifier,
-  onThresholdFailure,
-}: {
-  requiredWitnessChecks: RequiredWitnessCheck[];
-  witnessProofs: WitnessProofFileEntry[] | undefined;
-  did: string;
-  logEntries: DIDLog;
-  verifier: ResolutionOptions['verifier'];
-  onThresholdFailure: () => void;
-}): Promise<void> => {
-  let resolvedWitnessProofs = witnessProofs;
-  if (!resolvedWitnessProofs) {
-    resolvedWitnessProofs = await fetchWitnessProofs(did);
-  }
-
-  const publishedVersionNumbers = new Map(logEntries.map((entry, index) => [entry.versionId, index + 1]));
-
-  for (const check of requiredWitnessChecks) {
-    const candidateProofs = resolvedWitnessProofs.filter((witnessProof) => {
-      const proofVersionNumber = publishedVersionNumbers.get(witnessProof.versionId);
-      return proofVersionNumber !== undefined && proofVersionNumber >= check.targetVersionNumber;
-    });
-
-    const approvals = await countVerifiedWitnessApprovals(
-      logEntries[check.targetVersionNumber - 1],
-      candidateProofs,
-      check.witness,
-      verifier
-    );
-    const threshold = normalizeWitnessThreshold(check.witness.threshold);
-
-    if (approvals < threshold) {
-      onThresholdFailure();
-      throw new Error(
-        `Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`
-      );
-    }
-  }
-};
-
 const getRequiredWitnessForEntry = (
   previousWitness: WitnessParameterResolution | undefined,
   parameters: DIDLogEntry['parameters'],
@@ -392,194 +539,47 @@ const finalizeResolutionChecks = async ({
   }
 };
 
-const processResolvedLogEntries = async ({
-  resolverContext,
+const enforceRequiredWitnessChecks = async ({
+  requiredWitnessChecks,
+  witnessProofs,
+  did,
   logEntries,
-  options,
+  verifier,
+  onThresholdFailure,
 }: {
-  resolverContext: ResolverContext;
+  requiredWitnessChecks: RequiredWitnessCheck[];
+  witnessProofs: WitnessProofFileEntry[] | undefined;
+  did: string;
   logEntries: DIDLog;
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+  verifier: ResolutionOptions['verifier'];
+  onThresholdFailure: () => void;
 }): Promise<void> => {
-  const activeMethod = METHOD_PROTOCOL_V1_0;
+  let resolvedWitnessProofs = witnessProofs;
+  if (!resolvedWitnessProofs) {
+    resolvedWitnessProofs = await fetchWitnessProofs(did);
+  }
 
-  // Process each log entry in order and update resolution context.
-  for (let entryIndex = 0; entryIndex < logEntries.length; entryIndex++) {
-    const entryContext = validateAndParseLogEntry({
-      entry: logEntries[entryIndex],
-      expectedVersionNumber: entryIndex + 1,
-      previousVersionTime: resolverContext.previousVersionTime,
+  const publishedVersionNumbers = new Map(logEntries.map((entry, index) => [entry.versionId, index + 1]));
+
+  for (const check of requiredWitnessChecks) {
+    const candidateProofs = resolvedWitnessProofs.filter((witnessProof) => {
+      const proofVersionNumber = publishedVersionNumbers.get(witnessProof.versionId);
+      return proofVersionNumber !== undefined && proofVersionNumber >= check.targetVersionNumber;
     });
-    const {
-      entry: { versionTime, parameters },
-      parsedVersion: { versionId, version, versionNumber },
-    } = entryContext;
 
-    const previousWitness = resolverContext.meta.witness ? deepClone(resolverContext.meta.witness) : undefined;
-    resolverContext.meta.versionId = versionId;
-    resolverContext.previousVersionTime = entryContext.currentVersionTime;
-    resolverContext.meta.updated = versionTime;
+    const approvals = await countVerifiedWitnessApprovals(
+      logEntries[check.targetVersionNumber - 1],
+      candidateProofs,
+      check.witness,
+      verifier
+    );
+    const threshold = normalizeWitnessThreshold(check.witness.threshold);
 
-    const resolvedEntryDoc =
-      version === '1'
-        ? await processV1GenesisEntry({ resolverContext, entryContext, options })
-        : await processV1SubsequentEntry({
-            resolverContext,
-            entryContext,
-            logEntries,
-            entryIndex,
-            activeMethod,
-            options,
-          });
-
-    const requiredWitness = getRequiredWitnessForEntry(previousWitness, parameters, resolverContext.meta.witness);
-    if (requiredWitness) {
-      resolverContext.requiredWitnessChecks.push({
-        targetVersionId: resolverContext.meta.versionId,
-        targetVersionNumber: versionNumber,
-        witness: requiredWitness,
-      });
-    }
-
-    resolverContext.doc = deepClone(resolvedEntryDoc);
-    resolverContext.did = requireDidDocumentId(resolverContext.doc.id);
-
-    if (options.requestedDid && resolverContext.did === options.requestedDid) {
-      resolverContext.didIdMatchCount++;
-    }
-
-    resolverContext.doc = addDefaultDidWebvhServices(resolverContext.did, resolverContext.doc);
-
-    const nextEntry = logEntries[entryIndex + 1];
-    const captureByVersion =
-      options.versionNumber === versionNumber || options.versionId === resolverContext.meta.versionId;
-    const captureByTime =
-      options.versionTime !== undefined &&
-      options.versionTime > new Date(resolverContext.meta.updated) &&
-      (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
-
-    if (!resolverContext.resolvedSnapshot && (captureByVersion || captureByTime)) {
-      resolverContext.resolvedSnapshot = {
-        doc: deepClone(resolverContext.doc),
-        did: resolverContext.did,
-        meta: { ...resolverContext.meta },
-      };
-    }
-
-    resolverContext.lastValidSnapshot = {
-      doc: deepClone(resolverContext.doc),
-      did: resolverContext.did,
-      meta: { ...resolverContext.meta },
-    };
-  }
-
-  // Run post-iteration invariants and witness enforcement.
-  await finalizeResolutionChecks({
-    resolverContext,
-    options,
-    logEntries,
-  });
-};
-
-export const resolveV1Log = async (
-  log: DIDLog,
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
-): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
-  // Stage 1: initialize resolution input and context.
-  const logEntries = log.map((l) => deepClone(l));
-  if (logEntries.length === 0) {
-    throw new Error(`Log identity binding check failed: no entries to process`);
-  }
-  const protocol = logEntries[0]?.parameters?.method;
-  if (protocol !== METHOD_PROTOCOL_V1_0) {
-    throw new Error(`'${protocol}' is not a supported method version.`);
-  }
-  const resolverContext = createInitialResolverContext();
-  const hasExplicitHistoricalSelector =
-    options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
-
-  try {
-    // Stage 2: process log entries and enforce post-loop checks.
-    await processResolvedLogEntries({
-      resolverContext,
-      logEntries,
-      options,
-    });
-  } catch (e) {
-    // Stage 3: preserve a captured historical result when possible.
-    const resolvedSnapshot = resolverContext.resolvedSnapshot;
-    if (!resolvedSnapshot) {
-      throw e;
-    }
-
-    const decorateError =
-      resolvedSnapshot.meta && (!hasExplicitHistoricalSelector || resolverContext.witnessThresholdFailure);
-    if (decorateError) {
-      const message = e instanceof Error ? e.message : String(e);
-      resolvedSnapshot.meta.error = 'invalidDid';
-      resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
+    if (approvals < threshold) {
+      onThresholdFailure();
+      throw new Error(
+        `Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`
+      );
     }
   }
-
-  // Stage 4: finalize fallback selection and shape the response.
-  let resolvedSnapshot = resolverContext.resolvedSnapshot;
-
-  if (!resolvedSnapshot && hasExplicitHistoricalSelector) {
-    const lastValidSnapshot = resolverContext.lastValidSnapshot;
-    if (!lastValidSnapshot) {
-      throw new Error('DID resolution failed: No valid result available for explicit selector');
-    }
-
-    return {
-      did: lastValidSnapshot.did,
-      doc: null,
-      meta: {
-        ...lastValidSnapshot.meta,
-        error: 'notFound',
-        problemDetails: buildProblemDetails(
-          'notFound',
-          'The supplied explicit version selector did not match any entry in the DID log.',
-          { title: 'The requested DID version was not found.' }
-        ),
-      },
-    };
-  }
-
-  if (!resolvedSnapshot) {
-    resolvedSnapshot = resolverContext.lastValidSnapshot;
-    if (resolvedSnapshot && !resolvedSnapshot.meta.deactivated) {
-      resolvedSnapshot = {
-        ...resolvedSnapshot,
-        doc: resolvedSnapshot.doc ?? null,
-      };
-    }
-
-    resolverContext.resolvedSnapshot = resolvedSnapshot;
-  }
-
-  if (!resolvedSnapshot?.meta) {
-    throw new Error('DID resolution failed: No valid metadata found');
-  }
-
-  if (!resolvedSnapshot.did) {
-    throw new Error('DID resolution failed: No valid identifier found');
-  }
-
-  if (resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector) {
-    return {
-      did: resolvedSnapshot.did,
-      doc: null,
-      meta: resolvedSnapshot.meta,
-    };
-  }
-
-  if (!resolvedSnapshot.doc) {
-    throw new Error('DID resolution failed: No valid document found');
-  }
-
-  return {
-    did: resolvedSnapshot.did,
-    doc: resolvedSnapshot.doc,
-    meta: resolvedSnapshot.meta,
-  };
 };
