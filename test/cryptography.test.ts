@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
 import { documentStateIsValid } from '../src/assertions';
 import {
   AbstractCrypto,
@@ -14,6 +14,7 @@ import type {
   SigningOutput,
   Verifier,
 } from '../src/interfaces';
+import { createHash, createHashHex, deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
 import { countVerifiedWitnessApprovals, createWitnessProof } from '../src/witness';
 
@@ -309,5 +310,50 @@ describe('Injectable Cryptography Tests', () => {
     expect(countVerifiedWitnessApprovals(logEntry, witnessProofs, witness)).rejects.toThrow(
       'Verifier implementation is required'
     );
+  });
+});
+
+describe('Crypto Helpers', () => {
+  test('createHashHex returns stable SHA-256 hex for known input', async () => {
+    const hex = await createHashHex('abc');
+
+    expect(hex).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(hex).toHaveLength(64);
+  });
+
+  test('createHashHex matches bytes from createHash', async () => {
+    const bytes = await createHash('hello');
+    const expectedHex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    await expect(createHashHex('hello')).resolves.toBe(expectedHex);
+  });
+
+  test('deriveHash rejects circular input', async () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    await expect(deriveHash(circular)).rejects.toThrow();
+  });
+
+  test('deriveHash succeeds when cache-key stringify fails once (defensive branch)', async () => {
+    const originalStringify = JSON.stringify;
+    let firstCall = true;
+
+    const stringifySpy = vi.spyOn(JSON, 'stringify').mockImplementation((...args) => {
+      if (firstCall) {
+        firstCall = false;
+        throw new TypeError('synthetic stringify failure');
+      }
+
+      return originalStringify(...(args as Parameters<typeof JSON.stringify>));
+    });
+
+    try {
+      await expect(deriveHash({ a: 1, b: 'x' })).resolves.toMatch(/^[1-9A-HJ-NP-Za-km-z]+$/);
+    } finally {
+      stringifySpy.mockRestore();
+    }
   });
 });

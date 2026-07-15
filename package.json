@@ -25,7 +25,7 @@
     "format": "biome format .",
     "format:fix": "biome format --write .",
     "test": "NODE_ENV=test rm -rf ./test/logs/** && vitest run",
-    "test:coverage": "NODE_ENV=test rm -rf ./coverage-ai && vitest run --coverage",
+    "test:coverage": "NODE_ENV=test rm -rf ./coverage && vitest run --coverage",
     "test:watch": "NODE_ENV=test vitest",
     "test:bail": "NODE_ENV=test vitest run --bail 1 --reporter verbose",
     "test:log": "mkdir -p ./test/logs && LOG_RESOLVES=true NODE_ENV=test vitest run &> ./test/logs/test-run.txt",
