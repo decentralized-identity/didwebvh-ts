@@ -53,7 +53,6 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   const { entry } = await prepareGenesisEntry({
     options,
     controller: normalizedAddress.controller,
-    allPaths: normalizedAddress.paths ?? [],
     createdDate,
   });
 

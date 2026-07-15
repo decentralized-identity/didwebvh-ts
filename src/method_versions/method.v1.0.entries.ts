@@ -119,12 +119,10 @@ const finalizeNonGenesisEntry = async ({
 export async function prepareGenesisEntry({
   options,
   controller,
-  allPaths,
   createdDate,
 }: {
   options: CreateDIDInterface;
   controller: string;
-  allPaths: string[];
   createdDate: string;
 }): Promise<PreparedEntry> {
   const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
