@@ -37,13 +37,7 @@ interface RequiredWitnessCheck {
   witness: WitnessParameterResolution;
 }
 
-interface ResolvedVersionSnapshot {
-  did: string;
-  doc: DIDDoc | null;
-  meta: DIDResolutionMeta;
-}
-
-interface LastValidVersionSnapshot {
+interface ResolutionSnapshot {
   did: string;
   doc: DIDDoc | null;
   meta: DIDResolutionMeta;
@@ -55,8 +49,8 @@ interface ResolutionContext {
   previousVersionTime: Date | undefined;
   did: string;
   doc: DIDDoc | null;
-  resolvedSnapshot: ResolvedVersionSnapshot | null;
-  lastValidSnapshot: LastValidVersionSnapshot | null;
+  resolvedSnapshot: ResolutionSnapshot | null;
+  lastValidSnapshot: ResolutionSnapshot | null;
   requiredWitnessChecks: RequiredWitnessCheck[];
   didIdMatchCount: number;
   witnessThresholdFailure: boolean;
@@ -436,33 +430,20 @@ export const resolveV1Log = async (
 
       resolutionContext.doc = addDefaultDidWebvhServices(resolutionContext.did, resolutionContext.doc);
 
-      if (options.versionNumber === versionNumber || options.versionId === resolutionContext.meta.versionId) {
-        if (!resolutionContext.resolvedSnapshot) {
-          resolutionContext.resolvedSnapshot = {
-            doc: deepClone(resolutionContext.doc),
-            did: resolutionContext.did,
-            meta: { ...resolutionContext.meta },
-          };
-        }
-      }
-      if (options.versionTime && options.versionTime > new Date(resolutionContext.meta.updated)) {
-        if (resolutionLog[i + 1] && options.versionTime < new Date(resolutionLog[i + 1].versionTime)) {
-          if (!resolutionContext.resolvedSnapshot) {
-            resolutionContext.resolvedSnapshot = {
-              doc: deepClone(resolutionContext.doc),
-              did: resolutionContext.did,
-              meta: { ...resolutionContext.meta },
-            };
-          }
-        } else if (!resolutionLog[i + 1]) {
-          if (!resolutionContext.resolvedSnapshot) {
-            resolutionContext.resolvedSnapshot = {
-              doc: deepClone(resolutionContext.doc),
-              did: resolutionContext.did,
-              meta: { ...resolutionContext.meta },
-            };
-          }
-        }
+      const nextEntry = resolutionLog[i + 1];
+      const captureByVersion =
+        options.versionNumber === versionNumber || options.versionId === resolutionContext.meta.versionId;
+      const captureByTime =
+        options.versionTime !== undefined &&
+        options.versionTime > new Date(resolutionContext.meta.updated) &&
+        (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
+
+      if (!resolutionContext.resolvedSnapshot && (captureByVersion || captureByTime)) {
+        resolutionContext.resolvedSnapshot = {
+          doc: deepClone(resolutionContext.doc),
+          did: resolutionContext.did,
+          meta: { ...resolutionContext.meta },
+        };
       }
 
       resolutionContext.lastValidSnapshot = {
