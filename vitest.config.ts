@@ -5,5 +5,13 @@ export default defineConfig({
     environment: 'node',
     include: ['test/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
+    coverage: {
+      provider: 'v8',
+      reportsDirectory: './coverage',
+      reporter: [
+        ['json', { file: 'coverage-final.json' }],
+        ['json-summary', { file: 'coverage-summary.json' }],
+      ],
+    },
   },
 });

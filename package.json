@@ -25,6 +25,7 @@
     "format": "biome format .",
     "format:fix": "biome format --write .",
     "test": "NODE_ENV=test rm -rf ./test/logs/** && vitest run",
+    "test:coverage": "NODE_ENV=test rm -rf ./coverage-ai && vitest run --coverage",
     "test:watch": "NODE_ENV=test vitest",
     "test:bail": "NODE_ENV=test vitest run --bail 1 --reporter verbose",
     "test:log": "mkdir -p ./test/logs && LOG_RESOLVES=true NODE_ENV=test vitest run &> ./test/logs/test-run.txt",
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.4",
+    "@vitest/coverage-v8": "^4.1.10",
     "@stablelib/ed25519": "^2.1.0",
     "@types/node": "^24.13.3",
     "esbuild": "^0.28.1",
