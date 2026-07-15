@@ -6,6 +6,7 @@ import type {
   DeactivateDIDInterface,
   DIDDoc,
   DIDLog,
+  DIDLogEntry,
   DIDResolutionMeta,
   ResolutionOptions,
   ServiceEndpoint,
@@ -23,6 +24,49 @@ import {
 import { validateWitnessParameter } from '../witness';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './method.v1.0.entries';
 import { resolveV1Log } from './method.v1.0.resolution';
+
+const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
+  return {
+    versionId: entry.versionId,
+    created: entry.versionTime,
+    updated: entry.versionTime,
+    scid: entry.parameters.scid ?? '',
+    updateKeys: entry.parameters.updateKeys ?? [],
+    portable: entry.parameters.portable ?? false,
+    nextKeyHashes: entry.parameters.nextKeyHashes ?? [],
+    prerotation: (entry.parameters.nextKeyHashes?.length ?? 0) > 0,
+    witness: entry.parameters.witness,
+    watchers: entry.parameters.watchers ?? [],
+    deactivated: entry.parameters.deactivated ?? false,
+  };
+};
+
+const mergeMetaFromEntry = ({
+  previousMeta,
+  entry,
+  nextKeyHashes,
+  deactivated,
+}: {
+  previousMeta: DIDResolutionMeta;
+  entry: DIDLogEntry;
+  nextKeyHashes?: string[];
+  deactivated?: boolean;
+}): DIDResolutionMeta => {
+  const resolvedNextKeyHashes = nextKeyHashes ?? previousMeta.nextKeyHashes;
+
+  return {
+    ...previousMeta,
+    versionId: entry.versionId,
+    updated: entry.versionTime,
+    updateKeys: entry.parameters.updateKeys ?? previousMeta.updateKeys,
+    portable: entry.parameters.portable ?? previousMeta.portable,
+    nextKeyHashes: resolvedNextKeyHashes,
+    prerotation: resolvedNextKeyHashes.length > 0,
+    witness: entry.parameters.witness ?? previousMeta.witness,
+    watchers: entry.parameters.watchers ?? previousMeta.watchers,
+    deactivated: deactivated ?? entry.parameters.deactivated ?? previousMeta.deactivated,
+  };
+};
 
 export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
   if (!options.updateKeys) {
@@ -62,19 +106,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
   return {
     did: didId,
     doc: entry.state,
-    meta: {
-      versionId: entry.versionId,
-      created: entry.versionTime,
-      updated: entry.versionTime,
-      scid: entry.parameters.scid ?? '',
-      updateKeys: entry.parameters.updateKeys ?? [],
-      portable: entry.parameters.portable ?? false,
-      nextKeyHashes: entry.parameters.nextKeyHashes ?? [],
-      prerotation: (entry.parameters.nextKeyHashes?.length ?? 0) > 0,
-      witness: entry.parameters.witness,
-      watchers: entry.parameters.watchers ?? [],
-      deactivated: entry.parameters.deactivated ?? false,
-    },
+    meta: buildMetaFromEntry(entry),
     log: [entry],
     ...(webDoc ? { webDoc } : {}),
   };
@@ -120,18 +152,11 @@ export const updateDID = async (
     createdDate,
   });
 
-  const meta: DIDResolutionMeta = {
-    ...lastMeta,
-    versionId: entry.versionId,
-    updated: entry.versionTime,
-    updateKeys: entry.parameters.updateKeys ?? lastMeta.updateKeys,
-    portable: entry.parameters.portable ?? lastMeta.portable,
+  const meta = mergeMetaFromEntry({
+    previousMeta: lastMeta,
+    entry,
     nextKeyHashes: resolvedNextKeyHashes ?? lastMeta.nextKeyHashes,
-    prerotation: (resolvedNextKeyHashes ?? []).length > 0,
-    witness: entry.parameters.witness ?? lastMeta.witness,
-    watchers: entry.parameters.watchers ?? lastMeta.watchers,
-    deactivated: entry.parameters.deactivated ?? lastMeta.deactivated,
-  };
+  });
 
   const hasWebAlias = (entry.state.alsoKnownAs ?? []).some((alias: string) => alias.startsWith('did:web:'));
   const updatedDidId = requireDidDocumentId(entry.state.id);
@@ -166,13 +191,11 @@ export const deactivateDID = async (
     createdDate,
   });
 
-  const meta: DIDResolutionMeta = {
-    ...lastMeta,
-    versionId: entry.versionId,
-    updated: entry.versionTime,
+  const meta = mergeMetaFromEntry({
+    previousMeta: lastMeta,
+    entry,
     deactivated: true,
-    updateKeys: entry.parameters.updateKeys ?? lastMeta.updateKeys,
-  };
+  });
 
   const didId = requireDidDocumentId(entry.state.id);
 
