@@ -471,75 +471,78 @@ export const resolveV1Log = async (
       });
     }
   } catch (e) {
-    if (!resolutionContext.resolvedSnapshot) {
+    const resolvedSnapshot = resolutionContext.resolvedSnapshot;
+    if (!resolvedSnapshot) {
       throw e;
     }
-    if (
-      resolutionContext.resolvedSnapshot.meta &&
-      (!hasExplicitHistoricalSelector || resolutionContext.witnessThresholdFailure)
-    ) {
+
+    const decorateError =
+      resolvedSnapshot.meta && (!hasExplicitHistoricalSelector || resolutionContext.witnessThresholdFailure);
+    if (decorateError) {
       const message = e instanceof Error ? e.message : String(e);
-      resolutionContext.resolvedSnapshot.meta.error = 'invalidDid';
-      resolutionContext.resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
+      resolvedSnapshot.meta.error = 'invalidDid';
+      resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
     }
   }
 
-  if (!resolutionContext.resolvedSnapshot) {
-    if (hasExplicitHistoricalSelector) {
-      if (!resolutionContext.lastValidSnapshot) {
-        throw new Error('DID resolution failed: No valid result available for explicit selector');
-      }
+  let resolvedSnapshot = resolutionContext.resolvedSnapshot;
 
-      return {
-        did: resolutionContext.lastValidSnapshot.did,
-        doc: null,
-        meta: {
-          ...resolutionContext.lastValidSnapshot.meta,
-          error: 'notFound',
-          problemDetails: buildProblemDetails(
-            'notFound',
-            'The supplied explicit version selector did not match any entry in the DID log.',
-            { title: 'The requested DID version was not found.' }
-          ),
-        },
-      };
+  if (!resolvedSnapshot && hasExplicitHistoricalSelector) {
+    const lastValidSnapshot = resolutionContext.lastValidSnapshot;
+    if (!lastValidSnapshot) {
+      throw new Error('DID resolution failed: No valid result available for explicit selector');
     }
 
-    resolutionContext.resolvedSnapshot = resolutionContext.lastValidSnapshot;
-    if (
-      resolutionContext.resolvedSnapshot &&
-      !(resolutionContext.resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector)
-    ) {
-      resolutionContext.resolvedSnapshot = {
-        ...resolutionContext.resolvedSnapshot,
-        doc: resolutionContext.lastValidSnapshot?.doc ?? null,
-      };
-    }
-  }
-
-  if (!resolutionContext.resolvedSnapshot?.meta) {
-    throw new Error('DID resolution failed: No valid metadata found');
-  }
-
-  if (!resolutionContext.resolvedSnapshot.did) {
-    throw new Error('DID resolution failed: No valid identifier found');
-  }
-
-  if (resolutionContext.resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector) {
     return {
-      did: resolutionContext.resolvedSnapshot.did,
+      did: lastValidSnapshot.did,
       doc: null,
-      meta: resolutionContext.resolvedSnapshot.meta,
+      meta: {
+        ...lastValidSnapshot.meta,
+        error: 'notFound',
+        problemDetails: buildProblemDetails(
+          'notFound',
+          'The supplied explicit version selector did not match any entry in the DID log.',
+          { title: 'The requested DID version was not found.' }
+        ),
+      },
     };
   }
 
-  if (!resolutionContext.resolvedSnapshot.doc) {
+  if (!resolvedSnapshot) {
+    resolvedSnapshot = resolutionContext.lastValidSnapshot;
+    if (resolvedSnapshot && !resolvedSnapshot.meta.deactivated) {
+      resolvedSnapshot = {
+        ...resolvedSnapshot,
+        doc: resolvedSnapshot.doc ?? null,
+      };
+    }
+
+    resolutionContext.resolvedSnapshot = resolvedSnapshot;
+  }
+
+  if (!resolvedSnapshot?.meta) {
+    throw new Error('DID resolution failed: No valid metadata found');
+  }
+
+  if (!resolvedSnapshot.did) {
+    throw new Error('DID resolution failed: No valid identifier found');
+  }
+
+  if (resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector) {
+    return {
+      did: resolvedSnapshot.did,
+      doc: null,
+      meta: resolvedSnapshot.meta,
+    };
+  }
+
+  if (!resolvedSnapshot.doc) {
     throw new Error('DID resolution failed: No valid document found');
   }
 
   return {
-    did: resolutionContext.resolvedSnapshot.did,
-    doc: resolutionContext.resolvedSnapshot.doc,
-    meta: resolutionContext.resolvedSnapshot.meta,
+    did: resolvedSnapshot.did,
+    doc: resolvedSnapshot.doc,
+    meta: resolvedSnapshot.meta,
   };
 };
