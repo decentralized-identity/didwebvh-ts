@@ -149,16 +149,18 @@ export function resolveWitnessParameter(parameters: DIDLogEntry['parameters']): 
   return undefined;
 }
 
+export function normalizeWitnessThreshold(threshold: string | number | undefined | null): number {
+  return parseInt((threshold ?? 0).toString(), 10);
+}
+
 export function validateWitnessParameter(witness: WitnessParameterResolution): void {
   if (!witness.witnesses || !Array.isArray(witness.witnesses) || witness.witnesses.length === 0) {
     throw new Error('Witness list cannot be empty');
   }
 
-  if (
-    !witness.threshold ||
-    parseInt(witness.threshold.toString(), 10) < 1 ||
-    parseInt(witness.threshold.toString(), 10) > witness.witnesses.length
-  ) {
+  const normalizedThreshold = normalizeWitnessThreshold(witness.threshold);
+
+  if (!witness.threshold || normalizedThreshold < 1 || normalizedThreshold > witness.witnesses.length) {
     throw new Error('Witness threshold must be between 1 and the number of witnesses');
   }
 

@@ -23,6 +23,7 @@ import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601
 import {
   countVerifiedWitnessApprovals,
   fetchWitnessProofs,
+  normalizeWitnessThreshold,
   resolveWitnessParameter,
   validateWitnessParameter,
 } from '../witness';
@@ -69,7 +70,7 @@ const enforceRequiredWitnessChecks = async ({
       check.witness,
       verifier
     );
-    const threshold = parseInt((check.witness.threshold ?? 0).toString(), 10);
+    const threshold = normalizeWitnessThreshold(check.witness.threshold);
 
     if (approvals < threshold) {
       onThresholdFailure();
@@ -85,7 +86,7 @@ const isWitnessActive = (witness?: WitnessParameterResolution | null): witness i
     return false;
   }
 
-  const threshold = parseInt((witness.threshold ?? 0).toString(), 10);
+  const threshold = normalizeWitnessThreshold(witness.threshold);
   return threshold > 0;
 };
 
