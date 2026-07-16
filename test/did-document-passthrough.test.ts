@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'vitest';
-import { addDefaultDidWebvhServices, generateParallelDidWeb } from '../src/did-document';
+import {
+  addDefaultDidWebvhServices,
+  createDIDDoc,
+  createVMID,
+  enrichAlsoKnownAs,
+  findVerificationMethod,
+  generateParallelDidWeb,
+  normalizeVMs,
+  validateCreateDidDocument,
+} from '../src/did-document';
+import type { DIDDoc, VerificationMethod } from '../src/interfaces';
 import { createDID, updateDID } from '../src/method';
 import {
   asPublicVerificationMethods,
@@ -365,5 +375,134 @@ describe('generateParallelDidWeb', () => {
     expect(updated.webDoc).toBeDefined();
     expect(updated.webDoc?.id).toBe('did:web:example.com');
     expect(updated.webDoc?.alsoKnownAs).toContain(updated.did);
+  });
+
+  test('default-service helper returns original object unchanged when both implicit services already exist', () => {
+    const did = 'did:webvh:zQmExample:example.com:path';
+    const existing: DIDDoc = {
+      id: did,
+      service: [
+        {
+          id: `${did}#files`,
+          type: 'RelativeRef',
+          serviceEndpoint: 'https://example.com/path/',
+        },
+        {
+          id: `${did}#whois`,
+          type: 'LinkedVerifiablePresentation',
+          serviceEndpoint: 'https://example.com/path/whois.vp',
+        },
+      ],
+    };
+
+    const result = addDefaultDidWebvhServices(did, existing);
+
+    expect(result).toBe(existing);
+    expect(result.service).toHaveLength(2);
+  });
+});
+
+describe('did-document helper branches', () => {
+  test('validateCreateDidDocument rejects non-object and non-string id', () => {
+    expect(() => validateCreateDidDocument(null as unknown as DIDDoc)).toThrow('didDocument must be an object');
+    expect(() => validateCreateDidDocument({ id: 123 } as unknown as DIDDoc)).toThrow(
+      "didDocument 'id' field must be a string"
+    );
+  });
+
+  test('enrichAlsoKnownAs rejects invalid did:webvh identifier when alias flag is enabled', () => {
+    expect(() => enrichAlsoKnownAs({ id: '{DID}' } as DIDDoc, 'did:example:123', { alsoKnownAsWeb: true })).toThrow(
+      "Invalid did:webvh id 'did:example:123'"
+    );
+  });
+
+  test('createVMID falls back to random suffix when publicKeyMultibase is missing', () => {
+    const vm: VerificationMethod = {
+      id: '#temporary',
+      type: 'Multikey',
+    };
+
+    const vmId = createVMID(vm, 'did:webvh:zQmExample:example.com');
+    expect(vmId).toMatch(/^did:webvh:zQmExample:example.com#[a-z0-9]{8}$/);
+  });
+
+  test('normalizeVMs keeps vm without purpose out of relationship arrays', () => {
+    const did = 'did:webvh:zQmExample:example.com';
+    const normalized = normalizeVMs(
+      [
+        {
+          type: 'Multikey',
+          publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        },
+      ],
+      did
+    );
+
+    expect(normalized.verificationMethod).toHaveLength(1);
+    expect(normalized.authentication).toEqual([]);
+    expect(normalized.assertionMethod).toEqual([]);
+  });
+
+  test('findVerificationMethod resolves from relationship object and returns null when not found', () => {
+    const vm: VerificationMethod = {
+      id: '#rel-vm',
+      type: 'Multikey',
+      publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+    };
+
+    const doc: DIDDoc = {
+      id: 'did:webvh:zQmExample:example.com',
+      authentication: [vm as unknown as string],
+    };
+
+    expect(findVerificationMethod(doc, '#rel-vm')).toEqual(vm);
+    expect(findVerificationMethod(doc, '#missing')).toBeNull();
+  });
+
+  test('createDIDDoc omits empty derived/direct relationship fields', async () => {
+    const { doc } = await createDIDDoc({
+      did: 'did:webvh:zQmExample:example.com',
+      verificationMethods: [],
+      authentication: [],
+      assertionMethod: [],
+      keyAgreement: [],
+      alsoKnownAs: [],
+    });
+
+    expect(doc).not.toHaveProperty('verificationMethod');
+    expect(doc).not.toHaveProperty('authentication');
+    expect(doc).not.toHaveProperty('assertionMethod');
+    expect(doc).not.toHaveProperty('keyAgreement');
+    expect(doc).not.toHaveProperty('capabilityDelegation');
+    expect(doc).not.toHaveProperty('capabilityInvocation');
+    expect(doc).not.toHaveProperty('alsoKnownAs');
+    expect(doc).not.toHaveProperty('service');
+  });
+
+  test('createDIDDoc propagates populated relationship field and omits other empty fields', async () => {
+    const assertionVmId = 'did:webvh:zQmExample:example.com#assertion-key-1';
+
+    const { doc } = await createDIDDoc({
+      did: 'did:webvh:zQmExample:example.com',
+      verificationMethods: [
+        {
+          id: assertionVmId,
+          type: 'Multikey',
+          publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+          purpose: 'assertionMethod',
+        },
+      ],
+      authentication: [],
+      keyAgreement: [],
+      alsoKnownAs: [],
+    });
+
+    expect(doc.assertionMethod).toEqual([assertionVmId]);
+    expect(doc.verificationMethod).toHaveLength(1);
+    expect(doc).not.toHaveProperty('authentication');
+    expect(doc).not.toHaveProperty('keyAgreement');
+    expect(doc).not.toHaveProperty('alsoKnownAs');
+    expect(doc).not.toHaveProperty('capabilityDelegation');
+    expect(doc).not.toHaveProperty('capabilityInvocation');
   });
 });
