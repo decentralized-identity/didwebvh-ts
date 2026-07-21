@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { deriveHash } from '../src/utils';
+import { deriveHash } from '../src/utils/crypto';
 import {
   asPublicVerificationMethods,
   createTestSigner,
@@ -93,6 +93,52 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
 
     const specHash = await specEntryHashForEntry(last, prev.versionId);
     expect(specHash).toBe(storedHash);
+  });
+
+  test('deactivation entry carries deactivated parameter and latest resolution returns null document', async () => {
+    const deactivated = await deactivateDID({
+      log,
+      signer: createTestSigner(authKey),
+      verifier,
+    });
+
+    const finalLog = deactivated.log;
+    const last = finalLog[finalLog.length - 1];
+    expect(last.parameters.deactivated).toBe(true);
+
+    const resolved = await resolveDIDFromLog(finalLog, { verifier });
+    expect(resolved.didDocument).toBeNull();
+    expect(resolved.didDocumentMetadata.deactivated).toBe(true);
+  });
+
+  test('appending update and deactivate entries preserves earlier entries byte-for-byte', async () => {
+    const created = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      created: '2024-04-01T00:00:00Z',
+      verifier,
+    });
+    const baselineFirstEntry = JSON.parse(JSON.stringify(created.log[0]));
+
+    const updated = await updateDID({
+      log: created.log,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      updated: '2024-05-01T00:00:00Z',
+      verifier,
+    });
+
+    const deactivated = await deactivateDID({
+      log: updated.log,
+      signer: createTestSigner(authKey),
+      verifier,
+    });
+
+    expect(updated.log[0]).toEqual(baselineFirstEntry);
+    expect(deactivated.log[0]).toEqual(baselineFirstEntry);
   });
 
   test('log is resolvable end-to-end (hash chain + signatures)', async () => {

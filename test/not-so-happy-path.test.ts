@@ -423,6 +423,25 @@ describe('Not So Happy Path Tests', () => {
     expect(r.didResolutionMetadata.message).toMatch(/must have a non-empty hash component/);
   });
 
+  test('rejects versionId with non-numeric version prefix', async () => {
+    const { log } = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
+    const [, hash] = tamperedLog[0].versionId.split('-');
+    tamperedLog[0].versionId = `x-${hash}`;
+
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toMatch(/version|numeric|number/i);
+  });
+
   test('Rejects unknown method value in later entry', async () => {
     const { log } = initialDID;
     const updateResult = await updateDID({

@@ -1,9 +1,9 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { METHOD, PLACEHOLDER } from '../src/constants';
+import { METHOD, SCID_PLACEHOLDER } from '../src/constants';
 import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography';
+import { createDIDDoc, replaceCreateDidPlaceholders } from '../src/did-document';
 import type {
   DIDLog,
-  DIDLogEntry,
   Signer,
   SignerOptions,
   SigningInput,
@@ -11,41 +11,25 @@ import type {
   VerificationMethod,
   Verifier,
 } from '../src/interfaces';
-import { createDIDDoc, createSCID, deriveHash, replaceCreateDidPlaceholders } from '../src/utils';
+import { createSCID, deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats';
-
-export function createMockDIDLog(entries: Partial<DIDLogEntry>[]): DIDLog {
-  return entries.map((entry, index) => {
-    const versionNumber = index + 1;
-    const mockEntry: DIDLogEntry = {
-      versionId: entry.versionId || `${versionNumber}-${deriveHash(entry)}`,
-      versionTime: entry.versionTime || new Date().toISOString(),
-      parameters: entry.parameters || {},
-      state: entry.state || {},
-      proof: entry.proof || [],
-    };
-    return mockEntry;
-  });
-}
 
 export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhead: number): Promise<DIDLog> => {
   const futureCreated = new Date(Date.now() + minutesAhead * 60 * 1000).toISOString();
   const signer = createTestSigner(authKey);
-  const controller = `did:${METHOD}:${PLACEHOLDER}:example.com`;
+  const controller = `did:${METHOD}:${SCID_PLACEHOLDER}:example.com`;
 
   const { doc } = await createDIDDoc({
-    controller,
+    did: controller,
     verificationMethods: asPublicVerificationMethods(authKey),
-    signer,
-    updateKeys: [authKey.publicKeyMultibase!],
   });
 
   const initialLogEntry: DIDLog[0] = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: futureCreated,
     parameters: {
       method: `did:${METHOD}:1.0`,
-      scid: PLACEHOLDER,
+      scid: SCID_PLACEHOLDER,
       updateKeys: [authKey.publicKeyMultibase!],
       portable: false,
       nextKeyHashes: [],
@@ -82,16 +66,14 @@ export class TestCryptoImplementation extends AbstractCrypto implements Verifier
 
   constructor(options: SignerOptions) {
     super(options);
-    // For tests, we'll generate a deterministic key if none provided
-    if (!options.verificationMethod?.secretKeyMultibase) {
-      const keyPair = ed25519.keygen();
-      this.keyPair = { publicKey: keyPair.publicKey, seed: keyPair.secretKey };
-    } else {
-      // Multicodec-prefixed (2 bytes); the secret is seed||publicKey (64 bytes) or a bare seed.
-      const secretKey = multibaseDecode(options.verificationMethod.secretKeyMultibase).bytes.slice(2);
-      const publicKey = multibaseDecode(options.verificationMethod.publicKeyMultibase!).bytes.slice(2);
-      this.keyPair = { publicKey, seed: secretKey.slice(0, 32) };
+    if (!options.verificationMethod?.secretKeyMultibase || !options.verificationMethod.publicKeyMultibase) {
+      throw new Error('TestCryptoImplementation requires secret and public multibase keys');
     }
+
+    // Multicodec-prefixed (2 bytes); the secret is seed||publicKey (64 bytes) or a bare seed.
+    const secretKey = multibaseDecode(options.verificationMethod.secretKeyMultibase).bytes.slice(2);
+    const publicKey = multibaseDecode(options.verificationMethod.publicKeyMultibase).bytes.slice(2);
+    this.keyPair = { publicKey, seed: secretKey.slice(0, 32) };
   }
 
   async sign(input: SigningInput): Promise<SigningOutput> {
@@ -107,13 +89,6 @@ export class TestCryptoImplementation extends AbstractCrypto implements Verifier
       console.error('Error verifying signature:', error);
       return false;
     }
-  }
-}
-
-// Test implementation that always fails verification
-export class MockFailingImplementation extends TestCryptoImplementation {
-  async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
-    return false;
   }
 }
 

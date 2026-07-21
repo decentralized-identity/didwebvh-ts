@@ -1,5 +1,6 @@
-import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import { METHOD, PLACEHOLDER } from '../constants';
+import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
+import { METHOD, SCID_PLACEHOLDER } from '../constants';
+import { addDefaultDidWebvhServices, createDIDDoc } from '../did-document';
 import type {
   CreateDIDInterface,
   DataIntegrityProof,
@@ -13,17 +14,9 @@ import type {
   UpdateDIDInterface,
   WitnessProofFileEntry,
 } from '../interfaces';
-import {
-  createDate,
-  createDIDDoc,
-  createSCID,
-  deepClone,
-  deriveHash,
-  getBaseUrl,
-  parseCanonicalAddress,
-  replaceValueInObject,
-  validateMethodSpecificPathSegments,
-} from '../utils';
+import { deepClone, normalizeDidAddress, replaceValueInObject } from '../utils';
+import { createSCID, deriveHash } from '../utils/crypto';
+import { createDate } from '../utils/iso8601-datetime';
 import { countVerifiedWitnessApprovals, fetchWitnessProofs, validateWitnessParameter } from '../witness';
 
 const VERSION = '0.5';
@@ -58,12 +51,12 @@ export const createDID = async (
     throw new Error('Either address or domain must be provided');
   }
 
-  const parsed = parseCanonicalAddress(addressInput);
-  const didDomainComponent = parsed.didDomainComponent;
-  const allPaths = [...(parsed.paths || []), ...(options.paths || [])];
-  validateMethodSpecificPathSegments(allPaths, 'createDID path segments');
-  const path = allPaths.length > 0 ? allPaths.join(':') : undefined;
-  const controller = `did:${METHOD}:${PLACEHOLDER}:${didDomainComponent}${path ? `:${path}` : ''}`;
+  const normalizedAddress = normalizeDidAddress({
+    address: addressInput,
+    scid: SCID_PLACEHOLDER,
+    paths: options.paths,
+    context: 'createDID path segments',
+  });
   const createdDate = createDate(options.created);
 
   // Safety guard: Strip secret keys from verification methods before creating DID document
@@ -80,12 +73,11 @@ export const createDID = async (
 
   const { doc } = await createDIDDoc({
     ...options,
-    address: addressInput,
-    controller,
+    did: normalizedAddress.controller,
     verificationMethods: safeVerificationMethods,
   });
   const params = {
-    scid: PLACEHOLDER,
+    scid: SCID_PLACEHOLDER,
     updateKeys: options.updateKeys,
     portable: options.portable ?? false,
     nextKeyHashes: options.nextKeyHashes ?? [],
@@ -98,7 +90,7 @@ export const createDID = async (
     deactivated: false,
   };
   const initialLogEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: createdDate,
     parameters: {
       method: PROTOCOL,
@@ -109,7 +101,7 @@ export const createDID = async (
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   params.scid = await createSCID(initialLogEntryHash);
   initialLogEntry.state = doc;
-  const prelimEntry = JSON.parse(JSON.stringify(initialLogEntry).replaceAll(PLACEHOLDER, params.scid));
+  const prelimEntry = JSON.parse(JSON.stringify(initialLogEntry).replaceAll(SCID_PLACEHOLDER, params.scid));
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;
   const proofTemplate: Omit<DataIntegrityProof, 'proofValue'> = {
@@ -216,10 +208,10 @@ export const resolveDIDFromLog = async (
         meta.nextKeyHashes = parameters.nextKeyHashes ?? [];
         // Optimized: Use efficient object manipulation instead of JSON stringify/parse
         const logEntry = {
-          versionId: PLACEHOLDER,
+          versionId: SCID_PLACEHOLDER,
           versionTime: meta.created,
-          parameters: replaceValueInObject(parameters, meta.scid, PLACEHOLDER),
-          state: replaceValueInObject(newDoc, meta.scid, PLACEHOLDER),
+          parameters: replaceValueInObject(parameters, meta.scid, SCID_PLACEHOLDER),
+          state: replaceValueInObject(newDoc, meta.scid, SCID_PLACEHOLDER),
         };
 
         const logEntryHash = await deriveHash(logEntry);
@@ -229,7 +221,7 @@ export const resolveDIDFromLog = async (
         }
 
         // Optimized: Direct object manipulation instead of JSON stringify/parse
-        const prelimEntry = replaceValueInObject(logEntry, PLACEHOLDER, meta.scid);
+        const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, meta.scid);
         const logEntryHash2 = await deriveHash(prelimEntry);
         const verified = await documentStateIsValid(
           { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
@@ -255,7 +247,7 @@ export const resolveDIDFromLog = async (
           throw new Error(`version ${meta.versionId} failed verification of the proof.`);
         }
 
-        if (!hashChainValid(`${i + 1}-${entryHash}`, versionId)) {
+        if (!hashChainIsValid(`${i + 1}-${entryHash}`, versionId)) {
           throw new Error(`Hash chain broken at '${meta.versionId}'`);
         }
 
@@ -297,37 +289,7 @@ export const resolveDIDFromLog = async (
       doc = deepClone(newDoc);
       did = requireDidId(doc.id);
 
-      // Add default services if they don't exist
-      doc.service = Array.isArray(doc.service) ? doc.service : [];
-      const baseUrl = getBaseUrl(did);
-      const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-
-      if (
-        !doc.service.some((s: ServiceEndpoint) => {
-          const id = s.id || '';
-          return id === '#files' || id === `${did}#files`;
-        })
-      ) {
-        doc.service.push({
-          id: `${did}#files`,
-          type: 'relativeRef',
-          serviceEndpoint: baseUrlWithTrailingSlash,
-        });
-      }
-
-      if (
-        !doc.service.some((s: ServiceEndpoint) => {
-          const id = s.id || '';
-          return id === '#whois' || id === `${did}#whois`;
-        })
-      ) {
-        doc.service.push({
-          '@context': 'https://identity.foundation/linked-vp/contexts/v1',
-          id: `${did}#whois`,
-          type: 'LinkedVerifiablePresentation',
-          serviceEndpoint: `${baseUrlWithTrailingSlash}whois.vp`,
-        });
-      }
+      doc = addDefaultDidWebvhServices(did, doc);
 
       if (options.versionNumber === parseInt(version, 10) || options.versionId === meta.versionId) {
         if (!resolvedDoc) {
@@ -441,9 +403,8 @@ export const updateDID = async (
   const { domain, updated, services, assertionMethod, ...optionsForDoc } = options;
   const { doc } = await createDIDDoc({
     ...optionsForDoc,
-    controller: optionsForDoc.controller || lastEntry.state.id || '',
+    did: lastEntry.state.id || '',
     context: optionsForDoc.context || lastEntry.state['@context'],
-    updateKeys: optionsForDoc.updateKeys ?? [],
     verificationMethods: safeVerificationMethods ?? [],
   });
 
@@ -463,7 +424,7 @@ export const updateDID = async (
   }
 
   const logEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: createdDate,
     parameters: params,
     state: doc,
@@ -527,7 +488,7 @@ export const deactivateDID = async (
     deactivated: true,
   };
   const logEntry: DIDLogEntry = {
-    versionId: PLACEHOLDER,
+    versionId: SCID_PLACEHOLDER,
     versionTime: createdDate,
     parameters: params,
     state: lastEntry.state,
