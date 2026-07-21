@@ -1,4 +1,4 @@
-import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
+import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
 import { METHOD, SCID_PLACEHOLDER } from '../constants';
 import { addDefaultDidWebvhServices, createDIDDoc } from '../did-document';
 import type {
@@ -247,7 +247,7 @@ export const resolveDIDFromLog = async (
           throw new Error(`version ${meta.versionId} failed verification of the proof.`);
         }
 
-        if (!hashChainValid(`${i + 1}-${entryHash}`, versionId)) {
+        if (!hashChainIsValid(`${i + 1}-${entryHash}`, versionId)) {
           throw new Error(`Hash chain broken at '${meta.versionId}'`);
         }
 

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
-import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../src/assertions';
+import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../src/assertions';
 import {
   AbstractCrypto,
   createDataIntegrityProofTemplate,
@@ -411,9 +411,9 @@ describe('Assertion Guards', () => {
     }
   });
 
-  test('hashChainValid returns true and false for matching and mismatching hashes', () => {
-    expect(hashChainValid('abc', 'abc')).toBe(true);
-    expect(hashChainValid('abc', 'def')).toBe(false);
+  test('hashChainIsValid returns true and false for matching and mismatching hashes', () => {
+    expect(hashChainIsValid('abc', 'abc')).toBe(true);
+    expect(hashChainIsValid('abc', 'def')).toBe(false);
   });
 
   test('newKeysAreInNextKeys skips validation when previous next-key list is empty', async () => {

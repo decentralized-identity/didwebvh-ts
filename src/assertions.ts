@@ -87,7 +87,7 @@ export const documentStateIsValid = async (
   return true;
 };
 
-export const hashChainValid = (derivedHash: string, logEntryHash: string) => {
+export const hashChainIsValid = (derivedHash: string, logEntryHash: string) => {
   return derivedHash === logEntryHash;
 };
 

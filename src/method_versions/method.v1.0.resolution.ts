@@ -1,4 +1,4 @@
-import { documentStateIsValid, hashChainValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
+import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
 import { METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants';
 import { addDefaultDidWebvhServices } from '../did-document';
 import type {
@@ -449,7 +449,7 @@ const processV1SubsequentEntry = async ({
 
   const { proof: _proof, ...entryWithoutProof } = logEntries[entryIndex];
   const recomputedHash = await deriveHash({ ...entryWithoutProof, versionId: logEntries[entryIndex - 1].versionId });
-  if (!hashChainValid(recomputedHash, entryHash)) {
+  if (!hashChainIsValid(recomputedHash, entryHash)) {
     throw new Error(`Hash chain broken at '${resolverContext.meta.versionId}'`);
   }
 
