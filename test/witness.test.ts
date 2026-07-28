@@ -18,7 +18,9 @@ import {
 } from '../src/witness';
 import {
   asPublicVerificationMethods,
+  buildV05Genesis,
   createTestSigner,
+  createTestVerifier,
   generateTestVerificationMethod,
   TestCryptoImplementation,
 } from './utils';
@@ -1167,5 +1169,23 @@ describe('Witness Implementation Tests', async () => {
     expect(resolved.didDocumentMetadata.witness?.witnesses).toHaveLength(1);
     expect(resolved.didDocumentMetadata.witness?.witnesses?.[0].id).toBe(witnessId);
     expect(resolved.didDocumentMetadata.witness?.threshold).toBe(1);
+  });
+
+  test('Genesis with witness: null normalizes to empty witness on resolution', async () => {
+    const log = await buildV05Genesis({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: null,
+      verifier: createTestVerifier(authKey),
+    });
+
+    const resolved = await resolveDIDFromLog(log, {
+      verifier: testImplementation,
+    });
+
+    // Verify witness: null is normalized to empty object on resolution
+    expect(resolved.didDocumentMetadata.witness).toEqual({});
   });
 });
