@@ -12,6 +12,7 @@ import type {
   CreateDIDInterface,
   DeactivateDIDInterface,
   DIDDoc,
+  DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
   ServiceEndpoint,
@@ -202,6 +203,7 @@ export async function prepareUpdateEntry({
   options,
   lastEntry,
   lastMeta,
+  log,
   versionNumber,
   createdDate,
 }: {
@@ -212,6 +214,7 @@ export async function prepareUpdateEntry({
   };
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
+  log: DIDLog;
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
@@ -225,7 +228,7 @@ export async function prepareUpdateEntry({
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
   const resolvedNextKeyHashes = options.nextKeyHashes ?? lastMeta.nextKeyHashes ?? [];
   const witnessInput = options.witness;
-  const witness = witnessInput?.witnesses?.length
+  const witness: Record<string, unknown> = witnessInput?.witnesses?.length
     ? {
         witnesses: witnessInput.witnesses,
         threshold: witnessInput.threshold ?? 0,
@@ -238,18 +241,30 @@ export async function prepareUpdateEntry({
     );
   }
 
-  const params = {
-    ...(options.updateKeys !== undefined || lastMeta.prerotation
-      ? { updateKeys: options.updateKeys ?? lastMeta.updateKeys }
-      : {}),
-    ...(options.nextKeyHashes !== undefined ? { nextKeyHashes: options.nextKeyHashes } : {}),
-    ...(options.portable === false ? { portable: false } : {}),
-    witness,
-    watchers: watchersValue ?? [],
-  };
+  // Determine if we need to add the method parameter for v0.5→v1.0 transition.
+  // Add it only on the first transition: when genesis is v0.5 AND no entry yet has method: 'did:webvh:1.0'.
+  // After the first transition, all subsequent updates/deactivations stay on v1.0 without re-declaring the method.
+  const genesisMethod = log[0].parameters.method as string | undefined;
+  const isV05Genesis = genesisMethod === 'did:webvh:0.5';
+  const hasAlreadyTransitioned = log.slice(1).some((entry) => entry.parameters.method === METHOD_PROTOCOL_V1_0);
 
-  if (params.witness?.witnesses?.length) {
-    validateWitnessParameter(params.witness);
+  const params: Record<string, unknown> =
+    isV05Genesis && !hasAlreadyTransitioned ? { method: METHOD_PROTOCOL_V1_0 } : {};
+
+  if (options.updateKeys !== undefined || lastMeta.prerotation) {
+    params.updateKeys = options.updateKeys ?? lastMeta.updateKeys;
+  }
+  if (options.nextKeyHashes !== undefined) {
+    params.nextKeyHashes = options.nextKeyHashes;
+  }
+  if (options.portable === false) {
+    params.portable = false;
+  }
+  params.witness = witness;
+  params.watchers = watchersValue ?? [];
+
+  if (witness && 'witnesses' in witness && Array.isArray(witness.witnesses) && witness.witnesses.length) {
+    validateWitnessParameter(witness as WitnessParameterResolution);
   }
 
   if (lastMeta.prerotation) {
@@ -339,16 +354,23 @@ export async function prepareDeactivationEntry({
   options,
   lastEntry,
   lastMeta,
+  log,
   versionNumber,
   createdDate,
 }: {
   options: DeactivateDIDInterface & { updateKeys?: string[] };
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
+  log: DIDLog;
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
+  const genesisMethod = log[0].parameters.method as string | undefined;
+  const isV05Genesis = genesisMethod === 'did:webvh:0.5';
+  const hasAlreadyTransitioned = log.slice(1).some((entry) => entry.parameters.method === METHOD_PROTOCOL_V1_0);
+
   const params = {
+    ...(isV05Genesis && !hasAlreadyTransitioned ? { method: METHOD_PROTOCOL_V1_0 } : {}),
     updateKeys: options.updateKeys ?? lastMeta.updateKeys,
     deactivated: true,
   };

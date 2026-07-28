@@ -148,6 +148,7 @@ export const updateDID = async (
     options,
     lastEntry,
     lastMeta,
+    log,
     versionNumber,
     createdDate,
   });
@@ -187,6 +188,7 @@ export const deactivateDID = async (
     options,
     lastEntry,
     lastMeta,
+    log,
     versionNumber,
     createdDate,
   });
