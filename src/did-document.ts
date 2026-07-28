@@ -218,12 +218,9 @@ export function addDefaultDidWebvhServices(
 
   let changed = false;
   const hasServiceFragment = (fragment: string) => {
-    const fragmentForm = `#${fragment}`;
-    const absoluteForm = `${did}#${fragment}`;
-
     return services.some((service: ServiceEndpoint) => {
       const serviceId = service.id || '';
-      return serviceId === fragmentForm || serviceId === absoluteForm;
+      return serviceId.endsWith(`#${fragment}`);
     });
   };
 
