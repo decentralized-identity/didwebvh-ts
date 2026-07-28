@@ -23,7 +23,10 @@ export enum MultibaseEncoding {
  * @returns The base64url encoded string (without the multibase prefix)
  */
 export function encodeBase64Url(bytes: Uint8Array): string {
-  return base64urlnopad.encode(bytes);
+  const normalized = ArrayBuffer.isView(bytes)
+    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    : bytes;
+  return base64urlnopad.encode(normalized);
 }
 
 /**
@@ -41,7 +44,10 @@ function decodeBase64Url(str: string): Uint8Array {
  * @returns The base58btc encoded string (without the multibase prefix)
  */
 export function encodeBase58Btc(bytes: Uint8Array): string {
-  return base58.encode(bytes);
+  const normalized = ArrayBuffer.isView(bytes)
+    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    : bytes;
+  return base58.encode(normalized);
 }
 
 /**

@@ -7,7 +7,8 @@ import type {
   VerificationMethod,
 } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { deriveHash, parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils';
+import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils';
+import { deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
 import {
   countWitnessApprovals,
@@ -721,6 +722,42 @@ describe('Witness Implementation Tests', async () => {
     expect(result.didResolutionMetadata.message).toContain(
       `Witness threshold not met for version ${updatedDid.log[1].versionId}`
     );
+  });
+
+  test('Resolve does not double-count duplicate proofs from the same witness DID', async () => {
+    const witnessDid1 = `did:key:${witness1.publicKeyMultibase}`;
+    const witnessDid2 = `did:key:${witness2.publicKeyMultibase}`;
+    const didWithWitness = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: {
+        threshold: 2,
+        witnesses: [{ id: witnessDid1 }, { id: witnessDid2 }],
+      },
+      verifier: testImplementation,
+    });
+
+    const versionId = didWithWitness.log[0].versionId;
+    const duplicateProofsFromSameWitness = [
+      await createWitnessProof(createWitnessSigner(witness1), versionId, witnessVerificationMethod(witness1)),
+      await createWitnessProof(createWitnessSigner(witness1), versionId, witnessVerificationMethod(witness1)),
+    ];
+
+    const resolved = await resolveDIDFromLog(didWithWitness.log, {
+      verifier: testImplementation,
+      witnessProofs: [
+        {
+          versionId,
+          proof: duplicateProofsFromSameWitness,
+        },
+      ],
+    });
+
+    expect(resolved.didDocument).toBeNull();
+    expect(resolved.didResolutionMetadata.error).toBe('invalidDid');
+    expect(resolved.didResolutionMetadata.message).toContain(`Witness threshold not met for version ${versionId}`);
   });
 
   test('Resolve accepts later proof for earlier required entry', async () => {

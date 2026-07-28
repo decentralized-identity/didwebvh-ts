@@ -198,7 +198,6 @@ export interface CreateDIDInterface {
   didDocument?: DIDDoc;
   services?: ServiceEndpoint[];
   paths?: string[];
-  controller?: string;
   context?: string | string[] | object | object[];
   alsoKnownAs?: string[];
   alsoKnownAsWeb?: boolean;
@@ -231,7 +230,6 @@ export interface UpdateDIDInterface {
   updated?: string;
   updateKeys?: string[];
   verificationMethods?: VerificationMethod[];
-  controller?: string;
   context?: string | string[] | object | object[];
   alsoKnownAs?: string[];
   portable?: boolean;

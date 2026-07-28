@@ -221,4 +221,30 @@ describe('Portability', () => {
     const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
     expect(resolved.didDocument?.id).toBe(`did:webvh:${scid}:example.org:dids:alice`);
   });
+
+  test('UpdateDID rejects dot-segment in explicit paths array', async () => {
+    await expect(
+      updateDID({
+        log: portableDID.log,
+        address: 'example.org',
+        paths: ['..', 'secrets'],
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('updateDID path segments must not contain dot-segments');
+  });
+
+  test('UpdateDID rejects encoded slash inside explicit path segment', async () => {
+    await expect(
+      updateDID({
+        log: portableDID.log,
+        address: 'example.org',
+        paths: ['a%2Fb'],
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('updateDID path segments must not contain decoded slash within a single path segment');
+  });
 });

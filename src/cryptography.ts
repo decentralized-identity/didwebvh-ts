@@ -1,5 +1,6 @@
 import type {
   DataIntegrityProof,
+  DataIntegrityProofPurpose,
   DataIntegrityProofTemplate,
   SignableDocument,
   Signer,
@@ -9,23 +10,64 @@ import type {
   VerificationMethod,
   Verifier,
 } from './interfaces';
-import { createDate } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
+import { createDate } from './utils/iso8601-datetime';
 
 /**
- * Creates a proof object for a document
- * @param verificationMethodId - The verification method ID to use in the proof
- * @returns A proof object with type, cryptosuite, verificationMethod, created, and proofPurpose
+ * Creates a Data Integrity proof template from explicit input values.
  */
-export const createProof = (verificationMethodId: string): DataIntegrityProofTemplate => {
+export const createDataIntegrityProofTemplate = (options: {
+  verificationMethod: string;
+  created?: string;
+  proofPurpose?: DataIntegrityProofPurpose;
+  id?: string;
+}): DataIntegrityProofTemplate => {
   return {
+    ...(options.id ? { id: options.id } : {}),
     type: 'DataIntegrityProof',
     cryptosuite: 'eddsa-jcs-2022',
-    verificationMethod: verificationMethodId,
-    created: createDate(),
-    proofPurpose: 'assertionMethod',
+    verificationMethod: options.verificationMethod,
+    created: options.created ?? createDate(),
+    proofPurpose: options.proofPurpose ?? 'assertionMethod',
+  };
+};
+
+/**
+ * Signs a document using a proof template and returns a complete DataIntegrityProof.
+ */
+export const signDataIntegrityProof = async <TDocument>(
+  document: TDocument,
+  proofTemplate: DataIntegrityProofTemplate,
+  signer: Signer<TDocument>
+): Promise<DataIntegrityProof> => {
+  const signed = await signer.sign({ document, proof: proofTemplate });
+  const mergedProof = {
+    ...proofTemplate,
+    proofValue: signed.proofValue,
+  };
+
+  // Strip undefined fields to keep the proof JSON-compatible.
+  const sanitizedProof = JSON.parse(JSON.stringify(mergedProof)) as Partial<DataIntegrityProof>;
+  const verificationMethod = sanitizedProof.verificationMethod;
+  if (!verificationMethod) {
+    throw new Error('Data Integrity proof is missing verificationMethod');
+  }
+
+  const proofValue = sanitizedProof.proofValue;
+  if (!proofValue) {
+    throw new Error('Data Integrity proof is missing proofValue');
+  }
+
+  return {
+    id: sanitizedProof.id,
+    type: sanitizedProof.type ?? proofTemplate.type,
+    cryptosuite: sanitizedProof.cryptosuite ?? proofTemplate.cryptosuite,
+    verificationMethod,
+    created: sanitizedProof.created ?? proofTemplate.created,
+    proofValue,
+    proofPurpose: sanitizedProof.proofPurpose ?? proofTemplate.proofPurpose,
   };
 };
 
@@ -91,7 +133,7 @@ export abstract class AbstractCrypto implements Signer, Verifier {
 /**
  * Creates a document signer from any Signer implementation
  * @param signer - The signer to use
- * @param verificationMethodId - The verification method ID to use in proofs
+ * @param verificationMethodId - The verification method ID to use when building proof templates
  * @returns A function that signs a document and returns the document with proof
  */
 export const createDocumentSigner = <TDocument extends SignableDocument>(
@@ -100,10 +142,10 @@ export const createDocumentSigner = <TDocument extends SignableDocument>(
 ) => {
   return async (doc: TDocument): Promise<TDocument & { proof: DataIntegrityProof }> => {
     try {
-      const proof = createProof(verificationMethodId);
-      const result = await signer.sign({ document: doc, proof });
+      const proofTemplate = createDataIntegrityProofTemplate({ verificationMethod: verificationMethodId });
+      const proof = await signDataIntegrityProof(doc, proofTemplate, signer);
 
-      return { ...doc, proof: { ...proof, proofValue: result.proofValue } };
+      return { ...doc, proof };
     } catch (e) {
       console.error(e);
       const message = e instanceof Error ? e.message : String(e);

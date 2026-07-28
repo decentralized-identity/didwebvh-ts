@@ -1,8 +1,10 @@
-export const PLACEHOLDER = '{SCID}';
-export const METHOD = 'webvh';
-export const BASE_CONTEXT = ['https://www.w3.org/ns/did/v1', 'https://w3id.org/security/multikey/v1'];
+export const SCID_PLACEHOLDER = '{SCID}';
+export const DID_PLACEHOLDER = '{DID}';
+export const DID_KEY_PREFIX = 'did:key:';
 
 // Version 1.0 method constants
+export const METHOD = 'webvh';
+export const BASE_CONTEXT = ['https://www.w3.org/ns/did/v1', 'https://w3id.org/security/multikey/v1'];
 export const METHOD_VERSION_1_0 = '1.0';
 export const METHOD_PROTOCOL_V1_0 = `did:${METHOD}:${METHOD_VERSION_1_0}`;
 
@@ -23,6 +25,17 @@ export enum ServiceFragment {
   Files = 'files',
   Whois = 'whois',
 }
+
+// Verification relationships
+export const VERIFICATION_RELATIONSHIPS = [
+  'authentication',
+  'assertionMethod',
+  'keyAgreement',
+  'capabilityDelegation',
+  'capabilityInvocation',
+] as const;
+
+export type VerificationRelationship = (typeof VERIFICATION_RELATIONSHIPS)[number];
 
 // Service type constants
 export const SERVICE_TYPE_RELATIVE_REF = 'relativeRef';

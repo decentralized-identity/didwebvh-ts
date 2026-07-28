@@ -105,16 +105,29 @@ const PROBLEM_DETAILS_BY_CODE: Record<DidResolutionError, { type: string; title:
   },
 };
 
+export function buildProblemDetails(
+  code: DidResolutionError,
+  detail: string,
+  overrides: { problemType?: string; title?: string } = {}
+): ProblemDetails {
+  const { type, title } = PROBLEM_DETAILS_BY_CODE[code];
+
+  return {
+    type: overrides.problemType ?? type,
+    title: overrides.title ?? title,
+    detail,
+  };
+}
+
 export function toErrorResult(
   code: DidResolutionError,
   detail: string,
   extras: { controlled?: boolean; problemType?: string } = {}
 ): DIDResolutionResult {
-  const { type, title } = PROBLEM_DETAILS_BY_CODE[code];
   const didResolutionMetadata: WebvhResolutionMetadata = {
     error: code,
     message: detail,
-    problemDetails: { type: extras.problemType ?? type, title, detail },
+    problemDetails: buildProblemDetails(code, detail, { problemType: extras.problemType }),
   };
   if (extras.controlled !== undefined) {
     didResolutionMetadata.controlled = extras.controlled;

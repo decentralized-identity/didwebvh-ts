@@ -1,7 +1,9 @@
+import type { DIDResolutionResult } from 'did-resolver';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
+import * as methodModule from '../src/method';
 import { createDID, resolveDID } from '../src/method';
-import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils';
+import { fetchLogFromIdentifier, fetchWitnessProofs, resolveVM } from '../src/utils';
 import {
   asPublicVerificationMethods,
   createTestSigner,
@@ -172,5 +174,76 @@ describe('fetchWitnessProofs', () => {
     stubFetchFailure(new Error('connection refused'));
 
     expect(await fetchWitnessProofs('did:webvh:scid123:example.com')).toEqual([]);
+  });
+});
+
+describe('resolveVM', () => {
+  afterEach(() => {
+    restoreStubs();
+    vi.restoreAllMocks();
+  });
+
+  test('resolves did:webvh VM via direct verificationMethod array match', async () => {
+    const vmId = 'did:webvh:scid123:example.com#key-1';
+
+    stubFetchResponse('{"versionId":"1-abc"}\n{"versionId":"2-def"}');
+    vi.spyOn(methodModule, 'resolveDIDFromLog').mockResolvedValue({
+      didDocument: {
+        id: 'did:webvh:scid123:example.com',
+        verificationMethod: [
+          {
+            id: vmId,
+            type: 'Multikey',
+            publicKeyMultibase: 'z6Mkk6YgL8Lh6mLeW4x8pohWXmHfL6h4WQ7x8V8NwS6jQ2mZ',
+          },
+        ],
+      },
+      didDocumentMetadata: {},
+      didResolutionMetadata: {},
+    } as DIDResolutionResult);
+
+    const resolved = await resolveVM(vmId);
+
+    expect(resolved).toEqual({
+      id: vmId,
+      type: 'Multikey',
+      publicKeyMultibase: 'z6Mkk6YgL8Lh6mLeW4x8pohWXmHfL6h4WQ7x8V8NwS6jQ2mZ',
+    });
+  });
+
+  test('resolves did:webvh VM via verification relationship object fallback', async () => {
+    const vmId = 'did:webvh:scid123:example.com#assertion-key';
+
+    stubFetchResponse('{"versionId":"1-abc"}\n{"versionId":"2-def"}');
+    vi.spyOn(methodModule, 'resolveDIDFromLog').mockResolvedValue({
+      didDocument: {
+        id: 'did:webvh:scid123:example.com',
+        verificationMethod: [],
+        assertionMethod: [
+          'did:webvh:scid123:example.com#string-reference',
+          {
+            id: vmId,
+            type: 'Multikey',
+            publicKeyMultibase: 'z6MkoJ8mW6T2d4QF9xk33bQ4rQk6N4R8c6rj59YxQG3hbtVW',
+          },
+        ],
+      },
+      didDocumentMetadata: {},
+      didResolutionMetadata: {},
+    } as DIDResolutionResult);
+
+    const resolved = await resolveVM(vmId);
+
+    expect(resolved).toEqual({
+      id: vmId,
+      type: 'Multikey',
+      publicKeyMultibase: 'z6MkoJ8mW6T2d4QF9xk33bQ4rQk6N4R8c6rj59YxQG3hbtVW',
+    });
+  });
+
+  test('wraps unsupported verification method schemes', async () => {
+    await expect(resolveVM('did:web:example.com#key-1')).rejects.toThrow(
+      'Error resolving VM did:web:example.com#key-1'
+    );
   });
 });
