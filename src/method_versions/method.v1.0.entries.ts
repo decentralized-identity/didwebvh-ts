@@ -117,6 +117,17 @@ const finalizeNonGenesisEntry = async ({
   return entry;
 };
 
+function shouldInjectMethodParameter(log: DIDLog): boolean {
+  const genesisMethod = log[0].parameters.method as string | undefined;
+  // Fast path: only v0.5 genesis can transition to v1.0
+  if (genesisMethod !== 'did:webvh:0.5') {
+    return false;
+  }
+  // Check if already transitioned
+  const hasAlreadyTransitioned = log.slice(1).some((entry) => entry.parameters.method === METHOD_PROTOCOL_V1_0);
+  return !hasAlreadyTransitioned;
+}
+
 export async function prepareGenesisEntry({
   options,
   controller,
@@ -241,15 +252,7 @@ export async function prepareUpdateEntry({
     );
   }
 
-  // Determine if we need to add the method parameter for v0.5→v1.0 transition.
-  // Add it only on the first transition: when genesis is v0.5 AND no entry yet has method: 'did:webvh:1.0'.
-  // After the first transition, all subsequent updates/deactivations stay on v1.0 without re-declaring the method.
-  const genesisMethod = log[0].parameters.method as string | undefined;
-  const isV05Genesis = genesisMethod === 'did:webvh:0.5';
-  const hasAlreadyTransitioned = log.slice(1).some((entry) => entry.parameters.method === METHOD_PROTOCOL_V1_0);
-
-  const params: Record<string, unknown> =
-    isV05Genesis && !hasAlreadyTransitioned ? { method: METHOD_PROTOCOL_V1_0 } : {};
+  const params: Record<string, unknown> = shouldInjectMethodParameter(log) ? { method: METHOD_PROTOCOL_V1_0 } : {};
 
   if (options.updateKeys !== undefined || lastMeta.prerotation) {
     params.updateKeys = options.updateKeys ?? lastMeta.updateKeys;
@@ -365,12 +368,8 @@ export async function prepareDeactivationEntry({
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
-  const genesisMethod = log[0].parameters.method as string | undefined;
-  const isV05Genesis = genesisMethod === 'did:webvh:0.5';
-  const hasAlreadyTransitioned = log.slice(1).some((entry) => entry.parameters.method === METHOD_PROTOCOL_V1_0);
-
   const params = {
-    ...(isV05Genesis && !hasAlreadyTransitioned ? { method: METHOD_PROTOCOL_V1_0 } : {}),
+    ...(shouldInjectMethodParameter(log) ? { method: METHOD_PROTOCOL_V1_0 } : {}),
     updateKeys: options.updateKeys ?? lastMeta.updateKeys,
     deactivated: true,
   };
