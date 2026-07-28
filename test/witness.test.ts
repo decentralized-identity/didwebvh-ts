@@ -1188,4 +1188,44 @@ describe('Witness Implementation Tests', async () => {
     // Verify witness: null is normalized to empty object on resolution
     expect(resolved.didDocumentMetadata.witness).toEqual({});
   });
+
+  test('V1.0 genesis with witness: null normalizes to {} in metadata', async () => {
+    const result = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      verifier: createTestVerifier(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: null,
+    });
+
+    // Verify witness: null is normalized to {} in metadata
+    expect(result.doc.verificationMethod).toBeDefined();
+    expect(result.meta.witness).toEqual({});
+  });
+
+  test('V1.0 genesis with legacy witness format normalizes consistently', async () => {
+    const witness1 = await generateTestVerificationMethod();
+    const witness2 = await generateTestVerificationMethod();
+    const witnessId1 = `did:key:${witness1.publicKeyMultibase}`;
+    const witnessId2 = `did:key:${witness2.publicKeyMultibase}`;
+
+    const result = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      verifier: createTestVerifier(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: {
+        witnesses: [{ id: witnessId1 }, { id: witnessId2 }],
+        threshold: 1,
+      },
+    });
+
+    // Verify legacy format is normalized consistently
+    expect(result.meta.witness?.witnesses).toHaveLength(2);
+    expect(result.meta.witness?.threshold).toBe(1);
+    expect(result.meta.witness?.witnesses?.[0].id).toBe(witnessId1);
+    expect(result.meta.witness?.witnesses?.[1].id).toBe(witnessId2);
+  });
 });
