@@ -348,8 +348,14 @@ export async function prepareDeactivationEntry({
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
+  if (lastMeta.prerotation) {
+    await newKeysAreInNextKeys(options.updateKeys ?? [], lastMeta.nextKeyHashes ?? []);
+  }
+
   const params = {
     updateKeys: options.updateKeys ?? lastMeta.updateKeys,
+    // Close the rotation: a deactivated DID carries no dangling key commitment.
+    nextKeyHashes: [],
     deactivated: true,
   };
 
@@ -360,12 +366,19 @@ export async function prepareDeactivationEntry({
     state: lastEntry.state,
   };
 
+  // Under active pre-rotation the resolver verifies this entry against its own
+  // updateKeys, so sign and validate with the pre-committed keys.
+  const keysToVerify = lastMeta.prerotation ? options.updateKeys : lastMeta.updateKeys;
+  if (!keysToVerify) {
+    throw new Error('updateKeys could not be determined for deactivation verification');
+  }
+
   const entry = await finalizeNonGenesisEntry({
     logEntry,
     versionNumber,
     created: createdDate,
     signer: options.signer,
-    updateKeys: lastMeta.updateKeys,
+    updateKeys: keysToVerify,
     witness: lastMeta.witness,
     verifier: options.verifier,
   });
