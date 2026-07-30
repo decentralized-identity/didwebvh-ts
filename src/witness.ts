@@ -11,11 +11,12 @@ import type {
   WitnessSigningOptions,
   WitnessSigningResult,
 } from './interfaces';
-import { fetchWitnessProofs, parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from './utils';
+import { fetchWitnessProofs } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { multibaseDecode } from './utils/multiformats';
+import { parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from './utils/verification-methods';
 
 /**
  * Creates a single witness DataIntegrityProof for one `versionId`.

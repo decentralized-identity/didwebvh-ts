@@ -5,7 +5,6 @@ import {
   createDIDDoc,
   enrichAlsoKnownAs,
   replaceCreateDidPlaceholders,
-  sanitizeVerificationMethods,
   validateCreateDidDocument,
 } from '../did-document';
 import type {
@@ -21,6 +20,7 @@ import type {
 } from '../interfaces';
 import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils';
 import { createSCID, deriveHash } from '../utils/crypto';
+import { sanitizeVerificationMethods } from '../utils/verification-methods';
 import { validateWitnessParameter } from '../witness';
 
 export interface PreparedEntry {

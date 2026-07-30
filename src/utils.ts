@@ -1,8 +1,6 @@
 import { config } from './config';
-import { DID_KEY_PREFIX, METHOD, VERIFICATION_RELATIONSHIPS } from './constants';
-import type { DIDDoc, DIDLog, ParsedDidKeyVerificationMethod, WitnessProofFileEntry } from './interfaces';
-import { resolveDIDFromLog } from './method';
-import { multibaseDecode } from './utils/multiformats';
+import { METHOD } from './constants';
+import type { DIDLog, WitnessProofFileEntry } from './interfaces';
 
 // Shared constants and types
 
@@ -495,124 +493,6 @@ export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileE
     return [];
   }
 }
-
-// Verification method normalization/resolution helpers
-
-function validateDidKeyMultibase(keyMultibase: string): void {
-  if (!keyMultibase) {
-    throw new Error('Malformed did:key identifier');
-  }
-
-  try {
-    multibaseDecode(keyMultibase);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Malformed did:key identifier: ${message}`);
-  }
-}
-
-export function parseDidKeyDid(input: string): { did: string; keyMultibase: string } {
-  if (typeof input !== 'string') {
-    throw new Error('did:key DID must be a string');
-  }
-
-  const match = input.match(/^did:key:([^#/?]+)$/);
-  if (!match) {
-    throw new Error('Malformed did:key DID');
-  }
-
-  const keyMultibase = match[1];
-  validateDidKeyMultibase(keyMultibase);
-
-  return {
-    did: `${DID_KEY_PREFIX}${keyMultibase}`,
-    keyMultibase,
-  };
-}
-
-export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerificationMethod {
-  if (typeof input !== 'string') {
-    throw new Error('did:key verificationMethod must be a string');
-  }
-
-  if (input.startsWith('#')) {
-    throw new Error('did:key verificationMethod must be an absolute DID URL');
-  }
-
-  const match = input.match(/^did:key:([^#/?]+)(?:#([^#/?]+))?$/);
-  if (!match) {
-    throw new Error('Malformed did:key verificationMethod');
-  }
-
-  const parsedDid = parseDidKeyDid(`${DID_KEY_PREFIX}${match[1]}`);
-  const fragment = match[2];
-
-  // If fragment is present, it MUST equal the body multibase exactly
-  if (fragment && fragment !== parsedDid.keyMultibase) {
-    throw new Error(
-      `did:key verificationMethod fragment must equal body multibase. ` +
-        `Expected fragment '${parsedDid.keyMultibase}' but got '${fragment}'`
-    );
-  }
-
-  return {
-    did: parsedDid.did,
-    fragment,
-    keyMultibase: parsedDid.keyMultibase,
-  };
-}
-
-const findVerificationMethodInDoc = (doc: DIDDoc, vmId: string) => {
-  const directMatch = doc.verificationMethod?.find((vm) => vm.id === vmId);
-  if (directMatch) {
-    return directMatch;
-  }
-
-  for (const relationship of VERIFICATION_RELATIONSHIPS) {
-    const relationshipValues = doc[relationship];
-    if (!Array.isArray(relationshipValues)) {
-      continue;
-    }
-
-    const match = relationshipValues.find((item) => {
-      if (typeof item !== 'object' || item === null) {
-        return false;
-      }
-
-      return (item as { id?: unknown }).id === vmId;
-    });
-
-    if (match && typeof match === 'object') {
-      return match;
-    }
-  }
-
-  return null;
-};
-
-export const resolveVM = async (vm: string) => {
-  try {
-    if (vm.startsWith('did:key:')) {
-      const parsedVerificationMethod = parseDidKeyVerificationMethod(vm);
-      return { publicKeyMultibase: parsedVerificationMethod.keyMultibase };
-    } else if (vm.startsWith('did:webvh:')) {
-      const url = getFileUrl(vm.split('#')[0]);
-      const didLog = await (await fetch(url)).text();
-      const logEntries: DIDLog = didLog
-        .trim()
-        .split('\n')
-        .map((l) => JSON.parse(l));
-      const { didDocument } = await resolveDIDFromLog(logEntries, {});
-      if (!didDocument) {
-        throw new Error(`Verification method ${vm} not found`);
-      }
-      return findVerificationMethodInDoc(didDocument as DIDDoc, vm);
-    }
-    throw new Error(`Verification method ${vm} not found`);
-  } catch (e) {
-    throw new Error(`Error resolving VM ${vm}`);
-  }
-};
 
 export async function getActiveDIDs(): Promise<string[]> {
   const activeDIDs: string[] = [];
