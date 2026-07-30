@@ -1,6 +1,6 @@
 import { beforeAll, expect, test } from 'vitest';
 import type { CreateDIDResult, DIDLog, DIDLogEntry, ServiceEndpoint, VerificationMethod } from '../src/interfaces';
-import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { deriveHash, deriveNextKeyHash } from '../src/utils/crypto';
 import { createDate } from '../src/utils/iso8601-datetime';
 import {
@@ -231,6 +231,76 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
   const { didDocumentMetadata: meta } = await resolveDIDFromLog(log2, { verifier: testImplementation });
   expect(meta.prerotation).toBe(true);
   expect(meta.nextKeyHashes).toEqual([nextKeyHash]);
+});
+
+test('deactivateDID with pre-rotation active produces a resolvable deactivated log', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    address: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  const deactivated = await deactivateDID({
+    log: log1,
+    signer: createTestSigner(authKey2),
+    updateKeys: [authKey2.publicKeyMultibase!],
+    verifier: testImplementation,
+  });
+
+  expect(deactivated.meta.deactivated).toBe(true);
+  expect(deactivated.log[1].parameters.updateKeys).toEqual([authKey2.publicKeyMultibase!]);
+  expect(deactivated.log[1].parameters.nextKeyHashes).toEqual([]);
+
+  const { didDocumentMetadata: meta } = await resolveDIDFromLog(deactivated.log, {
+    verifier: testImplementation,
+  });
+  expect(meta.deactivated).toBe(true);
+  expect(meta.prerotation).toBe(false);
+});
+
+test('deactivateDID rejects keys that are not in the prior nextKeyHashes', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    address: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  await expect(
+    deactivateDID({
+      log: log1,
+      signer: createTestSigner(authKey3),
+      updateKeys: [authKey3.publicKeyMultibase!],
+      verifier: testImplementation,
+    })
+  ).rejects.toThrow('Invalid update key');
+});
+
+test('deactivateDID omitting updateKeys is rejected while pre-rotation is active', async () => {
+  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
+  const { log: log1 } = await createDID({
+    address: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    nextKeyHashes: [nextKeyHash],
+    verifier: testImplementation,
+  });
+
+  await expect(
+    deactivateDID({
+      log: log1,
+      signer: createTestSigner(authKey1),
+      verifier: testImplementation,
+    })
+  ).rejects.toThrow('updateKeys must be provided while pre-rotation is active');
 });
 
 test('Omitted updateKeys is rejected while pre-rotation is active', async () => {

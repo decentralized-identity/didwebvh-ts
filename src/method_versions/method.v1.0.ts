@@ -182,6 +182,9 @@ export const deactivateDID = async (
   if (lastMeta.deactivated) {
     throw new Error('DID already deactivated');
   }
+  if (lastMeta.prerotation && options.updateKeys === undefined) {
+    throw new Error('updateKeys must be provided while pre-rotation is active');
+  }
   const versionNumber = log.length + 1;
   const createdDate = createNextVersionTime(lastMeta.updated, undefined, createDate);
 
@@ -197,6 +200,8 @@ export const deactivateDID = async (
   const meta = mergeMetaFromEntry({
     previousMeta: lastMeta,
     entry,
+    // Deactivation closes any pending rotation, matching the entry's parameters.
+    nextKeyHashes: [],
     deactivated: true,
   });
 
