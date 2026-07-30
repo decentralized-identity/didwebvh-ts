@@ -7,9 +7,9 @@ import type {
   VerificationMethod,
 } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils';
 import { deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
+import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils/verification-methods';
 import {
   countWitnessApprovals,
   createWitnessProof,
@@ -18,7 +18,9 @@ import {
 } from '../src/witness';
 import {
   asPublicVerificationMethods,
+  buildV05Genesis,
   createTestSigner,
+  createTestVerifier,
   generateTestVerificationMethod,
   TestCryptoImplementation,
 } from './utils';
@@ -1167,5 +1169,63 @@ describe('Witness Implementation Tests', async () => {
     expect(resolved.didDocumentMetadata.witness?.witnesses).toHaveLength(1);
     expect(resolved.didDocumentMetadata.witness?.witnesses?.[0].id).toBe(witnessId);
     expect(resolved.didDocumentMetadata.witness?.threshold).toBe(1);
+  });
+
+  test('Genesis with witness: null normalizes to empty witness on resolution', async () => {
+    const log = await buildV05Genesis({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: null,
+      verifier: createTestVerifier(authKey),
+    });
+
+    const resolved = await resolveDIDFromLog(log, {
+      verifier: testImplementation,
+    });
+
+    // Verify witness: null is normalized to empty object on resolution
+    expect(resolved.didDocumentMetadata.witness).toEqual({});
+  });
+
+  test('V1.0 genesis with witness: null normalizes to {} in metadata', async () => {
+    const result = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      verifier: createTestVerifier(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: null,
+    });
+
+    // Verify witness: null is normalized to {} in metadata
+    expect(result.doc.verificationMethod).toBeDefined();
+    expect(result.meta.witness).toEqual({});
+  });
+
+  test('V1.0 genesis with legacy witness format normalizes consistently', async () => {
+    const witness1 = await generateTestVerificationMethod();
+    const witness2 = await generateTestVerificationMethod();
+    const witnessId1 = `did:key:${witness1.publicKeyMultibase}`;
+    const witnessId2 = `did:key:${witness2.publicKeyMultibase}`;
+
+    const result = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      verifier: createTestVerifier(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      witness: {
+        witnesses: [{ id: witnessId1 }, { id: witnessId2 }],
+        threshold: 1,
+      },
+    });
+
+    // Verify legacy format is normalized consistently
+    expect(result.meta.witness?.witnesses).toHaveLength(2);
+    expect(result.meta.witness?.threshold).toBe(1);
+    expect(result.meta.witness?.witnesses?.[0].id).toBe(witnessId1);
+    expect(result.meta.witness?.witnesses?.[1].id).toBe(witnessId2);
   });
 });

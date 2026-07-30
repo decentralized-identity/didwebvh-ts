@@ -10,46 +10,20 @@ import type {
   UpdateDIDResult,
   WitnessProofFileEntry,
 } from './interfaces';
-import * as v0_5 from './method_versions/method.v0.5';
 import * as v1 from './method_versions/method.v1.0';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result';
 import { fetchLogFromIdentifier, getActiveDIDs } from './utils';
 import { defaultVerifier } from './verifier';
 
-const LATEST_VERSION = '1.0';
-
-function getWebvhVersionFromMethod(method?: string): string {
-  if (!method) return LATEST_VERSION;
-  const match = method.match(/^did:webvh:(\d+\.\d+)$/);
-  return match ? match[1] : LATEST_VERSION;
-}
-
-function getWebvhVersionFromLog(log: DIDLog): string {
-  if (log && log.length > 0 && log[0].parameters?.method) {
-    return getWebvhVersionFromMethod(log[0].parameters.method);
-  }
-  return LATEST_VERSION;
-}
-
-function getWebvhVersionFromOptions(options?: unknown): string {
-  if (typeof options === 'object' && options && 'method' in options) {
-    const method = (options as { method?: unknown }).method;
-    if (typeof method === 'string') {
-      return getWebvhVersionFromMethod(method);
-    }
-  }
-  return LATEST_VERSION;
-}
-
 /**
  * Creates a new did:webvh DID and initial DID log.
+ * All DIDs are created with v1.0 format.
  *
  * @param options DID creation options.
  * @returns The created DID, resolved document, and DID log.
  */
 export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
-  const version = getWebvhVersionFromOptions(options);
-  const result = version === '0.5' ? await v0_5.createDID(options) : await v1.createDID(options);
+  const result = await v1.createDID(options);
   return result;
 };
 
@@ -80,12 +54,8 @@ export const resolveDID = async (
   }
   try {
     const log = await fetchLogFromIdentifier(did, controlled);
-    const version = getWebvhVersionFromLog(log);
     const optsWithScid = { ...options, verifier, scid, requestedDid: did };
-    const result =
-      version === '0.5'
-        ? await v0_5.resolveDIDFromLog(log, optsWithScid)
-        : await v1.resolveDIDFromLog(log, optsWithScid);
+    const result = await v1.resolveDIDFromLog(log, optsWithScid);
 
     return toResolutionResult(result, { controlled });
   } catch (e) {
@@ -111,11 +81,7 @@ export const resolveDIDFromLog = async (
     return toErrorResult(selectorError.code, selectorError.detail, { problemType: selectorError.problemType });
   }
   try {
-    const version = getWebvhVersionFromLog(log);
-    const result =
-      version === '0.5'
-        ? await v0_5.resolveDIDFromLog(log, { ...options, verifier })
-        : await v1.resolveDIDFromLog(log, { ...options, verifier });
+    const result = await v1.resolveDIDFromLog(log, { ...options, verifier });
     return toResolutionResult(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -125,6 +91,7 @@ export const resolveDIDFromLog = async (
 
 /**
  * Updates an existing DID log with a new entry.
+ * All updates produce v1.0 entries, even when appended to v0.5 base logs.
  *
  * @param options DID update options.
  * @returns The updated DID, resolved document, and DID log.
@@ -136,19 +103,18 @@ export const updateDID = async (
     paths?: string[];
   }
 ): Promise<UpdateDIDResult> => {
-  const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);
-  const result = version === '0.5' ? await v0_5.updateDID(options) : await v1.updateDID(options);
+  const result = await v1.updateDID(options);
   return result;
 };
 
 /**
  * Deactivates an existing DID by appending a deactivation entry.
+ * All deactivations produce v1.0 entries, even when appended to v0.5 base logs.
  *
  * @param options DID deactivation options.
  * @returns The deactivated DID result and updated DID log.
  */
 export const deactivateDID = async (options: DeactivateDIDInterface & { updateKeys?: string[] }) => {
-  const version = options.log ? getWebvhVersionFromLog(options.log) : getWebvhVersionFromOptions(options);
-  const result = version === '0.5' ? await v0_5.deactivateDID(options) : await v1.deactivateDID(options);
+  const result = await v1.deactivateDID(options);
   return result;
 };

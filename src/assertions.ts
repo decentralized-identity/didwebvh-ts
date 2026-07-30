@@ -1,9 +1,9 @@
 import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces';
-import { parseDidKeyVerificationMethod, resolveVM } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash, createSCID, deriveNextKeyHash } from './utils/crypto';
 import { decodeBase58Btc, decodeMultihash, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
+import { parseDidKeyVerificationMethod, resolveVM } from './utils/verification-methods';
 import { validateWitnessParameter } from './witness';
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {

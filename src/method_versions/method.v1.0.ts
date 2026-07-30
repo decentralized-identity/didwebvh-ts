@@ -21,11 +21,12 @@ import {
   MAX_FUTURE_SKEW_MS,
   validateUtcIso8601NotInFuture,
 } from '../utils/iso8601-datetime';
-import { validateWitnessParameter } from '../witness';
+import { resolveWitnessParameter, validateWitnessParameter } from '../witness';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './method.v1.0.entries';
 import { resolveV1Log } from './method.v1.0.resolution';
 
 const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
+  const resolvedWitness = resolveWitnessParameter(entry.parameters);
   return {
     versionId: entry.versionId,
     created: entry.versionTime,
@@ -35,7 +36,7 @@ const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
     portable: entry.parameters.portable ?? false,
     nextKeyHashes: entry.parameters.nextKeyHashes ?? [],
     prerotation: (entry.parameters.nextKeyHashes?.length ?? 0) > 0,
-    witness: entry.parameters.witness,
+    witness: resolvedWitness ?? {},
     watchers: entry.parameters.watchers ?? [],
     deactivated: entry.parameters.deactivated ?? false,
   };
@@ -148,6 +149,7 @@ export const updateDID = async (
     options,
     lastEntry,
     lastMeta,
+    log,
     versionNumber,
     createdDate,
   });
@@ -190,6 +192,7 @@ export const deactivateDID = async (
     options,
     lastEntry,
     lastMeta,
+    log,
     versionNumber,
     createdDate,
   });

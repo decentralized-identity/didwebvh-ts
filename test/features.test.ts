@@ -503,3 +503,89 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
   expect(whoisServices.length).toBe(1);
   expect(whoisServices[0].id).toBe(`${resolvedDid}#whois`);
 });
+
+test('End-to-end: pathed + percent-encoded DID with both implicit services resolved correctly', async () => {
+  // Create DID with complex address (port + path segments)
+  const { log: createdLog, did: createdDid } = await createDID({
+    address: 'https://example.com:9443/orgs/acme',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    verifier: testImplementation,
+  });
+
+  expect(createdDid).toMatch(/^did:webvh:[^:]+:example\.com%3A9443:orgs:acme$/);
+
+  // Resolve and verify implicit services
+  const result = await resolveDIDFromLog(createdLog, { verifier: testImplementation });
+  const services = (result.didDocument?.service as ServiceEndpoint[]) || [];
+
+  // Verify #files service
+  const filesServices = services.filter((s) => {
+    const id = s.id || '';
+    return id.endsWith('#files');
+  });
+  expect(filesServices.length).toBe(1);
+  expect(filesServices[0].id).toBe(`${createdDid}#files`);
+  expect(filesServices[0].serviceEndpoint).toBe('https://example.com:9443/orgs/acme/');
+
+  // Verify #whois service
+  const whoisServices = services.filter((s) => {
+    const id = s.id || '';
+    return id.endsWith('#whois');
+  });
+  expect(whoisServices.length).toBe(1);
+  expect(whoisServices[0].id).toBe(`${createdDid}#whois`);
+  expect(whoisServices[0].serviceEndpoint).toBe('https://example.com:9443/orgs/acme/whois.vp');
+});
+
+test('Regression: DID with both #files and #whois pre-existing does not duplicate implicit services on resolution', async () => {
+  // Create DID with both #files and #whois already in the document
+  const customDidDoc = {
+    '@context': ['https://www.w3.org/ns/did/v1'],
+    id: 'did:webvh:{SCID}:example.com',
+    controller: ['did:webvh:{SCID}:example.com'],
+    service: [
+      {
+        id: 'did:webvh:{SCID}:example.com#files',
+        type: 'relativeRef',
+        serviceEndpoint: 'https://storage.example.com/files/',
+      },
+      {
+        id: 'did:webvh:{SCID}:example.com#whois',
+        type: 'LinkedVerifiablePresentation',
+        serviceEndpoint: 'https://whois.example.com/lookup',
+        '@context': 'https://identity.foundation/linked-vp/contexts/v1',
+      },
+    ],
+  };
+
+  const { log: createdLog, did: createdDid } = await createDID({
+    address: 'example.com',
+    signer: createTestSigner(authKey1),
+    updateKeys: [authKey1.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: customDidDoc,
+    verifier: testImplementation,
+  });
+
+  // Resolve and verify no duplicates
+  const result = await resolveDIDFromLog(createdLog, { verifier: testImplementation });
+  const services = (result.didDocument?.service as ServiceEndpoint[]) || [];
+
+  // Verify exactly one #files service with custom endpoint (not duplicated)
+  const filesServices = services.filter((s) => {
+    const id = s.id || '';
+    return id.endsWith('#files');
+  });
+  expect(filesServices.length).toBe(1);
+  expect(filesServices[0].serviceEndpoint).toBe('https://storage.example.com/files/');
+
+  // Verify exactly one #whois service with custom endpoint (not duplicated)
+  const whoisServices = services.filter((s) => {
+    const id = s.id || '';
+    return id.endsWith('#whois');
+  });
+  expect(whoisServices.length).toBe(1);
+  expect(whoisServices[0].serviceEndpoint).toBe('https://whois.example.com/lookup');
+});

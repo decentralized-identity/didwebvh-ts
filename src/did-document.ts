@@ -1,4 +1,3 @@
-import type { VerificationRelationship } from './constants';
 import {
   BASE_CONTEXT,
   CONTEXT_LINKED_VP,
@@ -11,6 +10,7 @@ import {
 } from './constants';
 import type { DIDDoc, ServiceEndpoint, VerificationMethod } from './interfaces';
 import { deepClone, getBaseUrl, replaceValueInObject } from './utils';
+import { normalizeVMs } from './utils/verification-methods';
 
 type CreateDIDDocOptions = {
   did: string;
@@ -24,8 +24,6 @@ type CreateDIDDocOptions = {
 };
 
 type ServiceIdStyle = 'absolute' | 'fragment';
-
-type NormalizedVerificationMethods = Required<Pick<DIDDoc, 'verificationMethod' | VerificationRelationship>>;
 
 export function validateCreateDidDocument(didDocument: DIDDoc): void {
   if (!didDocument || typeof didDocument !== 'object') {
@@ -68,98 +66,6 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
     alsoKnownAs: aliases,
   };
 }
-
-export function sanitizeVerificationMethods(
-  verificationMethods?: VerificationMethod[]
-): VerificationMethod[] | undefined {
-  return verificationMethods?.map((vm) => {
-    if (vm.secretKeyMultibase) {
-      console.warn(
-        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
-      );
-      const { secretKeyMultibase, ...safeVm } = vm;
-      return safeVm;
-    }
-
-    return vm;
-  });
-}
-
-export const createVMID = (vm: VerificationMethod, did: string | null) => {
-  const randomSuffix = (() => {
-    const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    const charactersLength = characters.length;
-    for (let i = 0; i < 8; i++) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    }
-    return result;
-  })();
-
-  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || randomSuffix}`;
-};
-
-export const normalizeVMs = (
-  verificationMethod: VerificationMethod[] | undefined,
-  did: string | null = null
-): NormalizedVerificationMethods => {
-  const all: NormalizedVerificationMethods = {
-    verificationMethod: [],
-    authentication: [],
-    assertionMethod: [],
-    keyAgreement: [],
-    capabilityDelegation: [],
-    capabilityInvocation: [],
-  };
-
-  if (!verificationMethod || verificationMethod.length === 0) {
-    return all;
-  }
-
-  const vms = verificationMethod.map((vm) => ({
-    ...vm,
-    id: vm.id ?? createVMID(vm, did),
-    controller: vm.controller ?? did ?? undefined,
-  }));
-  all.verificationMethod = vms;
-
-  for (const vm of vms) {
-    const relationship = vm.purpose;
-    if (!relationship) {
-      continue;
-    }
-
-    if (VERIFICATION_RELATIONSHIPS.includes(relationship as VerificationRelationship)) {
-      all[relationship as VerificationRelationship].push(vm.id);
-    }
-  }
-
-  return all;
-};
-
-export const findVerificationMethod = (doc: DIDDoc, vmId: string): VerificationMethod | null => {
-  const directMatch = doc.verificationMethod?.find((vm) => vm.id === vmId);
-  if (directMatch) {
-    return directMatch;
-  }
-
-  const hasMatchingId = (item: unknown): item is VerificationMethod => {
-    if (typeof item !== 'object' || item === null) return false;
-    return (item as { id?: unknown }).id === vmId;
-  };
-
-  for (const relationship of VERIFICATION_RELATIONSHIPS) {
-    const relationshipValues = doc[relationship as keyof DIDDoc];
-    if (Array.isArray(relationshipValues)) {
-      const match = relationshipValues.find(hasMatchingId);
-      if (match) {
-        return match;
-      }
-    }
-  }
-
-  return null;
-};
 
 export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDoc }> => {
   const { did } = options;
@@ -218,12 +124,9 @@ export function addDefaultDidWebvhServices(
 
   let changed = false;
   const hasServiceFragment = (fragment: string) => {
-    const fragmentForm = `#${fragment}`;
-    const absoluteForm = `${did}#${fragment}`;
-
     return services.some((service: ServiceEndpoint) => {
       const serviceId = service.id || '';
-      return serviceId === fragmentForm || serviceId === absoluteForm;
+      return serviceId.endsWith(`#${fragment}`);
     });
   };
 
