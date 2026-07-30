@@ -34,7 +34,7 @@ describe('Backwards Compatibility', () => {
       expect(result.didDocumentMetadata.versionId).toMatch(/^1-/);
     });
 
-    test('v0.5 update entry that omits nextKeyHashes clears prerotation', async () => {
+    test('v0.5 update entry that sets empty nextKeyHashes clears prerotation', async () => {
       const authKey1 = await generateTestVerificationMethod('assertionMethod', 'key-1');
       const authKey2 = await generateTestVerificationMethod('assertionMethod', 'key-2');
       const signer1 = createTestSigner(authKey1);
