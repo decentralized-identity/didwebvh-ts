@@ -9,6 +9,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
 1. **Resolution result shape** — now returns W3C standard format
 2. **Verification method `purpose`** — requires explicit assignment
 3. **Proof helper exports** — stricter public API
+  - Root parser exports `parseDidKeyDid` and `parseDidKeyVerificationMethod` removed
 4. **Witness proof callback contract** — signer supplies only signature data
 5. **Witness metadata shape** — always normalized to object form
 
@@ -232,6 +233,40 @@ const proof = await createWitnessProof(
 
 The old `createProof` was overly generic and made it difficult to enforce did:webvh witness proof requirements (strict `verificationMethod` format, `proofPurpose: assertionMethod`, hardcoded `cryptosuite`, etc.). The new `createWitnessProof` is purpose-built for witness proofs with a strict callback contract that prevents misconfiguration.
 
+### 3.2 did:key Parse Helper Root Exports
+
+### What Changed
+
+The package root no longer exports `parseDidKeyDid` and `parseDidKeyVerificationMethod`.
+
+**Old (2.x)**:
+
+```typescript
+import { parseDidKeyDid, parseDidKeyVerificationMethod } from 'didwebvh-ts';
+```
+
+**New (3.0.0)**:
+
+```typescript
+// Implement did:key parsing/validation in your application code,
+// or use an alternative utility in your own stack.
+```
+
+### Migration Steps
+
+1. **Find root imports**:
+
+  ```bash
+  grep -r "parseDidKeyDid\|parseDidKeyVerificationMethod" src/
+  ```
+
+2. **Replace root imports** from `didwebvh-ts` with your application's did:key parser/validator.
+
+3. **Keep behavior parity** with prior usage:
+  - Reject non-`did:key:` identifiers where required
+  - Reject malformed did:key values
+  - Enforce any fragment/body matching your previous call sites relied on
+
 ---
 
 ## 4. Witness Proof Callback Contract
@@ -407,6 +442,7 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
 - [ ] Add `purpose: 'authentication'` to verification methods
 - [ ] Replace `createProof` with `createWitnessProof`
+- [ ] Replace root imports of `parseDidKeyDid` and `parseDidKeyVerificationMethod`
 - [ ] Update signer callbacks to return only `proofValue`
 - [ ] Review service endpoint filtering for exact-id matching
 - [ ] Remove null checks for witness metadata
