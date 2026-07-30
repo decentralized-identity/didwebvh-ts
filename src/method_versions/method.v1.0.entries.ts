@@ -12,6 +12,7 @@ import type {
   CreateDIDInterface,
   DeactivateDIDInterface,
   DIDDoc,
+  DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
   ServiceEndpoint,
@@ -116,6 +117,17 @@ const finalizeNonGenesisEntry = async ({
   return entry;
 };
 
+function shouldInjectMethodParameter(log: DIDLog): boolean {
+  const genesisMethod = log[0].parameters.method as string | undefined;
+  // Fast path: only v0.5 genesis can transition to v1.0
+  if (genesisMethod !== 'did:webvh:0.5') {
+    return false;
+  }
+  // Check if already transitioned
+  const hasAlreadyTransitioned = log.slice(1).some((entry) => entry.parameters.method === METHOD_PROTOCOL_V1_0);
+  return !hasAlreadyTransitioned;
+}
+
 export async function prepareGenesisEntry({
   options,
   controller,
@@ -202,6 +214,7 @@ export async function prepareUpdateEntry({
   options,
   lastEntry,
   lastMeta,
+  log,
   versionNumber,
   createdDate,
 }: {
@@ -212,6 +225,7 @@ export async function prepareUpdateEntry({
   };
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
+  log: DIDLog;
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
@@ -225,7 +239,7 @@ export async function prepareUpdateEntry({
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
   const resolvedNextKeyHashes = options.nextKeyHashes ?? lastMeta.nextKeyHashes ?? [];
   const witnessInput = options.witness;
-  const witness = witnessInput?.witnesses?.length
+  const witness: Record<string, unknown> = witnessInput?.witnesses?.length
     ? {
         witnesses: witnessInput.witnesses,
         threshold: witnessInput.threshold ?? 0,
@@ -238,18 +252,22 @@ export async function prepareUpdateEntry({
     );
   }
 
-  const params = {
-    ...(options.updateKeys !== undefined || lastMeta.prerotation
-      ? { updateKeys: options.updateKeys ?? lastMeta.updateKeys }
-      : {}),
-    ...(options.nextKeyHashes !== undefined ? { nextKeyHashes: options.nextKeyHashes } : {}),
-    ...(options.portable === false ? { portable: false } : {}),
-    witness,
-    watchers: watchersValue ?? [],
-  };
+  const params: Record<string, unknown> = shouldInjectMethodParameter(log) ? { method: METHOD_PROTOCOL_V1_0 } : {};
 
-  if (params.witness?.witnesses?.length) {
-    validateWitnessParameter(params.witness);
+  if (options.updateKeys !== undefined || lastMeta.prerotation) {
+    params.updateKeys = options.updateKeys ?? lastMeta.updateKeys;
+  }
+  if (options.nextKeyHashes !== undefined) {
+    params.nextKeyHashes = options.nextKeyHashes;
+  }
+  if (options.portable === false) {
+    params.portable = false;
+  }
+  params.witness = witness;
+  params.watchers = watchersValue ?? [];
+
+  if (witness && 'witnesses' in witness && Array.isArray(witness.witnesses) && witness.witnesses.length) {
+    validateWitnessParameter(witness as WitnessParameterResolution);
   }
 
   if (lastMeta.prerotation) {
@@ -339,12 +357,14 @@ export async function prepareDeactivationEntry({
   options,
   lastEntry,
   lastMeta,
+  log,
   versionNumber,
   createdDate,
 }: {
   options: DeactivateDIDInterface & { updateKeys?: string[] };
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
+  log: DIDLog;
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
@@ -353,6 +373,7 @@ export async function prepareDeactivationEntry({
   }
 
   const params = {
+    ...(shouldInjectMethodParameter(log) ? { method: METHOD_PROTOCOL_V1_0 } : {}),
     updateKeys: options.updateKeys ?? lastMeta.updateKeys,
     // Close the rotation: a deactivated DID carries no dangling key commitment.
     nextKeyHashes: [],
