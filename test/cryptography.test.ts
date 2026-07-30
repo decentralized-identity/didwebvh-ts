@@ -14,7 +14,6 @@ import type {
   SigningOutput,
   Verifier,
 } from '../src/interfaces';
-import * as utilsModule from '../src/utils';
 import { createHash, createHashHex, createSCID, deriveHash, deriveNextKeyHash } from '../src/utils/crypto';
 import {
   createMultihash,
@@ -23,6 +22,7 @@ import {
   MultihashAlgorithm,
   multibaseEncode,
 } from '../src/utils/multiformats';
+import * as vmUtilsModule from '../src/utils/verification-methods';
 import { countVerifiedWitnessApprovals, createWitnessProof } from '../src/witness';
 
 // Mock crypto implementation for testing
@@ -382,7 +382,7 @@ describe('Assertion Guards', () => {
   });
 
   test('throws when verification method cannot be resolved', async () => {
-    const resolveSpy = vi.spyOn(utilsModule, 'resolveVM').mockResolvedValue(null);
+    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveVM').mockResolvedValue(null);
 
     try {
       await expect(documentStateIsValid(makeDoc(baseProof), [updateKey], null, true, verifier)).rejects.toThrow(
@@ -395,7 +395,7 @@ describe('Assertion Guards', () => {
 
   test('throws when resolved multikey does not use ed25519 header', async () => {
     const badHeaderBytes = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
-    const resolveSpy = vi.spyOn(utilsModule, 'resolveVM').mockResolvedValue({
+    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveVM').mockResolvedValue({
       id: `did:key:${updateKey}`,
       type: 'Multikey',
       publicKeyMultibase: multibaseEncode(badHeaderBytes, MultibaseEncoding.BASE58_BTC),

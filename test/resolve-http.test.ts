@@ -3,7 +3,8 @@ import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import * as methodModule from '../src/method';
 import { createDID, resolveDID } from '../src/method';
-import { fetchLogFromIdentifier, fetchWitnessProofs, resolveVM } from '../src/utils';
+import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils';
+import { resolveVM } from '../src/utils/verification-methods';
 import {
   asPublicVerificationMethods,
   createTestSigner,
