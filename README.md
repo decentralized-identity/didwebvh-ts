@@ -255,17 +255,17 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
   Resolves directly from an in-memory DID log, returning the same standard shape.
 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
-  Creates a new DID.
+  Creates a new DID. Always produces a v1.0 log.
   Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`) or legacy `domain`.
   Resolver URL mapping uses `http://localhost` for local testing and `https://` for non-local hosts.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
 - `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
-  Updates an existing DID.
+  Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
 
 - `deactivateDID(options: DeactivateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
-  Deactivates an existing DID.
+  Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
 
 - `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc`
   Generates the parallel `did:web` document defined by did:webvh v1.0 §3.7.10.
