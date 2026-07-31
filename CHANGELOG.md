@@ -1,5 +1,19 @@
-## [2.7.4](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.3...v2.7.4) (2026-04-24)
+# [2.8.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.4...v2.8.0) (2026-06-25)
 
+### Features
+
+* export deriveNextKeyHash for consumers ([136d9b0](https://github.com/decentralized-identity/didwebvh-ts/commit/136d9b0ba24bdc176210125924b4397bfde5d084))
+* preserve paths on update and expose address/paths on public updateDID ([931b94c](https://github.com/decentralized-identity/didwebvh-ts/commit/931b94cadeb1360d89a1b45b1a2acb6adc80c29e))
+
+### Bug Fixes
+
+* reject portable: true in updateDID ([2a4130d](https://github.com/decentralized-identity/didwebvh-ts/commit/2a4130db72d8e3873ebbbe15765a78b5c6ae1fb9))
+* append alsoKnownAs on rotation ([46c494e](https://github.com/decentralized-identity/didwebvh-ts/commit/46c494ea33621acc0c714fe977289d5da182e8dc))
+* rebuild controller from new location on portable move ([48f645a](https://github.com/decentralized-identity/didwebvh-ts/commit/48f645a2029f57901238f2e6430012bce94a2959))
+* verify witness proofs against their own versionId ([7c97a7a](https://github.com/decentralized-identity/didwebvh-ts/commit/7c97a7a3ed55459dc6e776f8bdc70171d38d52f1))
+* trim versionTime milliseconds ([800164f](https://github.com/decentralized-identity/didwebvh-ts/commit/800164f995d98ded0d03017412d85606ab172e3d))
+
+## [2.7.4](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.3...v2.7.4) (2026-04-24)
 
 ### Bug Fixes
 
@@ -7,20 +21,17 @@
 
 ## [2.7.3](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.2...v2.7.3) (2026-04-18)
 
-
 ### Bug Fixes
 
 * entry hash bug ([cf948fe](https://github.com/decentralized-identity/didwebvh-ts/commit/cf948fe8d8401b69a1ab0b0a974d80aa64bb0af6))
 
 ## [2.7.2](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.1...v2.7.2) (2026-03-03)
 
-
 ### Bug Fixes
 
 * resolver integrity and validation hardening ([a4b6b27](https://github.com/decentralized-identity/didwebvh-ts/commit/a4b6b277862258cafb7be17c0a7810c3123e792c))
 
 ## [2.7.1](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.7.0...v2.7.1) (2026-01-24)
-
 
 ### Bug Fixes
 
@@ -30,13 +41,11 @@
 
 # [2.7.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.6.0...v2.7.0) (2026-01-24)
 
-
 ### Features
 
 * add id token perm to publish action ([07d801d](https://github.com/decentralized-identity/didwebvh-ts/commit/07d801deceae05b88e236e1bdd9f333cce98c86d))
 
 # [2.6.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.7...v2.6.0) (2026-01-24)
-
 
 ### Features
 
@@ -44,13 +53,11 @@
 
 ## [2.5.7](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.6...v2.5.7) (2026-01-23)
 
-
 ### Bug Fixes
 
 * updated dependencies for security vulnerabilities ([2c0ac78](https://github.com/decentralized-identity/didwebvh-ts/commit/2c0ac787e75a29382788f903286bdc0fc7f13fb1))
 
 ## [2.5.6](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.5...v2.5.6) (2025-11-12)
-
 
 ### Bug Fixes
 
@@ -58,13 +65,11 @@
 
 ## [2.5.5](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.4...v2.5.5) (2025-10-08)
 
-
 ### Bug Fixes
 
 * allow verification methods without publicKeyMultibase ([ebe9822](https://github.com/decentralized-identity/didwebvh-ts/commit/ebe9822c0dd40dc8fbd7b56213c7a4734f75658c))
 
 ## [2.5.4](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.3...v2.5.4) (2025-09-02)
-
 
 ### Bug Fixes
 
@@ -73,13 +78,11 @@
 
 ## [2.5.3](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.2...v2.5.3) (2025-08-15)
 
-
 ### Bug Fixes
 
 * remove base externals from build configurations ([18a7a23](https://github.com/decentralized-identity/didwebvh-ts/commit/18a7a2339895155e6fa10c9a9dab23fccf29a203))
 
 ## [2.5.2](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.1...v2.5.2) (2025-08-14)
-
 
 ### Bug Fixes
 
@@ -87,13 +90,11 @@
 
 ## [2.5.1](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.5.0...v2.5.1) (2025-08-14)
 
-
 ### Bug Fixes
 
 * update React Native entry points in package.json ([95ad5d8](https://github.com/decentralized-identity/didwebvh-ts/commit/95ad5d88f2796b28bf45048452b4ddeaec586e16))
 
 # [2.5.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.4.1...v2.5.0) (2025-08-14)
-
 
 ### Features
 
@@ -101,18 +102,15 @@
 
 ## [2.4.1](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.4.0...v2.4.1) (2025-07-23)
 
-
 ### Bug Fixes
 
 * enhance verification method handling and improve CLI tests ([275152e](https://github.com/decentralized-identity/didwebvh-ts/commit/275152e1d545051dfef673474c3ec4505ba47f94))
 
 # [2.4.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.3.2...v2.4.0) (2025-07-16)
 
-
 ### Bug Fixes
 
 * update witness parameter handling and types ([c783641](https://github.com/decentralized-identity/didwebvh-ts/commit/c783641ad318565923fcfcd896ab44370c39363f))
-
 
 ### Features
 
@@ -122,13 +120,11 @@
 
 ## [2.3.2](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.3.1...v2.3.2) (2025-06-24)
 
-
 ### Bug Fixes
 
 * improve dynamic filesystem module loading ([817897e](https://github.com/decentralized-identity/didwebvh-ts/commit/817897e2fea7183ab46bda2d16b69325f9f0ff79))
 
 ## [2.3.1](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.3.0...v2.3.1) (2025-06-24)
-
 
 ### Bug Fixes
 
@@ -136,11 +132,9 @@
 
 # [2.3.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.2.0...v2.3.0) (2025-06-23)
 
-
 ### Bug Fixes
 
 * improve filesystem access handling in utils ([ec72a75](https://github.com/decentralized-identity/didwebvh-ts/commit/ec72a75b0efa757fe5e76ce1d7f522ed56377c6b))
-
 
 ### Features
 
@@ -148,11 +142,9 @@
 
 # [2.2.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.1.0...v2.2.0) (2025-06-18)
 
-
 ### Bug Fixes
 
 * improve test script logging and cleanup ([4df9663](https://github.com/decentralized-identity/didwebvh-ts/commit/4df9663d7a702c9a586cb1dbebb380e39ca85707))
-
 
 ### Features
 
@@ -167,13 +159,11 @@
 
 # [2.1.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.0.2...v2.1.0) (2025-05-23)
 
-
 ### Features
 
 * add @noble/hashes dependency and refactor createHash function to use it ([4527738](https://github.com/decentralized-identity/didwebvh-ts/commit/45277380d9ea9bafd6d581e9fb123002f6be3795))
 
 ## [2.0.2](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.0.1...v2.0.2) (2025-05-23)
-
 
 ### Bug Fixes
 
@@ -181,18 +171,15 @@
 
 ## [2.0.1](https://github.com/decentralized-identity/didwebvh-ts/compare/v2.0.0...v2.0.1) (2025-04-25)
 
-
 ### Bug Fixes
 
 * export resolveDIDFromLog ([eace3c8](https://github.com/decentralized-identity/didwebvh-ts/commit/eace3c82e2a72fe3e38e2ae7aa69b6e47f113d70))
 
 # [2.0.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v1.1.0...v2.0.0) (2025-03-24)
 
-
 ### chore
 
 * Bump version ([377f423](https://github.com/decentralized-identity/didwebvh-ts/commit/377f4237ab5b79119d410d54f33b89b0307e007b))
-
 
 ### BREAKING CHANGES
 
@@ -200,13 +187,11 @@
 
 # [1.1.0](https://github.com/decentralized-identity/didwebvh-ts/compare/v1.0.3...v1.1.0) (2025-03-24)
 
-
 ### Bug Fixes
 
 * check SCID in DID matches log ([2590811](https://github.com/decentralized-identity/didwebvh-ts/commit/259081152b25960dd54ce3201a60e1fc7d7822db))
 * remove multiformats dep ([974224b](https://github.com/decentralized-identity/didwebvh-ts/commit/974224b5b1df23701f049b9926e73af66a28e9ba))
 * remove server ([2689012](https://github.com/decentralized-identity/didwebvh-ts/commit/2689012f81a547a8ac205ab9310af88ccf6d13ba))
-
 
 ### Features
 
@@ -222,39 +207,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2024-03-24
 
 ### Added
+
 - New `Signer` interface for implementing custom signing logic
-- New `AbstractCrypto` class for easier signer implementation
-- New `SigningInput` and `SigningOutput` interfaces
-- New `SignerOptions` interface for configuring signers
-- New `createDocumentSigner` function for creating document signers
-- New example implementations in `src/examples`
-  - `elysia-signer.ts`: Example using `AbstractCrypto`
-  - `express-signer.ts`: Example implementing `Verifier` directly for HSM/KMS integration
+* New `AbstractCrypto` class for easier signer implementation
+* New `SigningInput` and `SigningOutput` interfaces
+* New `SignerOptions` interface for configuring signers
+* New `createDocumentSigner` function for creating document signers
+* New example implementations in `src/examples`
+  * `elysia-signer.ts`: Example using `AbstractCrypto`
+  * `express-signer.ts`: Example implementing `Verifier` directly for HSM/KMS integration
 
 ### Changed
+
 - Removed built-in cryptographic implementations
-- Made cryptographic functionality injectable through the `Signer` interface
-- Improved documentation and examples
+* Made cryptographic functionality injectable through the `Signer` interface
+* Improved documentation and examples
 
 ### Deprecated
+
 - `createSigner` function - use `createDocumentSigner` with your own `Signer` implementation instead
-- `generateEd25519VerificationMethod` - implement your own key generation logic
-- `generateX25519VerificationMethod` - implement your own key generation logic
+* `generateEd25519VerificationMethod` - implement your own key generation logic
+* `generateX25519VerificationMethod` - implement your own key generation logic
 
 ### Removed
+
 - `@noble/ed25519` dependency
-- `@noble/curves` dependency
-- Built-in Ed25519 signing implementation
-- Built-in key generation logic
+* `@noble/curves` dependency
+* Built-in Ed25519 signing implementation
+* Built-in key generation logic
 
 ### Security
-- Users now have full control over cryptographic implementations
-- Better support for HSM and KMS integrations
-- Improved key management flexibility
 
+- Users now have full control over cryptographic implementations
+* Better support for HSM and KMS integrations
+* Improved key management flexibility
 
 ## [1.0.3](https://github.com/decentralized-identity/didwebvh-ts/compare/v1.0.2...v1.0.3) (2025-02-10)
-
 
 ### Bug Fixes
 
@@ -262,13 +250,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.2](https://github.com/decentralized-identity/didwebvh-ts/compare/v1.0.1...v1.0.2) (2025-01-27)
 
-
 ### Bug Fixes
 
 * bump version ([8194920](https://github.com/decentralized-identity/didwebvh-ts/commit/8194920f290a46857c8bb82a720b46fe6211baf1))
 
 # 1.0.0 (2025-01-27)
-
 
 ### Bug Fixes
 
@@ -284,7 +270,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * trigger release ([2b4c1db](https://github.com/decentralized-identity/didwebvh-ts/commit/2b4c1db7e10c558b56a9e70eea8290c72d5d1c0e))
 * try forcing last release ([5b3360c](https://github.com/decentralized-identity/didwebvh-ts/commit/5b3360c5eedc1cf2abed5070cf0635a428b4ebed))
 
-
 ### Features
 
 * add npm release ([8903f8d](https://github.com/decentralized-identity/didwebvh-ts/commit/8903f8d4edebc1cc7fe9c04e4c2b8d9ade12c1a3))
@@ -295,16 +280,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.1.0 - 2025-01-10
 
 ### Updated
+
 - Rename `tdw` to `webvh`.
 
 ## 0.0.2 - 2024-04-04
 
 ### Added
+
 - Add `options` to resolveDID.
-  - Option `versionId` to query specific version.
-  - Option `versionTime` to query specific time.
+  * Option `versionId` to query specific version.
+  * Option `versionTime` to query specific time.
 
 ## 0.0.1 - 2024-04-02
 
 ### Added
+
 - Add initial files.

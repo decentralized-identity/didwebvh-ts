@@ -352,6 +352,34 @@ describe('generateParallelDidWeb', () => {
     expect(webDoc.alsoKnownAs).toContain(did);
   });
 
+  test('removes duplicate entries from alsoKnownAs when generating parallel did:web doc', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const baseAlias = 'did:example:original';
+    const { did, doc } = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      verifier: createTestVerifier(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      alsoKnownAs: [baseAlias, baseAlias, 'did:example:another', baseAlias],
+    });
+
+    const webDoc = generateParallelDidWeb(did, doc);
+
+    // Verify duplicates are removed
+    const aliasCount = (webDoc.alsoKnownAs ?? []).filter((alias) => alias === baseAlias).length;
+    expect(aliasCount).toBe(1);
+
+    // Verify unique aliases are preserved
+    expect(webDoc.alsoKnownAs).toContain('did:example:another');
+
+    // Verify did:webvh DID is added
+    expect(webDoc.alsoKnownAs).toContain(did);
+
+    // Verify did:web self-reference is not included
+    expect(webDoc.alsoKnownAs).not.toContain('did:web:example.com');
+  });
+
   test('returns webDoc on updateDID when did:web alias is present', async () => {
     const authKey = await generateTestVerificationMethod();
     const created = await createDID({
@@ -399,6 +427,58 @@ describe('generateParallelDidWeb', () => {
 
     expect(result).toBe(existing);
     expect(result.service).toHaveLength(2);
+  });
+
+  test('adds implicit #files and #whois services to DID with pre-existing #files, preserving custom endpoint', () => {
+    // Regression test: verify no duplication when #files already exists
+    const did = 'did:webvh:zQmExample:example.com';
+    const withPreexistingFiles: DIDDoc = {
+      id: did,
+      service: [
+        {
+          id: `${did}#files`,
+          type: 'RelativeRef',
+          serviceEndpoint: 'https://custom.example.com/files/',
+        },
+      ],
+    };
+
+    const result = addDefaultDidWebvhServices(did, withPreexistingFiles);
+
+    // Should add #whois but NOT duplicate #files
+    expect(result.service).toHaveLength(2);
+    const filesServices = (result.service ?? []).filter((s) => s.id?.endsWith('#files'));
+    const whoisServices = (result.service ?? []).filter((s) => s.id?.endsWith('#whois'));
+
+    expect(filesServices).toHaveLength(1);
+    expect(filesServices[0].serviceEndpoint).toBe('https://custom.example.com/files/');
+    expect(whoisServices).toHaveLength(1);
+    expect(whoisServices[0].serviceEndpoint).toBe('https://example.com/whois.vp');
+  });
+
+  test('generates correct implicit service endpoints for pathed + percent-encoded DID (port + path)', async () => {
+    // Regression test: verify service endpoint derivation for complex addresses
+    const authKey = await generateTestVerificationMethod();
+    const { did, doc } = await createDID({
+      address: 'https://example.com:8443/identity/prod',
+      signer: createTestSigner(authKey),
+      verifier: createTestVerifier(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+    });
+
+    // Verify DID format includes port and path
+    expect(did).toMatch(/^did:webvh:[^:]+:example\.com%3A8443:identity:prod$/);
+
+    // Generate parallel did:web document and check implicit services
+    const webDoc = generateParallelDidWeb(did, doc);
+    const filesService = (webDoc.service ?? []).find((s) => s.id?.endsWith('#files'));
+    const whoisService = (webDoc.service ?? []).find((s) => s.id?.endsWith('#whois'));
+
+    expect(filesService).toBeDefined();
+    expect(filesService?.serviceEndpoint).toBe('https://example.com:8443/identity/prod/');
+    expect(whoisService).toBeDefined();
+    expect(whoisService?.serviceEndpoint).toBe('https://example.com:8443/identity/prod/whois.vp');
   });
 });
 

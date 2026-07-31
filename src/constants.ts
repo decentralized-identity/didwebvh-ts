@@ -2,11 +2,11 @@ export const SCID_PLACEHOLDER = '{SCID}';
 export const DID_PLACEHOLDER = '{DID}';
 export const DID_KEY_PREFIX = 'did:key:';
 
-// Version 1.0 method constants
+// Version constants
 export const METHOD = 'webvh';
 export const BASE_CONTEXT = ['https://www.w3.org/ns/did/v1', 'https://w3id.org/security/multikey/v1'];
-export const METHOD_VERSION_1_0 = '1.0';
-export const METHOD_PROTOCOL_V1_0 = `did:${METHOD}:${METHOD_VERSION_1_0}`;
+export const METHOD_PROTOCOL_V0_5 = `did:${METHOD}:0.5`;
+export const METHOD_PROTOCOL_V1_0 = `did:${METHOD}:1.0`;
 
 // Method parameter keys
 export const METHOD_PARAMETER_KEYS = {

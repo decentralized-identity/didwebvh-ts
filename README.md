@@ -8,6 +8,13 @@
 
 The `didwebvh-ts` implementation of the [`did:webvh`]('https://identity.foundation/didwebvh/') specification aims to be compatible with the `did:webvh` v1.0 specification.
 
+## Upgrading from 2.x to 3.0.0
+
+Version 3.0.0 is a major release with breaking changes. Before upgrading, see:
+
+- **[Migration Guide](./docs/UPGRADE_2.x_to_3.0.md)** — Step-by-step upgrade instructions for each breaking change
+- **[Breaking Changes Reference](./docs/BREAKING_CHANGES_v3.0.md)** — Summary and rationale for all breaking changes
+
 ## Examples
 
 The `examples` directory contains sample code demonstrating how to use the library:
@@ -99,25 +106,25 @@ The following commands are defined in the `package.json` file:
 
   This command runs Vitest in non-watch mode.
 
-2. `test:watch`: Run tests in watch mode.
+1. `test:watch`: Run tests in watch mode.
 
 ```bash
   pnpm test:watch
 ```
 
-3. `test:bail`: Run tests in watch mode with bail and verbose options.
+1. `test:bail`: Run tests in watch mode with bail and verbose options.
 
 ```bash
   pnpm test:bail
 ```
 
-4. `test:log`: Run tests and save logs to a file.
+1. `test:log`: Run tests and save logs to a file.
 
 ```bash
   pnpm test:log
 ```
 
-5. `cli`: Run the CLI tool.
+1. `cli`: Run the CLI tool.
 
 ```bash
   pnpm cli
@@ -125,19 +132,19 @@ The following commands are defined in the `package.json` file:
 
 The CLI accepts a `--watcher` option during create and update operations to specify one or more watcher URLs.
 
-6. `build`: Build the package.
+1. `build`: Build the package.
 
 ```bash
   pnpm build
 ```
 
-7. `build:clean`: Clean the build directory.
+1. `build:clean`: Clean the build directory.
 
 ```bash
   pnpm build:clean
 ```
 
-8. `check`: Run TypeScript 7 type-checking without emitting files.
+1. `check`: Run TypeScript 7 type-checking without emitting files.
 
 ```bash
   pnpm check
@@ -229,7 +236,7 @@ When resolving a requested earlier version (with `versionId`, `versionNumber`, o
 
 Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, `portable`, `witness`, `watchers`, `previousLogEntryHash`, `latestVersionId`) is returned on `didDocumentMetadata` alongside the standard `versionId`/`created`/`updated`/`deactivated` fields.
 
-> **Breaking change (v3.0.0):** resolution returns the standard `DIDResolutionResult` instead of the previous `{ did, doc, meta, controlled }` shape, and the implementation-specific `verificationMethod` resolution selector has been removed.
+> **Breaking change (v3.0.0):** resolution returns the standard `DIDResolutionResult` instead of the previous `{ did, doc, meta, controlled }` shape, and the implementation-specific `verificationMethod` resolution selector has been removed. See [Migration Guide](./docs/UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) for upgrade steps.
 
 ## API Reference
 
@@ -248,17 +255,17 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
   Resolves directly from an in-memory DID log, returning the same standard shape.
 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
-  Creates a new DID.
+  Creates a new DID. Always produces a v1.0 log.
   Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`) or legacy `domain`.
   Resolver URL mapping uses `http://localhost` for local testing and `https://` for non-local hosts.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
 - `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
-  Updates an existing DID.
+  Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
 
 - `deactivateDID(options: DeactivateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
-  Deactivates an existing DID.
+  Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
 
 - `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc`
   Generates the parallel `did:web` document defined by did:webvh v1.0 §3.7.10.

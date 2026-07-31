@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from 'vitest';
+import { resolveV1Log as resolveDIDFromLogV1 } from '../src/core/resolution';
 import type { CreateDIDInterface, CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
 import {
   asPublicVerificationMethods,
@@ -364,8 +364,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
     tamperedLog[0].parameters.method = 'did:webvh:0.5';
 
+    // Note: v0.5 is now accepted as a valid initial method. This tampered log has
+    // v0.5 method marker but v1.0 log structure, which will fail during hash validation.
     await expect(resolveDIDFromLogV1(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      "'did:webvh:0.5' is not a supported method version."
+      'not derived from logEntryHash'
     );
   });
 
