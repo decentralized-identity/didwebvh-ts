@@ -146,12 +146,13 @@ export async function buildV05Genesis(options: {
   signer: Signer;
   updateKeys: string[];
   verificationMethods: VerificationMethod[];
-  nextKeyHashes?: string[];
+  nextKeyHashes?: string[] | null;
   portable?: boolean;
   witness?: WitnessParameter | null;
+  versionTime?: string;
   verifier: Verifier;
 }): Promise<DIDLog> {
-  const now = new Date();
+  const now = options.versionTime ?? new Date().toISOString();
   const normalizedAddress = normalizeDidAddress({
     address: options.address,
     scid: SCID_PLACEHOLDER,
@@ -166,17 +167,18 @@ export async function buildV05Genesis(options: {
 
   const initialLogEntry: DIDLogEntry = {
     versionId: SCID_PLACEHOLDER,
-    versionTime: now.toISOString(),
+    versionTime: now,
+    // v0.5 spec uses null (not undefined/[]) to represent inactive nextKeyHashes
     parameters: {
       method: METHOD_PROTOCOL_V0_5,
       scid: SCID_PLACEHOLDER,
       updateKeys: options.updateKeys,
       portable: options.portable ?? false,
-      nextKeyHashes: options.nextKeyHashes ?? [],
+      nextKeyHashes: options.nextKeyHashes ?? null,
       watchers: [],
       witness: options.witness ?? {},
       deactivated: false,
-    },
+    } as DIDLogEntry['parameters'],
     state: doc,
   };
 
@@ -191,7 +193,7 @@ export async function buildV05Genesis(options: {
     type: 'DataIntegrityProof' as const,
     cryptosuite: 'eddsa-jcs-2022' as const,
     verificationMethod: options.signer.getVerificationMethodId(),
-    created: now.toISOString(),
+    created: now,
     proofPurpose: 'assertionMethod' as const,
   };
 
@@ -201,19 +203,22 @@ export async function buildV05Genesis(options: {
   return [prelimEntry];
 }
 
-// Helper to append a new signed entry to an existing log
-export async function appendLogEntry(options: {
+// Helper to append a spec-compliant signed v0.5 entry to an existing log.
+// Pass an explicit versionTime for deterministic fixtures; it must be strictly greater than
+// the previous entry's versionTime.
+export async function appendV05LogEntry(options: {
   log: DIDLog;
   signer: Signer;
   updateKeys?: string[];
-  nextKeyHashes?: string[];
+  nextKeyHashes?: string[] | null;
   method?: string;
   verificationMethods?: VerificationMethod[];
+  versionTime?: string;
   verifier: Verifier;
 }): Promise<DIDLog> {
   const previousEntry = options.log[options.log.length - 1];
   const versionNumber = options.log.length + 1;
-  const nextVersionTime = createNextVersionTime(previousEntry.versionTime, undefined, createDate);
+  const nextVersionTime = createNextVersionTime(previousEntry.versionTime, options.versionTime, createDate);
 
   // Build the new state doc (reuse previous state if no new verification methods provided)
   const newState = options.verificationMethods

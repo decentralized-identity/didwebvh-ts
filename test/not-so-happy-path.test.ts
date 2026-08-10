@@ -4,7 +4,7 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
 import {
-  appendLogEntry,
+  appendV05LogEntry,
   asPublicVerificationMethods,
   createFutureDIDLog,
   createTestSigner,
@@ -484,7 +484,8 @@ describe('Not So Happy Path Tests', () => {
   });
 
   test('Accepts same method version re-declaration in later entry', async () => {
-    const logWithRedeclare = await appendLogEntry({
+    // Use v0.5 log builder because updateDID never re-adds method to a log. Identical hash chain algorithm
+    const logWithRedeclare = await appendV05LogEntry({
       log: initialDID.log,
       signer: createTestSigner(authKey),
       method: 'did:webvh:1.0',
