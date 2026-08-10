@@ -214,22 +214,22 @@ const processResolvedLogEntries = async ({
       if (hasOwn(parameters, METHOD_PARAMETER_KEYS.method)) {
         const entryMethod = parameters.method as string;
         if (entryMethod === activeMethod) {
-          // Same-version re-declaration is not permitted by either spec version.
-          throw new Error(`version '${version}' redundantly re-declares the already active method '${activeMethod}'`);
+          // Same-version re-declaration is a no-op for interop with lenient writers.
+        } else {
+          if (transitionOccurred) {
+            throw new Error(`version '${version}' attempts a second method-version transition; only one is permitted`);
+          }
+          if (entryMethod !== METHOD_PROTOCOL_V1_0 || activeMethod !== METHOD_PROTOCOL_V0_5) {
+            // Reject downgrades, unknown targets, and any non-0.5→1.0 transition.
+            throw new Error(
+              `version '${version}' has unsupported or downgraded method '${entryMethod}'; ` +
+                `expected '${activeMethod}'`
+            );
+          }
+          // Valid 0.5 → 1.0 transition.
+          activeMethod = METHOD_PROTOCOL_V1_0;
+          transitionOccurred = true;
         }
-        if (transitionOccurred) {
-          throw new Error(`version '${version}' attempts a second method-version transition; only one is permitted`);
-        }
-        if (entryMethod !== METHOD_PROTOCOL_V1_0 || activeMethod !== METHOD_PROTOCOL_V0_5) {
-          // Reject downgrades, unknown targets, and any non-0.5→1.0 transition.
-          throw new Error(
-            `version '${version}' has unsupported or downgraded method '${entryMethod}'; ` +
-              `expected '${activeMethod}'`
-          );
-        }
-        // Valid 0.5 → 1.0 transition.
-        activeMethod = METHOD_PROTOCOL_V1_0;
-        transitionOccurred = true;
       }
     }
 

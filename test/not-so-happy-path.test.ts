@@ -4,6 +4,7 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
 import {
+  appendLogEntry,
   asPublicVerificationMethods,
   createFutureDIDLog,
   createTestSigner,
@@ -480,6 +481,22 @@ describe('Not So Happy Path Tests', () => {
     expect(r.didDocument).toBeNull();
     expect(r.didResolutionMetadata.error).toBe('invalidDid');
     expect(r.didResolutionMetadata.message).toContain('has unsupported or downgraded method');
+  });
+
+  test('Accepts same method version re-declaration in later entry', async () => {
+    const logWithRedeclare = await appendLogEntry({
+      log: initialDID.log,
+      signer: createTestSigner(authKey),
+      method: 'did:webvh:1.0',
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const r = await resolveDIDFromLog(logWithRedeclare, { verifier: testImplementation });
+    expect(r.didDocument).not.toBeNull();
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    expect(r.didDocumentMetadata.versionId).toBe(logWithRedeclare[1].versionId);
   });
 
   test('Rejects scid parameter in later entry', async () => {

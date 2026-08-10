@@ -222,17 +222,54 @@ describe('Backwards Compatibility', () => {
       expect(result.didDocumentMetadata.versionId).toMatch(/^1-/);
     });
 
-    test('Downgrade in the transition entry is rejected', async () => {
-      const tamperedLog = JSON.parse(JSON.stringify(log2));
-      // Change entry 3 (index 2) method back to 0.5
-      tamperedLog[2].parameters.method = 'did:webvh:0.5';
+    test('Same-version re-declaration is accepted as a no-op', async () => {
+      const logWithV05Redeclare = await appendLogEntry({
+        log: log0,
+        signer: signer2,
+        method: 'did:webvh:0.5',
+        updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey2),
+        verifier: testVerifier,
+      });
+
+      const logWithV10Transition = await appendLogEntry({
+        log: logWithV05Redeclare,
+        signer: signer3,
+        method: 'did:webvh:1.0',
+        updateKeys: [authKey3.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey3),
+        verifier: testVerifier,
+      });
+
+      const logWithV10Redeclare = await appendLogEntry({
+        log: logWithV10Transition,
+        signer: signer3,
+        method: 'did:webvh:1.0',
+        updateKeys: [authKey3.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey3),
+        verifier: testVerifier,
+      });
+
+      const result = await resolveDIDFromLog(logWithV10Redeclare, { verifier: testVerifier });
+
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didResolutionMetadata.error).toBeUndefined();
+      expect(result.didDocumentMetadata.versionId).toBe(logWithV10Redeclare[3].versionId);
+    });
+
+    test('Downgrade after transition is rejected', async () => {
+      const tamperedLog = JSON.parse(JSON.stringify(log3));
+      // Method-version transition checks execute before hash-chain/proof validation in resolver processing.
+      // Change entry 4 (index 3) from active v1.0 back to v0.5.
+      tamperedLog[3].parameters.method = 'did:webvh:0.5';
 
       const result = await resolveDIDFromLog(tamperedLog, { verifier: testVerifier });
 
       expect(result.didDocument).toBeNull();
       expect(result.didResolutionMetadata.error).toBe('invalidDid');
-      // Accept either downgrade error or redundant re-declaration error
-      expect(result.didResolutionMetadata.message).toMatch(/downgrade|backward|redundantly/i);
+      expect(result.didResolutionMetadata.message).toMatch(
+        /downgrade|backward|unsupported|second method-version transition/i
+      );
     });
 
     test('Broken hash link exactly at the transition entry is rejected', async () => {
