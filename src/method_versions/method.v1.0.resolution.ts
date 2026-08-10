@@ -496,7 +496,7 @@ const processV1SubsequentEntry = async ({
     await newKeysAreInNextKeys(parameters.updateKeys ?? [], resolverContext.meta.nextKeyHashes ?? []);
   }
 
-  if (activeMethod === METHOD_PROTOCOL_V1_0 || hasOwn(parameters, METHOD_PARAMETER_KEYS.updateKeys)) {
+  if (hasOwn(parameters, METHOD_PARAMETER_KEYS.updateKeys)) {
     resolverContext.meta.updateKeys = parameters.updateKeys ?? [];
   }
   if (parameters.deactivated === true) {

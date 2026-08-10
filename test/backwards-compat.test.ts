@@ -70,6 +70,40 @@ describe('Backwards Compatibility', () => {
       expect(result.didDocumentMetadata.nextKeyHashes).toEqual([]);
     });
 
+    test('carry-forward omitted updateKeys across multiple v0.5 entries', async () => {
+      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const signer = createTestSigner(authKey);
+      const verifier = createTestVerifier(authKey);
+
+      const log0 = await buildV05Genesis({
+        address: 'example.com',
+        signer,
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier,
+      });
+
+      const log1 = await appendLogEntry({
+        log: log0,
+        signer,
+        verifier,
+      });
+
+      const log2 = await appendLogEntry({
+        log: log1,
+        signer,
+        verifier,
+      });
+
+      expect('updateKeys' in log1[1].parameters).toBe(false);
+      expect('updateKeys' in log2[2].parameters).toBe(false);
+
+      const result = await resolveDIDFromLog(log2, { verifier });
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didDocumentMetadata.versionId).toBe(log2[2].versionId);
+      expect(result.didDocumentMetadata.updateKeys).toEqual([authKey.publicKeyMultibase!]);
+    });
+
     test('Tampered hash chain in a v0.5 update entry is now rejected', async () => {
       const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
       const signer = createTestSigner(authKey);
