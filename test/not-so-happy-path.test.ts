@@ -4,6 +4,7 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { resolveDIDFromLog as resolveDIDFromLogV1 } from '../src/method_versions/method.v1.0';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
 import {
+  appendV05LogEntry,
   asPublicVerificationMethods,
   createFutureDIDLog,
   createTestSigner,
@@ -364,8 +365,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
     tamperedLog[0].parameters.method = 'did:webvh:0.5';
 
+    // Note: v0.5 is now accepted as a valid initial method. This tampered log has
+    // v0.5 method marker but v1.0 log structure, which will fail during hash validation.
     await expect(resolveDIDFromLogV1(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      "'did:webvh:0.5' is not a supported method version."
+      'not derived from logEntryHash'
     );
   });
 
@@ -478,6 +481,23 @@ describe('Not So Happy Path Tests', () => {
     expect(r.didDocument).toBeNull();
     expect(r.didResolutionMetadata.error).toBe('invalidDid');
     expect(r.didResolutionMetadata.message).toContain('has unsupported or downgraded method');
+  });
+
+  test('Accepts same method version re-declaration in later entry', async () => {
+    // Use v0.5 log builder because updateDID never re-adds method to a log. Identical hash chain algorithm
+    const logWithRedeclare = await appendV05LogEntry({
+      log: initialDID.log,
+      signer: createTestSigner(authKey),
+      method: 'did:webvh:1.0',
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const r = await resolveDIDFromLog(logWithRedeclare, { verifier: testImplementation });
+    expect(r.didDocument).not.toBeNull();
+    expect(r.didResolutionMetadata.error).toBeUndefined();
+    expect(r.didDocumentMetadata.versionId).toBe(logWithRedeclare[1].versionId);
   });
 
   test('Rejects scid parameter in later entry', async () => {

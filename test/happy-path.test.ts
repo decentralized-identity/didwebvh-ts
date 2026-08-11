@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { createDID, updateDID } from '../src/method';
+import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
 import {
   asPublicVerificationMethods,
   createTestSigner,
@@ -369,5 +369,40 @@ describe('Happy Path Tests', () => {
     });
 
     expect(updatedDoc.keyAgreement).toEqual([externalRef]);
+  });
+
+  test('carry-forward omitted updateKeys across multiple v1.0 updates', async () => {
+    const authKey1 = await generateTestVerificationMethod();
+    const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
+
+    const { log: log1 } = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey1),
+      updateKeys: [authKey1.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    const { log: log2 } = await updateDID({
+      log: log1,
+      signer: createTestSigner(authKey1),
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    const { log: log3 } = await updateDID({
+      log: log2,
+      signer: createTestSigner(authKey1),
+      verificationMethods: asPublicVerificationMethods(authKey1),
+      verifier,
+    });
+
+    expect('updateKeys' in log2[1].parameters).toBe(false);
+    expect('updateKeys' in log3[2].parameters).toBe(false);
+
+    const resolved = await resolveDIDFromLog(log3, { verifier });
+    expect(resolved.didDocument).not.toBeNull();
+    expect(resolved.didDocumentMetadata.versionId).toBe(log3[2].versionId);
+    expect(resolved.didDocumentMetadata.updateKeys).toEqual([authKey1.publicKeyMultibase!]);
   });
 });
