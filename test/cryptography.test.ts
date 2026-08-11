@@ -382,7 +382,7 @@ describe('Assertion Guards', () => {
   });
 
   test('throws when verification method cannot be resolved', async () => {
-    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveVM').mockResolvedValue(null);
+    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveDidKeyVerificationMethod').mockResolvedValue(null as never);
 
     try {
       await expect(documentStateIsValid(makeDoc(baseProof), [updateKey], null, true, verifier)).rejects.toThrow(
@@ -395,12 +395,12 @@ describe('Assertion Guards', () => {
 
   test('throws when resolved multikey does not use ed25519 header', async () => {
     const badHeaderBytes = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
-    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveVM').mockResolvedValue({
+    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveDidKeyVerificationMethod').mockResolvedValue({
       id: `did:key:${updateKey}`,
       type: 'Multikey',
       publicKeyMultibase: multibaseEncode(badHeaderBytes, MultibaseEncoding.BASE58_BTC),
       controller: `did:key:${updateKey}`,
-    });
+    } as never);
 
     try {
       await expect(documentStateIsValid(makeDoc(baseProof), [updateKey], null, true, verifier)).rejects.toThrow(

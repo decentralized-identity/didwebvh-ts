@@ -1,8 +1,6 @@
 import type { VerificationRelationship } from '../constants';
 import { DID_KEY_PREFIX, VERIFICATION_RELATIONSHIPS } from '../constants';
-import type { DIDDoc, DIDLog, ParsedDidKeyVerificationMethod, VerificationMethod } from '../interfaces';
-import { resolveDIDFromLog } from '../method';
-import { getFileUrl } from '../utils';
+import type { DIDDoc, ParsedDidKeyVerificationMethod, VerificationMethod } from '../interfaces';
 import { multibaseDecode } from './multiformats';
 
 type NormalizedVerificationMethods = Required<Pick<DIDDoc, 'verificationMethod' | VerificationRelationship>>;
@@ -162,31 +160,7 @@ export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerifi
   };
 }
 
-export async function resolveVM(vm: string): Promise<VerificationMethod | { publicKeyMultibase: string } | null> {
-  try {
-    if (vm.startsWith('did:key:')) {
-      const parsedVerificationMethod = parseDidKeyVerificationMethod(vm);
-      return { publicKeyMultibase: parsedVerificationMethod.keyMultibase };
-    }
-
-    if (vm.startsWith('did:webvh:')) {
-      const url = getFileUrl(vm.split('#')[0]);
-      const didLog = await (await fetch(url)).text();
-      const logEntries: DIDLog = didLog
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line));
-
-      const { didDocument } = await resolveDIDFromLog(logEntries, {});
-      if (!didDocument) {
-        throw new Error(`Verification method ${vm} not found`);
-      }
-
-      return findVerificationMethod(didDocument as DIDDoc, vm);
-    }
-
-    throw new Error(`Verification method ${vm} not found`);
-  } catch {
-    throw new Error(`Error resolving VM ${vm}`);
-  }
+export async function resolveDidKeyVerificationMethod(vm: string): Promise<{ publicKeyMultibase: string }> {
+  const parsedVerificationMethod = parseDidKeyVerificationMethod(vm);
+  return { publicKeyMultibase: parsedVerificationMethod.keyMultibase };
 }

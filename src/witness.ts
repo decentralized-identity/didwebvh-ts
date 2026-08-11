@@ -16,7 +16,11 @@ import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { multibaseDecode } from './utils/multiformats';
-import { parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from './utils/verification-methods';
+import {
+  parseDidKeyDid,
+  parseDidKeyVerificationMethod,
+  resolveDidKeyVerificationMethod,
+} from './utils/verification-methods';
 
 /**
  * Creates a single witness DataIntegrityProof for one `versionId`.
@@ -262,7 +266,7 @@ export async function countVerifiedWitnessApprovals(
           continue;
         }
 
-        const vm = await resolveVM(proof.verificationMethod);
+        const vm = await resolveDidKeyVerificationMethod(proof.verificationMethod);
         if (!vm?.publicKeyMultibase) {
           throw new Error(`Verification Method ${proof.verificationMethod} not found`);
         }
