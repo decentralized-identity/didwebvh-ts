@@ -382,32 +382,41 @@ describe('Assertion Guards', () => {
   });
 
   test('throws when verification method cannot be resolved', async () => {
-    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveDidKeyVerificationMethod').mockResolvedValue(null as never);
+    const parseSpy = vi
+      .spyOn(vmUtilsModule, 'parseDidKeyVerificationMethod')
+      // First call is from isKeyAuthorized(), so keep it authorized.
+      .mockImplementationOnce(() => ({ did: `did:key:${updateKey}`, fragment: updateKey, keyMultibase: updateKey }))
+      // Second call is for key extraction path under test.
+      .mockImplementationOnce(() => null as never);
 
     try {
       await expect(documentStateIsValid(makeDoc(baseProof), [updateKey], null, true, verifier)).rejects.toThrow(
         `Verification Method did:key:${updateKey} not found`
       );
     } finally {
-      resolveSpy.mockRestore();
+      parseSpy.mockRestore();
     }
   });
 
   test('throws when resolved multikey does not use ed25519 header', async () => {
     const badHeaderBytes = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
-    const resolveSpy = vi.spyOn(vmUtilsModule, 'resolveDidKeyVerificationMethod').mockResolvedValue({
-      id: `did:key:${updateKey}`,
-      type: 'Multikey',
-      publicKeyMultibase: multibaseEncode(badHeaderBytes, MultibaseEncoding.BASE58_BTC),
-      controller: `did:key:${updateKey}`,
-    } as never);
+    const parseSpy = vi
+      .spyOn(vmUtilsModule, 'parseDidKeyVerificationMethod')
+      // First call is from isKeyAuthorized(), so keep it authorized.
+      .mockImplementationOnce(() => ({ did: `did:key:${updateKey}`, fragment: updateKey, keyMultibase: updateKey }))
+      // Second call is for key extraction path under test.
+      .mockImplementationOnce(() => ({
+        did: `did:key:${updateKey}`,
+        fragment: updateKey,
+        keyMultibase: multibaseEncode(badHeaderBytes, MultibaseEncoding.BASE58_BTC),
+      }));
 
     try {
       await expect(documentStateIsValid(makeDoc(baseProof), [updateKey], null, true, verifier)).rejects.toThrow(
         "multiKey doesn't include ed25519 header (0xed01)"
       );
     } finally {
-      resolveSpy.mockRestore();
+      parseSpy.mockRestore();
     }
   });
 

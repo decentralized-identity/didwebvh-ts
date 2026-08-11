@@ -159,8 +159,3 @@ export function parseDidKeyVerificationMethod(input: string): ParsedDidKeyVerifi
     keyMultibase: parsedDid.keyMultibase,
   };
 }
-
-export async function resolveDidKeyVerificationMethod(vm: string): Promise<{ publicKeyMultibase: string }> {
-  const parsedVerificationMethod = parseDidKeyVerificationMethod(vm);
-  return { publicKeyMultibase: parsedVerificationMethod.keyMultibase };
-}
