@@ -454,6 +454,36 @@ describe('generateParallelDidWeb', () => {
     expect(whoisServices[0].serviceEndpoint).toBe('https://example.com/whois.vp');
   });
 
+  test('foreign DID service ids ending with #files/#whois do not suppress implicit services', () => {
+    const did = 'did:webvh:zQmExample:example.com';
+    const withForeignServices: DIDDoc = {
+      id: did,
+      service: [
+        {
+          id: 'did:webvh:zQmOther:other.example#files',
+          type: 'RelativeRef',
+          serviceEndpoint: 'https://other.example/files/',
+        },
+        {
+          id: 'did:webvh:zQmOther:other.example#whois',
+          type: 'LinkedVerifiablePresentation',
+          serviceEndpoint: 'https://other.example/whois.vp',
+        },
+      ],
+    };
+
+    const result = addDefaultDidWebvhServices(did, withForeignServices);
+
+    const localFiles = (result.service ?? []).filter((s) => s.id === `${did}#files` || s.id === '#files');
+    const localWhois = (result.service ?? []).filter((s) => s.id === `${did}#whois` || s.id === '#whois');
+
+    expect(localFiles).toHaveLength(1);
+    expect(localFiles[0].serviceEndpoint).toBe('https://example.com/');
+    expect(localWhois).toHaveLength(1);
+    expect(localWhois[0].serviceEndpoint).toBe('https://example.com/whois.vp');
+    expect(result.service).toHaveLength(4);
+  });
+
   test('generates correct implicit service endpoints for pathed + percent-encoded DID (port + path)', async () => {
     // Regression test: verify service endpoint derivation for complex addresses
     const authKey = await generateTestVerificationMethod();

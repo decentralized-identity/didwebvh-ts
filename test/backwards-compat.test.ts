@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import type { DIDLog } from '../src/interfaces';
-import { deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { deriveNextKeyHash } from '../src/utils/crypto';
+import type { DIDLog, DIDLogEntry } from '../src/interfaces';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
+import { deriveHash, deriveNextKeyHash } from '../src/utils/crypto';
 import {
-  appendLogEntry,
+  appendV05LogEntry,
   asPublicVerificationMethods,
   buildV05Genesis,
   createTestSigner,
@@ -23,6 +23,7 @@ describe('Backwards Compatibility', () => {
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey),
+        versionTime: '2024-01-01T00:00:00Z',
         verifier,
       });
 
@@ -34,7 +35,41 @@ describe('Backwards Compatibility', () => {
       expect(result.didDocumentMetadata.versionId).toMatch(/^1-/);
     });
 
-    test('v0.5 update entry that sets empty nextKeyHashes clears prerotation', async () => {
+    test('v0.5 genesis + v0.5 update chain resolves; update omits unchanged parameters', async () => {
+      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const signer = createTestSigner(authKey);
+      const verifier = createTestVerifier(authKey);
+
+      const log0 = await buildV05Genesis({
+        address: 'example.com',
+        signer,
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        versionTime: '2024-01-01T00:00:00Z',
+        verifier,
+      });
+
+      const log1 = await appendV05LogEntry({
+        log: log0,
+        signer,
+        verificationMethods: asPublicVerificationMethods(authKey),
+        versionTime: '2024-01-01T00:00:01Z',
+        verifier,
+      });
+
+      // Unchanged parameters must be omitted (carried forward by omission, including method)
+      expect('method' in log1[1].parameters).toBe(false);
+      expect('updateKeys' in log1[1].parameters).toBe(false);
+
+      const result = await resolveDIDFromLog(log1, { verifier });
+
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didDocumentMetadata.versionId).toBe(log1[1].versionId);
+      expect(result.didDocumentMetadata.versionId).toMatch(/^2-/);
+      expect(result.didDocumentMetadata.updateKeys).toEqual([authKey.publicKeyMultibase!]);
+    });
+
+    test('v0.5 update entry with nextKeyHashes: null disables prerotation', async () => {
       const authKey1 = await generateTestVerificationMethod('assertionMethod', 'key-1');
       const authKey2 = await generateTestVerificationMethod('assertionMethod', 'key-2');
       const signer1 = createTestSigner(authKey1);
@@ -49,28 +84,66 @@ describe('Backwards Compatibility', () => {
         updateKeys: [authKey1.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey1),
         nextKeyHashes: [nextKeyHash],
+        versionTime: '2024-01-01T00:00:00Z',
         verifier,
       });
 
-      // Append a v0.5 update entry that explicitly sets empty nextKeyHashes to clear prerotation
-      const log1 = await appendLogEntry({
+      // Use nextKeyHashes: null — the v0.5-spec representation for disabling pre-rotation
+      const log1 = await appendV05LogEntry({
         log: log0,
         signer: signer2,
         updateKeys: [authKey2.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey2),
-        // Explicitly set empty array to clear prerotation (v0.5 semantics)
-        nextKeyHashes: [],
+        nextKeyHashes: null,
+        versionTime: '2024-01-01T00:00:01Z',
         verifier,
       });
 
+      // The log entry must carry null, not an empty array
+      expect(log1[1].parameters.nextKeyHashes).toBeNull();
+
       const result = await resolveDIDFromLog(log1, { verifier });
 
-      // In v0.5, empty nextKeyHashes clears prerotation (truthiness semantics)
       expect(result.didDocumentMetadata.prerotation).toBe(false);
       expect(result.didDocumentMetadata.nextKeyHashes).toEqual([]);
     });
 
-    test('Tampered hash chain in a v0.5 update entry is now rejected', async () => {
+    test('v1.0 log entry with deprecated nextKeyHashes: null resolves and normalizes to []', async () => {
+      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const signer = createTestSigner(authKey);
+      const verifier = createTestVerifier(authKey);
+
+      const genesis = await createDID({
+        address: 'example.com',
+        signer,
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier,
+        created: '2024-01-01T00:00:00Z',
+      });
+
+      // nextKeyHashes: null is deprecated in v1.0; resolvers MUST accept it gracefully
+      // Use v0.5 log builder because updateDID does not use null. Identical hash chain algorithm
+      const log1 = await appendV05LogEntry({
+        log: genesis.log,
+        signer,
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        nextKeyHashes: null,
+        versionTime: '2024-01-01T00:00:01Z',
+        verifier,
+      });
+
+      expect(log1[1].parameters.nextKeyHashes).toBeNull();
+
+      const result = await resolveDIDFromLog(log1, { verifier });
+
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didDocumentMetadata.prerotation).toBe(false);
+      expect(result.didDocumentMetadata.nextKeyHashes).toEqual([]);
+    });
+
+    test('carry-forward omitted updateKeys across multiple v0.5 entries', async () => {
       const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
@@ -80,25 +153,78 @@ describe('Backwards Compatibility', () => {
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey),
+        versionTime: '2024-01-01T00:00:00Z',
         verifier,
       });
 
-      // Append a second entry
-      const log1 = await appendLogEntry({
+      const log1 = await appendV05LogEntry({
         log: log0,
         signer,
-        updateKeys: [authKey.publicKeyMultibase!],
+        versionTime: '2024-01-01T00:00:01Z',
         verifier,
       });
 
-      // Tamper with the hash component of the second entry's versionId
-      const tamperedLog = JSON.parse(JSON.stringify(log1));
-      const [versionNumber, hash] = tamperedLog[1].versionId.split('-');
-      const corruptedHash = hash.slice(0, -1) + (hash[hash.length - 1] === 'a' ? 'b' : 'a');
-      tamperedLog[1].versionId = `${versionNumber}-${corruptedHash}`;
+      const log2 = await appendV05LogEntry({
+        log: log1,
+        signer,
+        versionTime: '2024-01-01T00:00:02Z',
+        verifier,
+      });
 
-      // The old v0.5 resolver had a no-op hash check; the unified resolver now rejects this
-      const result = await resolveDIDFromLog(tamperedLog, { verifier });
+      expect('updateKeys' in log1[1].parameters).toBe(false);
+      expect('method' in log1[1].parameters).toBe(false);
+      expect('updateKeys' in log2[2].parameters).toBe(false);
+      expect('method' in log2[2].parameters).toBe(false);
+
+      const result = await resolveDIDFromLog(log2, { verifier });
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didDocumentMetadata.versionId).toBe(log2[2].versionId);
+      expect(result.didDocumentMetadata.updateKeys).toEqual([authKey.publicKeyMultibase!]);
+    });
+
+    test('Coherently signed v0.5 entry with wrong predecessor value is rejected', async () => {
+      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const signer = createTestSigner(authKey);
+      const verifier = createTestVerifier(authKey);
+
+      const log0 = await buildV05Genesis({
+        address: 'example.com',
+        signer,
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        versionTime: '2024-01-01T00:00:00Z',
+        verifier,
+      });
+
+      // Build a preliminary entry whose versionId is the SCID instead of the previous entry's
+      // full published versionId.  Per the v0.5 spec the preliminary entry must use the previous
+      // entry's full versionId; using the bare SCID violates that rule.
+      const scid = log0[0].parameters.scid as string;
+      const wrongPrelimEntry = {
+        versionId: scid, // wrong — correct value would be log0[0].versionId ("1-<hash>")
+        versionTime: '2024-01-01T00:00:01Z',
+        parameters: {} as DIDLogEntry['parameters'],
+        state: log0[0].state,
+      };
+      const wrongHash = await deriveHash(wrongPrelimEntry);
+      const wrongVersionId = `2-${wrongHash}`;
+      const entryToSign = { ...wrongPrelimEntry, versionId: wrongVersionId };
+
+      const proofTemplate = {
+        type: 'DataIntegrityProof' as const,
+        cryptosuite: 'eddsa-jcs-2022' as const,
+        verificationMethod: signer.getVerificationMethodId(),
+        created: '2024-01-01T00:00:01Z',
+        proofPurpose: 'assertionMethod' as const,
+      };
+      const signedProof = await signer.sign({ document: entryToSign, proof: proofTemplate });
+
+      const badLog: DIDLog = [
+        ...log0,
+        { ...entryToSign, proof: [{ ...proofTemplate, proofValue: signedProof.proofValue }] },
+      ];
+
+      const result = await resolveDIDFromLog(badLog, { verifier });
 
       expect(result.didDocument).toBeNull();
       expect(result.didResolutionMetadata.error).toBe('invalidDid');
@@ -137,36 +263,41 @@ describe('Backwards Compatibility', () => {
         signer: signer1,
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey1),
+        versionTime: '2024-01-01T00:00:00Z',
         verifier: testVerifier,
       });
 
       // Entry 2: v0.5 update (no method parameter, stays v0.5)
-      log1 = await appendLogEntry({
+      log1 = await appendV05LogEntry({
         log: log0,
         signer: signer2,
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey2),
+        versionTime: '2024-01-01T00:00:01Z',
         verifier: testVerifier,
       });
 
       // Entry 3: v0.5 → v1.0 transition (method: 'did:webvh:1.0')
-      log2 = await appendLogEntry({
+      const result2 = await updateDID({
         log: log1,
         signer: signer3,
         updateKeys: [authKey3.publicKeyMultibase!],
-        method: 'did:webvh:1.0',
         verificationMethods: asPublicVerificationMethods(authKey3),
+        updated: '2024-01-01T00:00:02Z',
         verifier: testVerifier,
       });
+      log2 = result2.log;
 
       // Entry 4: v1.0 update (no method parameter, stays v1.0)
-      log3 = await appendLogEntry({
+      const result3 = await updateDID({
         log: log2,
         signer: signer3,
         updateKeys: [authKey3.publicKeyMultibase!],
         verificationMethods: asPublicVerificationMethods(authKey3),
+        updated: '2024-01-01T00:00:03Z',
         verifier: testVerifier,
       });
+      log3 = result3.log;
     });
 
     test('Valid mixed-version chain resolves to the v1.0 final state', async () => {
@@ -176,6 +307,16 @@ describe('Backwards Compatibility', () => {
       expect(result.didDocument?.id).toContain(':example.com');
       expect(result.didDocumentMetadata.versionId).toBe(log3[3].versionId);
       expect(result.didDocumentMetadata.versionId).toMatch(/^4-/);
+    });
+
+    test('v1.0 transition entry contains method: did:webvh:1.0; subsequent v1.0 update omits method', async () => {
+      // log2 entry 3 is the transition; log3 entry 4 is the subsequent v1.0 update
+      expect(log2[2].parameters.method).toBe('did:webvh:1.0');
+      expect('method' in log3[3].parameters).toBe(false);
+
+      const result = await resolveDIDFromLog(log3, { verifier: testVerifier });
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didDocumentMetadata.versionId).toBe(log3[3].versionId);
     });
 
     test('Historical selector on the v0.5 side returns the correct document', async () => {
@@ -188,17 +329,57 @@ describe('Backwards Compatibility', () => {
       expect(result.didDocumentMetadata.versionId).toMatch(/^1-/);
     });
 
-    test('Downgrade in the transition entry is rejected', async () => {
-      const tamperedLog = JSON.parse(JSON.stringify(log2));
-      // Change entry 3 (index 2) method back to 0.5
-      tamperedLog[2].parameters.method = 'did:webvh:0.5';
+    test('Same-version re-declaration is accepted as a no-op', async () => {
+      const logWithV05Redeclare = await appendV05LogEntry({
+        log: log0,
+        signer: signer2,
+        method: 'did:webvh:0.5',
+        updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey2),
+        versionTime: '2024-01-02T00:00:00Z',
+        verifier: testVerifier,
+      });
+
+      const logWithV10Transition = await appendV05LogEntry({
+        log: logWithV05Redeclare,
+        signer: signer3,
+        method: 'did:webvh:1.0',
+        updateKeys: [authKey3.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey3),
+        versionTime: '2024-01-02T00:00:01Z',
+        verifier: testVerifier,
+      });
+
+      const logWithV10Redeclare = await appendV05LogEntry({
+        log: logWithV10Transition,
+        signer: signer3,
+        method: 'did:webvh:1.0',
+        updateKeys: [authKey3.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey3),
+        versionTime: '2024-01-02T00:00:02Z',
+        verifier: testVerifier,
+      });
+
+      const result = await resolveDIDFromLog(logWithV10Redeclare, { verifier: testVerifier });
+
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didResolutionMetadata.error).toBeUndefined();
+      expect(result.didDocumentMetadata.versionId).toBe(logWithV10Redeclare[3].versionId);
+    });
+
+    test('Downgrade after transition is rejected', async () => {
+      const tamperedLog = JSON.parse(JSON.stringify(log3));
+      // Method-version transition checks execute before hash-chain/proof validation in resolver processing.
+      // Change entry 4 (index 3) from active v1.0 back to v0.5.
+      tamperedLog[3].parameters.method = 'did:webvh:0.5';
 
       const result = await resolveDIDFromLog(tamperedLog, { verifier: testVerifier });
 
       expect(result.didDocument).toBeNull();
       expect(result.didResolutionMetadata.error).toBe('invalidDid');
-      // Accept either downgrade error or redundant re-declaration error
-      expect(result.didResolutionMetadata.message).toMatch(/downgrade|backward|redundantly/i);
+      expect(result.didResolutionMetadata.message).toMatch(
+        /downgrade|backward|unsupported|second method-version transition/i
+      );
     });
 
     test('Broken hash link exactly at the transition entry is rejected', async () => {
