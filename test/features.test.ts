@@ -280,6 +280,53 @@ test('deactivateDID with pre-rotation active produces a resolvable deactivated l
   expect(meta.prerotation).toBe(false);
 });
 
+test('Historical versionId on a deactivated log keeps historical document and reports deactivated=true', async () => {
+  const authKey = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+
+  const created = await createDID({
+    address: 'example.com',
+    signer: createTestSigner(authKey),
+    updateKeys: [authKey.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey),
+    verifier,
+    created: '2024-01-01T00:00:00Z',
+  });
+
+  const updated1 = await updateDID({
+    log: created.log,
+    signer: createTestSigner(authKey),
+    updateKeys: [authKey.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey),
+    verifier,
+    updated: '2024-01-01T00:00:01Z',
+  });
+
+  const updated2 = await updateDID({
+    log: updated1.log,
+    signer: createTestSigner(authKey),
+    updateKeys: [authKey.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey),
+    verifier,
+    updated: '2024-01-01T00:00:02Z',
+  });
+
+  const deactivated = await deactivateDID({
+    log: updated2.log,
+    signer: createTestSigner(authKey),
+    verifier,
+  });
+
+  const historical = await resolveDIDFromLog(deactivated.log, {
+    versionId: updated1.meta.versionId,
+    verifier,
+  });
+
+  expect(historical.didDocument).not.toBeNull();
+  expect(historical.didDocumentMetadata.versionId).toBe(updated1.meta.versionId);
+  expect(historical.didDocumentMetadata.deactivated).toBe(true);
+});
+
 test('deactivateDID rejects keys that are not in the prior nextKeyHashes', async () => {
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
