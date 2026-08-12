@@ -152,6 +152,51 @@ test('Resolver metadata defaults ttl to 3600 when ttl is absent', async () => {
   expect(resolved.didDocumentMetadata.ttl).toBe('3600');
 });
 
+test('Resolver metadata emits configured ttl as string when ttl is explicitly set in a log entry', async () => {
+  const authKey = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+  const signer = createTestSigner(authKey);
+
+  const created = await createDID({
+    address: 'example.com',
+    signer,
+    updateKeys: [authKey.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey),
+    verifier,
+    created: '2024-01-01T00:00:00Z',
+  });
+
+  const previousEntry = created.log[0];
+  const entryWithoutProof: DIDLogEntry = {
+    versionId: previousEntry.versionId,
+    versionTime: '2024-01-01T00:00:01Z',
+    parameters: { ttl: 7200 },
+    state: previousEntry.state,
+  };
+  const entryHash = await deriveHash({ ...entryWithoutProof, versionId: previousEntry.versionId });
+  const entryToSign: DIDLogEntry = {
+    ...entryWithoutProof,
+    versionId: `2-${entryHash}`,
+  };
+  const proofTemplate = {
+    type: 'DataIntegrityProof' as const,
+    cryptosuite: 'eddsa-jcs-2022' as const,
+    verificationMethod: signer.getVerificationMethodId(),
+    created: '2024-01-01T00:00:01Z',
+    proofPurpose: 'assertionMethod' as const,
+  };
+  const signedProof = await signer.sign({ document: entryToSign, proof: proofTemplate });
+
+  const logWithTtl: DIDLog = [
+    ...created.log,
+    { ...entryToSign, proof: [{ ...proofTemplate, proofValue: signedProof.proofValue }] },
+  ];
+  const resolved = await resolveDIDFromLog(logWithTtl, { verifier });
+
+  expect(resolved.didResolutionMetadata.error).toBeUndefined();
+  expect(resolved.didDocumentMetadata.ttl).toBe('7200');
+});
+
 test('Normal resolution path augments default #files and #whois services', async () => {
   const key = await generateTestVerificationMethod();
   const verifier = new TestCryptoImplementation({ verificationMethod: key });
@@ -324,6 +369,7 @@ test('Historical versionId on a deactivated log keeps historical document and re
 
   expect(historical.didDocument).not.toBeNull();
   expect(historical.didDocumentMetadata.versionId).toBe(updated1.meta.versionId);
+  expect(historical.didDocumentMetadata.versionTime).toBe(updated1.meta.versionTime);
   expect(historical.didDocumentMetadata.deactivated).toBe(true);
 });
 
