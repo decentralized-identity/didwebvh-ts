@@ -65,6 +65,7 @@ export type DidResolutionError = 'invalidDid' | 'invalidDidUrl' | 'invalidOption
 
 export interface DIDResolutionMeta {
   versionId: string;
+  versionTime: string;
   created: string;
   updated: string;
   previousLogEntryHash?: string;
@@ -72,6 +73,7 @@ export interface DIDResolutionMeta {
   scid: string;
   prerotation: boolean;
   portable: boolean;
+  ttl?: string;
   nextKeyHashes: string[];
   deactivated: boolean;
   witness?: WitnessParameterResolution;
@@ -159,6 +161,7 @@ export interface DIDLogEntry {
     portable?: boolean;
     witness?: WitnessParameter;
     watchers?: string[] | null;
+    ttl?: string | number | null;
     deactivated?: boolean;
   };
   state: DIDDoc;

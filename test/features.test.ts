@@ -134,6 +134,24 @@ test('Resolve DID latest', async () => {
   expect(meta.versionId!.split('-')[0]).toBe('4');
 });
 
+test('Resolver metadata defaults ttl to 3600 when ttl is absent', async () => {
+  const authKey = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+
+  const created = await createDID({
+    address: 'example.com',
+    signer: createTestSigner(authKey),
+    updateKeys: [authKey.publicKeyMultibase!],
+    verificationMethods: asPublicVerificationMethods(authKey),
+    verifier,
+  });
+
+  expect(created.meta.ttl).toBe('3600');
+
+  const resolved = await resolveDIDFromLog(created.log, { verifier });
+  expect(resolved.didDocumentMetadata.ttl).toBe('3600');
+});
+
 test('Normal resolution path augments default #files and #whois services', async () => {
   const key = await generateTestVerificationMethod();
   const verifier = new TestCryptoImplementation({ verificationMethod: key });

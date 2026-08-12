@@ -1,5 +1,11 @@
 import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import { METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V0_5, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants';
+import {
+  DEFAULT_TTL_SECONDS,
+  METHOD_PARAMETER_KEYS,
+  METHOD_PROTOCOL_V0_5,
+  METHOD_PROTOCOL_V1_0,
+  SCID_PLACEHOLDER,
+} from '../constants';
 import { addDefaultDidWebvhServices } from '../did-document';
 import type {
   DIDDoc,
@@ -206,6 +212,7 @@ const processResolvedLogEntries = async ({
 
     const previousWitness = resolverContext.meta.witness ? deepClone(resolverContext.meta.witness) : undefined;
     resolverContext.meta.versionId = versionId;
+    resolverContext.meta.versionTime = versionTime;
     resolverContext.previousVersionTime = entryContext.currentVersionTime;
     resolverContext.meta.updated = versionTime;
 
@@ -298,6 +305,7 @@ const createInitialResolverContext = (): ResolverContext => {
   return {
     meta: {
       versionId: '',
+      versionTime: '',
       created: '',
       updated: '',
       deactivated: false,
@@ -388,6 +396,8 @@ const processV1GenesisEntry = async ({
   // Always set witness: normalize null/undefined to {}, and preserve explicit config
   resolverContext.meta.witness = resolvedGenesisWitness ?? {};
   resolverContext.meta.watchers = parameters.watchers ?? null;
+  resolverContext.meta.ttl =
+    parameters.ttl !== undefined && parameters.ttl !== null ? String(parameters.ttl) : DEFAULT_TTL_SECONDS;
 
   const logEntry = {
     versionId: SCID_PLACEHOLDER,
@@ -519,6 +529,10 @@ const processV1SubsequentEntry = async ({
   }
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.watchers)) {
     resolverContext.meta.watchers = parameters.watchers ?? null;
+  }
+  if (hasOwn(parameters, METHOD_PARAMETER_KEYS.ttl)) {
+    resolverContext.meta.ttl =
+      parameters.ttl !== undefined && parameters.ttl !== null ? String(parameters.ttl) : DEFAULT_TTL_SECONDS;
   }
 
   return sourceEntry.state;
