@@ -11,11 +11,12 @@ import type {
   WitnessSigningOptions,
   WitnessSigningResult,
 } from './interfaces';
-import { fetchWitnessProofs, parseDidKeyDid, parseDidKeyVerificationMethod, resolveVM } from './utils';
+import { fetchWitnessProofs } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash } from './utils/crypto';
 import { multibaseDecode } from './utils/multiformats';
+import { parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods';
 
 /**
  * Creates a single witness DataIntegrityProof for one `versionId`.
@@ -261,12 +262,12 @@ export async function countVerifiedWitnessApprovals(
           continue;
         }
 
-        const vm = await resolveVM(proof.verificationMethod);
-        if (!vm?.publicKeyMultibase) {
+        const publicKeyMultibase = parseDidKeyVerificationMethod(proof.verificationMethod)?.keyMultibase;
+        if (!publicKeyMultibase) {
           throw new Error(`Verification Method ${proof.verificationMethod} not found`);
         }
 
-        const publicKey = multibaseDecode(vm.publicKeyMultibase).bytes;
+        const publicKey = multibaseDecode(publicKeyMultibase).bytes;
         if (publicKey.length !== 34) {
           throw new Error(`Invalid public key length ${publicKey.length} (should be 34 bytes)`);
         }

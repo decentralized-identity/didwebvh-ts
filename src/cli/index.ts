@@ -16,11 +16,12 @@ import type {
   WitnessProofFileEntry,
 } from '../interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../method';
-import { fetchLogFromIdentifier, parseDidKeyDid } from '../utils';
+import { fetchLogFromIdentifier } from '../utils';
 import { concatBuffers } from '../utils/buffer';
 import { canonicalizeStrict } from '../utils/canonicalize';
 import { createHash } from '../utils/crypto';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats';
+import { parseDidKeyDid } from '../utils/verification-methods';
 import { signWitnessProofEntries } from '../witness';
 import { readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './persistence';
 
