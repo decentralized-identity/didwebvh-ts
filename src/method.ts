@@ -1,5 +1,5 @@
 import type { DIDResolutionResult } from 'did-resolver';
-import { SCID_PLACEHOLDER } from './constants';
+import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries';
 import { resolveV1Log } from './core/resolution';
 import { generateParallelDidWeb } from './did-document';
@@ -32,9 +32,14 @@ const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
   const resolvedWitness = resolveWitnessParameter(entry.parameters);
   return {
     versionId: entry.versionId,
+    versionTime: entry.versionTime,
     created: entry.versionTime,
     updated: entry.versionTime,
     scid: entry.parameters.scid ?? '',
+    ttl:
+      entry.parameters.ttl !== undefined && entry.parameters.ttl !== null
+        ? String(entry.parameters.ttl)
+        : DEFAULT_TTL_SECONDS,
     updateKeys: entry.parameters.updateKeys ?? [],
     portable: entry.parameters.portable ?? false,
     nextKeyHashes: entry.parameters.nextKeyHashes ?? [],
@@ -61,9 +66,14 @@ const mergeMetaFromEntry = ({
   return {
     ...previousMeta,
     versionId: entry.versionId,
+    versionTime: entry.versionTime,
     updated: entry.versionTime,
     updateKeys: entry.parameters.updateKeys ?? previousMeta.updateKeys,
     portable: entry.parameters.portable ?? previousMeta.portable,
+    ttl:
+      entry.parameters.ttl !== undefined && entry.parameters.ttl !== null
+        ? String(entry.parameters.ttl)
+        : previousMeta.ttl,
     nextKeyHashes: resolvedNextKeyHashes,
     prerotation: resolvedNextKeyHashes.length > 0,
     witness: entry.parameters.witness ?? previousMeta.witness,

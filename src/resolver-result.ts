@@ -14,7 +14,9 @@ export interface WebvhResolutionMetadata extends DIDResolutionMetadata {
 }
 
 export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
+  versionTime?: string;
   scid?: string;
+  ttl?: string;
   updateKeys?: string[];
   nextKeyHashes?: string[];
   prerotation?: boolean;
