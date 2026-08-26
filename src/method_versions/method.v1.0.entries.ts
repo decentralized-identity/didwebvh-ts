@@ -14,7 +14,6 @@ import type {
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
-  ServiceEndpoint,
   UpdateDIDInterface,
   WitnessParameterResolution,
 } from '../interfaces';
@@ -34,11 +33,7 @@ const resolveNextDidContext = ({
   parsedLastEntryDid,
   portable,
 }: {
-  options: UpdateDIDInterface & {
-    services?: ServiceEndpoint[];
-    address?: string;
-    paths?: string[];
-  };
+  options: UpdateDIDInterface;
   lastEntryDid: string;
   parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
   portable: boolean;
@@ -218,11 +213,7 @@ export async function prepareUpdateEntry({
   versionNumber,
   createdDate,
 }: {
-  options: UpdateDIDInterface & {
-    services?: ServiceEndpoint[];
-    address?: string;
-    paths?: string[];
-  };
+  options: UpdateDIDInterface;
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
   log: DIDLog;

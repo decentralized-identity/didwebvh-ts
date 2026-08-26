@@ -9,7 +9,6 @@ import type {
   DIDLogEntry,
   DIDResolutionMeta,
   ResolutionOptions,
-  ServiceEndpoint,
   UpdateDIDInterface,
   UpdateDIDResult,
   WitnessProofFileEntry,
@@ -129,13 +128,7 @@ export const resolveDIDFromLog = async (
   return resolveV1Log(log, options);
 };
 
-export const updateDID = async (
-  options: UpdateDIDInterface & {
-    services?: ServiceEndpoint[];
-    address?: string;
-    paths?: string[];
-  }
-): Promise<UpdateDIDResult> => {
+export const updateDID = async (options: UpdateDIDInterface): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
   const lastMeta = (await resolveDIDFromLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs }))
