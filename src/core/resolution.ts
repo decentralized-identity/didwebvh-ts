@@ -13,15 +13,12 @@ import type {
   DIDLogEntry,
   DIDResolutionMeta,
   ResolutionOptions,
-  VerificationMethod,
   WitnessParameterResolution,
   WitnessProofFileEntry,
 } from '../interfaces';
 import { buildProblemDetails } from '../resolver-result';
 import {
   deepClone,
-  fetchLogFromIdentifier,
-  getActiveDIDs,
   parseAndValidateVersionId,
   parseDidWebvhIdentifier,
   replaceValueInObject,
@@ -29,8 +26,6 @@ import {
 } from '../utils';
 import { deriveHash } from '../utils/crypto';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
-import { findVerificationMethod } from '../utils/verification-methods';
-import { defaultVerifier } from '../verifier';
 import {
   countVerifiedWitnessApprovals,
   fetchWitnessProofs,
@@ -83,21 +78,6 @@ interface ParsedResolutionEntryContext {
 const SUPPORTED_INITIAL_METHODS = new Set([METHOD_PROTOCOL_V0_5, METHOD_PROTOCOL_V1_0]);
 const isSupportedInitialMethod = (m: string | undefined): m is string =>
   m !== undefined && SUPPORTED_INITIAL_METHODS.has(m);
-
-export const resolveDidWebvhVerificationMethod = async (vm: string): Promise<VerificationMethod | null> => {
-  const did = vm.split('#')[0];
-  const activeDIDs = await getActiveDIDs();
-  const controlled = activeDIDs.includes(did);
-  const log = await fetchLogFromIdentifier(did, controlled);
-  const resolution = await resolveLog(log, { requestedDid: did, verifier: defaultVerifier });
-  const didDocument = resolution.doc;
-
-  if (!didDocument) {
-    throw new Error(`Verification method ${vm} not found`);
-  }
-
-  return findVerificationMethod(didDocument as DIDDoc, vm);
-};
 
 export const resolveLog = async (
   log: DIDLog,

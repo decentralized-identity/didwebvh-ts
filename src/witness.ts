@@ -262,7 +262,7 @@ export async function countVerifiedWitnessApprovals(
           continue;
         }
 
-        const publicKeyMultibase = parseDidKeyVerificationMethod(proof.verificationMethod)?.keyMultibase;
+        const publicKeyMultibase = parsedVerificationMethod.keyMultibase;
         if (!publicKeyMultibase) {
           throw new Error(`Verification Method ${proof.verificationMethod} not found`);
         }
