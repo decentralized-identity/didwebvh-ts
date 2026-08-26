@@ -1,7 +1,7 @@
 import type { DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries';
-import { resolveV1Log } from './core/resolution';
+import { resolveLog } from './core/resolution';
 import { generateParallelDidWeb } from './did-document';
 import type {
   CreateDIDInterface,
@@ -156,7 +156,7 @@ export const resolveDID = async (
   }
   try {
     const log = await fetchLogFromIdentifier(did, controlled);
-    const result = await resolveV1Log(log, { ...options, verifier, scid, requestedDid: did });
+    const result = await resolveLog(log, { ...options, verifier, scid, requestedDid: did });
     return toResolutionResult(result, { controlled });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -181,7 +181,7 @@ export const resolveDIDFromLog = async (
     return toErrorResult(selectorError.code, selectorError.detail, { problemType: selectorError.problemType });
   }
   try {
-    const result = await resolveV1Log(log, { ...options, verifier });
+    const result = await resolveLog(log, { ...options, verifier });
     return toResolutionResult(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -198,7 +198,7 @@ export const resolveDIDFromLog = async (
 export const updateDID = async (options: UpdateDIDInterface): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveV1Log(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
+  const lastMeta = (await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
   const currentUpdateKeys = options.updateKeys;
   if (lastMeta.deactivated) {
     throw new Error('Cannot update deactivated DID');
@@ -251,7 +251,7 @@ export const deactivateDID = async (
 ): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveV1Log(log, { verifier: options.verifier })).meta;
+  const lastMeta = (await resolveLog(log, { verifier: options.verifier })).meta;
   if (lastMeta.deactivated) {
     throw new Error('DID already deactivated');
   }

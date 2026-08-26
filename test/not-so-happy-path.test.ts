@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import { resolveV1Log as resolveDIDFromLogV1 } from '../src/core/resolution';
+import { resolveLog as resolveDIDFromLogV1 } from '../src/core/resolution';
 import type { CreateDIDInterface, CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
