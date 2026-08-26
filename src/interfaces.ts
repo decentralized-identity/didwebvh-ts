@@ -244,6 +244,9 @@ export interface UpdateDIDInterface {
   assertionMethod?: string[];
   keyAgreement?: string[];
   witnessProofs?: WitnessProofFileEntry[];
+  address?: string;
+  services?: ServiceEndpoint[];
+  paths?: string[];
 }
 
 export interface DeactivateDIDInterface {

@@ -5,7 +5,6 @@ import type {
   DeactivateDIDInterface,
   DIDLog,
   ResolutionOptions,
-  ServiceEndpoint,
   UpdateDIDInterface,
   UpdateDIDResult,
   WitnessProofFileEntry,
@@ -96,13 +95,7 @@ export const resolveDIDFromLog = async (
  * @param options DID update options.
  * @returns The updated DID, resolved document, and DID log.
  */
-export const updateDID = async (
-  options: UpdateDIDInterface & {
-    services?: ServiceEndpoint[];
-    address?: string;
-    paths?: string[];
-  }
-): Promise<UpdateDIDResult> => {
+export const updateDID = async (options: UpdateDIDInterface): Promise<UpdateDIDResult> => {
   const result = await v1.updateDID(options);
   return result;
 };
