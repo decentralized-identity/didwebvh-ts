@@ -143,6 +143,53 @@ describe('Backwards Compatibility', () => {
       expect(result.didDocumentMetadata.nextKeyHashes).toEqual([]);
     });
 
+    test('v1.0 log entry with legacy ttl: null resolves and normalizes ttl to default', async () => {
+      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const signer = createTestSigner(authKey);
+      const verifier = createTestVerifier(authKey);
+
+      const genesis = await createDID({
+        address: 'example.com',
+        signer,
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier,
+        created: '2024-01-01T00:00:00Z',
+      });
+
+      const previousEntry = genesis.log[0];
+      const entryWithoutProof: DIDLogEntry = {
+        versionId: previousEntry.versionId,
+        versionTime: '2024-01-01T00:00:01Z',
+        parameters: { ttl: null },
+        state: previousEntry.state,
+      };
+      const entryHash = await deriveHash({ ...entryWithoutProof, versionId: previousEntry.versionId });
+      const entryToSign: DIDLogEntry = {
+        ...entryWithoutProof,
+        versionId: `2-${entryHash}`,
+      };
+      const proofTemplate = {
+        type: 'DataIntegrityProof' as const,
+        cryptosuite: 'eddsa-jcs-2022' as const,
+        verificationMethod: signer.getVerificationMethodId(),
+        created: '2024-01-01T00:00:01Z',
+        proofPurpose: 'assertionMethod' as const,
+      };
+      const signedProof = await signer.sign({ document: entryToSign, proof: proofTemplate });
+
+      const log1: DIDLog = [
+        ...genesis.log,
+        { ...entryToSign, proof: [{ ...proofTemplate, proofValue: signedProof.proofValue }] },
+      ];
+      expect(log1[1].parameters.ttl).toBeNull();
+
+      const result = await resolveDIDFromLog(log1, { verifier });
+
+      expect(result.didDocument).not.toBeNull();
+      expect(result.didDocumentMetadata.ttl).toBe('3600');
+    });
+
     test('carry-forward omitted updateKeys across multiple v0.5 entries', async () => {
       const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
       const signer = createTestSigner(authKey);

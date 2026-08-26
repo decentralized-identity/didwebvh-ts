@@ -1,5 +1,11 @@
 import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions';
-import { METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V0_5, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants';
+import {
+  DEFAULT_TTL_SECONDS,
+  METHOD_PARAMETER_KEYS,
+  METHOD_PROTOCOL_V0_5,
+  METHOD_PROTOCOL_V1_0,
+  SCID_PLACEHOLDER,
+} from '../constants';
 import { addDefaultDidWebvhServices } from '../did-document';
 import type {
   DIDDoc,
@@ -179,7 +185,14 @@ export const resolveV1Log = async (
     throw new Error('DID resolution failed: No valid identifier found');
   }
 
-  if (resolvedSnapshot.meta.deactivated && !hasExplicitHistoricalSelector) {
+  // Deactivation is a DID-global state. Historical selectors keep the historical
+  // document, while non-historical resolution nulls the document when deactivated.
+  if (hasExplicitHistoricalSelector) {
+    if (resolverContext.meta.deactivated) {
+      resolvedSnapshot = markResolvedSnapshotDeactivated({ resolvedSnapshot, resolverContext });
+    }
+  } else if (resolvedSnapshot.meta.deactivated) {
+    resolvedSnapshot = markResolvedSnapshotDeactivated({ resolvedSnapshot, resolverContext });
     return {
       did: resolvedSnapshot.did,
       doc: null,
@@ -196,6 +209,24 @@ export const resolveV1Log = async (
     doc: resolvedSnapshot.doc,
     meta: resolvedSnapshot.meta,
   };
+};
+
+const markResolvedSnapshotDeactivated = ({
+  resolvedSnapshot,
+  resolverContext,
+}: {
+  resolvedSnapshot: ResolutionSnapshot;
+  resolverContext: ResolverContext;
+}): ResolutionSnapshot => {
+  const nextSnapshot: ResolutionSnapshot = {
+    ...resolvedSnapshot,
+    meta: {
+      ...resolvedSnapshot.meta,
+      deactivated: true,
+    },
+  };
+  resolverContext.resolvedSnapshot = nextSnapshot;
+  return nextSnapshot;
 };
 
 const processResolvedLogEntries = async ({
@@ -226,6 +257,7 @@ const processResolvedLogEntries = async ({
 
     const previousWitness = resolverContext.meta.witness ? deepClone(resolverContext.meta.witness) : undefined;
     resolverContext.meta.versionId = versionId;
+    resolverContext.meta.versionTime = versionTime;
     resolverContext.previousVersionTime = entryContext.currentVersionTime;
     resolverContext.meta.updated = versionTime;
 
@@ -318,6 +350,7 @@ const createInitialResolverContext = (): ResolverContext => {
   return {
     meta: {
       versionId: '',
+      versionTime: '',
       created: '',
       updated: '',
       deactivated: false,
@@ -408,6 +441,8 @@ const processV1GenesisEntry = async ({
   // Always set witness: normalize null/undefined to {}, and preserve explicit config
   resolverContext.meta.witness = resolvedGenesisWitness ?? {};
   resolverContext.meta.watchers = parameters.watchers ?? null;
+  resolverContext.meta.ttl =
+    parameters.ttl !== undefined && parameters.ttl !== null ? String(parameters.ttl) : DEFAULT_TTL_SECONDS;
 
   const logEntry = {
     versionId: SCID_PLACEHOLDER,
@@ -539,6 +574,10 @@ const processV1SubsequentEntry = async ({
   }
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.watchers)) {
     resolverContext.meta.watchers = parameters.watchers ?? null;
+  }
+  if (hasOwn(parameters, METHOD_PARAMETER_KEYS.ttl)) {
+    resolverContext.meta.ttl =
+      parameters.ttl !== undefined && parameters.ttl !== null ? String(parameters.ttl) : DEFAULT_TTL_SECONDS;
   }
 
   return sourceEntry.state;

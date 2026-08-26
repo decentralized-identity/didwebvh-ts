@@ -8,6 +8,9 @@ export const BASE_CONTEXT = ['https://www.w3.org/ns/did/v1', 'https://w3id.org/s
 export const METHOD_PROTOCOL_V0_5 = `did:${METHOD}:0.5`;
 export const METHOD_PROTOCOL_V1_0 = `did:${METHOD}:1.0`;
 
+// TTL default
+export const DEFAULT_TTL_SECONDS = '3600';
+
 // Method parameter keys
 export const METHOD_PARAMETER_KEYS = {
   scid: 'scid',
