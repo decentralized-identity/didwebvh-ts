@@ -10,6 +10,7 @@ import {
 
 const baseMeta: DIDResolutionMeta = {
   versionId: '1-abc',
+  versionTime: '2023-01-01T00:00:00Z',
   created: '2023-01-01T00:00:00Z',
   updated: '2023-01-01T00:00:00Z',
   deactivated: false,
@@ -87,6 +88,7 @@ describe('toResolutionResult', () => {
     expect(result.didDocument).toEqual(doc);
     expect(result.didDocumentMetadata.versionId).toBe('1-abc');
     expect((result.didDocumentMetadata as { scid?: string }).scid).toBe('SCID');
+    expect(result.didDocumentMetadata.versionTime).toBe(baseMeta.versionTime);
     expect((result.didDocumentMetadata as { updateKeys?: string[] }).updateKeys).toEqual(['z6Mk...']);
     expect(result.didDocumentMetadata.deactivated).toBe(false);
   });
