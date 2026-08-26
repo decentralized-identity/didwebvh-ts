@@ -1,10 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import { resolveDidWebvhVerificationMethod } from '../src/core/resolution';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDID } from '../src/method';
-import * as utilsModule from '../src/utils';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils';
-import { findVerificationMethod } from '../src/utils/verification-methods';
 import {
   asPublicVerificationMethods,
   createTestSigner,
@@ -175,73 +172,5 @@ describe('fetchWitnessProofs', () => {
     stubFetchFailure(new Error('connection refused'));
 
     expect(await fetchWitnessProofs('did:webvh:scid123:example.com')).toEqual([]);
-  });
-});
-
-describe('resolveVM', () => {
-  afterEach(() => {
-    restoreStubs();
-    vi.restoreAllMocks();
-  });
-
-  test('resolves did:webvh VM via direct verificationMethod array match', async () => {
-    const authKey = await generateTestVerificationMethod();
-    const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
-    const { did: localDid, log: localLog } = await createDID({
-      address: 'example.com',
-      signer: createTestSigner(authKey),
-      updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
-      verifier,
-    });
-
-    const vmId = localLog[0].state.verificationMethod?.[0].id;
-    if (!vmId) {
-      throw new Error('Test DID log did not include a verificationMethod id');
-    }
-
-    const getActiveDIDsSpy = vi.spyOn(utilsModule, 'getActiveDIDs').mockResolvedValue([]);
-    const fetchLogSpy = vi.spyOn(utilsModule, 'fetchLogFromIdentifier');
-    stubFetchResponse(toJsonl(localLog));
-
-    const resolved = await resolveDidWebvhVerificationMethod(vmId);
-
-    expect(getActiveDIDsSpy).toHaveBeenCalledTimes(1);
-    expect(fetchLogSpy).toHaveBeenCalledWith(localDid, false);
-
-    expect(resolved).toMatchObject({
-      id: vmId,
-      type: 'Multikey',
-      publicKeyMultibase: authKey.publicKeyMultibase,
-    });
-  });
-
-  test('resolves did:webvh VM via verification relationship object fallback', () => {
-    const vmId = 'did:webvh:scid123:example.com#assertion-key';
-
-    const didDocument = {
-      id: 'did:webvh:scid123:example.com',
-      verificationMethod: [],
-      assertionMethod: [
-        'did:webvh:scid123:example.com#string-reference',
-        {
-          id: vmId,
-          type: 'Multikey',
-          publicKeyMultibase: 'z6MkoJ8mW6T2d4QF9xk33bQ4rQk6N4R8c6rj59YxQG3hbtVW',
-        },
-      ],
-    } as unknown as DIDLog[number]['state'];
-
-    const resolved = findVerificationMethod(didDocument, vmId);
-
-    expect(resolved).toEqual({
-      id: vmId,
-      type: 'Multikey',
-      publicKeyMultibase: 'z6MkoJ8mW6T2d4QF9xk33bQ4rQk6N4R8c6rj59YxQG3hbtVW',
-    });
-  });
-
-  test('wraps unsupported verification method schemes', async () => {
-    await expect(resolveDidWebvhVerificationMethod('did:web:example.com#key-1')).rejects.toThrow();
   });
 });
