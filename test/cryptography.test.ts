@@ -14,7 +14,6 @@ import type {
   SigningOutput,
   Verifier,
 } from '../src/interfaces';
-import * as utilsModule from '../src/utils';
 import { createHash, createHashHex, createSCID, deriveHash, deriveNextKeyHash } from '../src/utils/crypto';
 import {
   createMultihash,
@@ -23,6 +22,7 @@ import {
   MultihashAlgorithm,
   multibaseEncode,
 } from '../src/utils/multiformats';
+import * as vmUtilsModule from '../src/utils/verification-methods';
 import { countVerifiedWitnessApprovals, createWitnessProof } from '../src/witness';
 
 // Mock crypto implementation for testing
@@ -382,32 +382,41 @@ describe('Assertion Guards', () => {
   });
 
   test('throws when verification method cannot be resolved', async () => {
-    const resolveSpy = vi.spyOn(utilsModule, 'resolveVM').mockResolvedValue(null);
+    const parseSpy = vi
+      .spyOn(vmUtilsModule, 'parseDidKeyVerificationMethod')
+      // First call is from isKeyAuthorized(), so keep it authorized.
+      .mockImplementationOnce(() => ({ did: `did:key:${updateKey}`, fragment: updateKey, keyMultibase: updateKey }))
+      // Second call is for key extraction path under test.
+      .mockImplementationOnce(() => null as never);
 
     try {
       await expect(documentStateIsValid(makeDoc(baseProof), [updateKey], null, true, verifier)).rejects.toThrow(
         `Verification Method did:key:${updateKey} not found`
       );
     } finally {
-      resolveSpy.mockRestore();
+      parseSpy.mockRestore();
     }
   });
 
   test('throws when resolved multikey does not use ed25519 header', async () => {
     const badHeaderBytes = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
-    const resolveSpy = vi.spyOn(utilsModule, 'resolveVM').mockResolvedValue({
-      id: `did:key:${updateKey}`,
-      type: 'Multikey',
-      publicKeyMultibase: multibaseEncode(badHeaderBytes, MultibaseEncoding.BASE58_BTC),
-      controller: `did:key:${updateKey}`,
-    });
+    const parseSpy = vi
+      .spyOn(vmUtilsModule, 'parseDidKeyVerificationMethod')
+      // First call is from isKeyAuthorized(), so keep it authorized.
+      .mockImplementationOnce(() => ({ did: `did:key:${updateKey}`, fragment: updateKey, keyMultibase: updateKey }))
+      // Second call is for key extraction path under test.
+      .mockImplementationOnce(() => ({
+        did: `did:key:${updateKey}`,
+        fragment: updateKey,
+        keyMultibase: multibaseEncode(badHeaderBytes, MultibaseEncoding.BASE58_BTC),
+      }));
 
     try {
       await expect(documentStateIsValid(makeDoc(baseProof), [updateKey], null, true, verifier)).rejects.toThrow(
         "multiKey doesn't include ed25519 header (0xed01)"
       );
     } finally {
-      resolveSpy.mockRestore();
+      parseSpy.mockRestore();
     }
   });
 

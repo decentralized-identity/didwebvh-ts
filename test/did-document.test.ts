@@ -2,15 +2,13 @@ import { describe, expect, test } from 'vitest';
 import {
   addDefaultDidWebvhServices,
   createDIDDoc,
-  createVMID,
   enrichAlsoKnownAs,
-  findVerificationMethod,
   generateParallelDidWeb,
-  normalizeVMs,
   validateCreateDidDocument,
 } from '../src/did-document';
 import type { DIDDoc, VerificationMethod } from '../src/interfaces';
 import { createDID, updateDID } from '../src/method';
+import { createVMID, findVerificationMethod, normalizeVMs } from '../src/utils/verification-methods';
 import {
   asPublicVerificationMethods,
   createTestSigner,

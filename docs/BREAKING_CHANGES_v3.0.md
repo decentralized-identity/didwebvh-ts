@@ -9,6 +9,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | Resolution result shape | API | All resolution calls | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
 | Verification method `purpose` | Behavior | DID creation/update | [UPGRADE_2.x_to_3.0.md §2](./UPGRADE_2.x_to_3.0.md#2-verification-method-purpose-field) |
 | `createProof` export removed | API | Proof creation | [UPGRADE_2.x_to_3.0.md §3](./UPGRADE_2.x_to_3.0.md#3-proof-helper-exports) |
+| did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.0.md §3.2](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports) |
 | Witness callback contract | Behavior | Signer callbacks | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-proof-callback-contract) |
 | Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
 
@@ -31,6 +32,13 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Current**: Use `createWitnessProof` for witness proofs
 - **Reason**: `createProof` was too generic; witness proofs have strict requirements (did:key format, assertionMethod purpose)
 - **Upgrade**: Replace calls with `createWitnessProof` → [Full guide](./UPGRADE_2.x_to_3.0.md#3-proof-helper-exports)
+
+#### 2.1 did:key Parse Helper Root Exports Removed
+
+- **Removed**: Root exports for `parseDidKeyDid` and `parseDidKeyVerificationMethod`
+- **Scope**: Package root imports from `didwebvh-ts`
+- **Reason**: Public API surface tightening
+- **Upgrade**: Replace root imports with app-level did:key parsing or validation logic → [Full guide](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports)
 
 ---
 

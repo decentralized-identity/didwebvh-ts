@@ -5,7 +5,6 @@ import {
   createDIDDoc,
   enrichAlsoKnownAs,
   replaceCreateDidPlaceholders,
-  sanitizeVerificationMethods,
   validateCreateDidDocument,
 } from '../did-document';
 import type {
@@ -15,12 +14,12 @@ import type {
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
-  ServiceEndpoint,
   UpdateDIDInterface,
   WitnessParameterResolution,
 } from '../interfaces';
 import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils';
 import { createSCID, deriveHash } from '../utils/crypto';
+import { sanitizeVerificationMethods } from '../utils/verification-methods';
 import { validateWitnessParameter } from '../witness';
 
 export interface PreparedEntry {
@@ -34,11 +33,7 @@ const resolveNextDidContext = ({
   parsedLastEntryDid,
   portable,
 }: {
-  options: UpdateDIDInterface & {
-    services?: ServiceEndpoint[];
-    address?: string;
-    paths?: string[];
-  };
+  options: UpdateDIDInterface;
   lastEntryDid: string;
   parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
   portable: boolean;
@@ -218,11 +213,7 @@ export async function prepareUpdateEntry({
   versionNumber,
   createdDate,
 }: {
-  options: UpdateDIDInterface & {
-    services?: ServiceEndpoint[];
-    address?: string;
-    paths?: string[];
-  };
+  options: UpdateDIDInterface;
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
   log: DIDLog;

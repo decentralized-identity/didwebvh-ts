@@ -7,9 +7,9 @@ import type {
   VerificationMethod,
 } from '../src/interfaces';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils';
 import { deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
+import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils/verification-methods';
 import {
   countWitnessApprovals,
   createWitnessProof,

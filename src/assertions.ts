@@ -1,9 +1,9 @@
 import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces';
-import { parseDidKeyVerificationMethod, resolveVM } from './utils';
 import { concatBuffers } from './utils/buffer';
 import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash, createSCID, deriveNextKeyHash } from './utils/crypto';
 import { decodeBase58Btc, decodeMultihash, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
+import { parseDidKeyVerificationMethod } from './utils/verification-methods';
 import { validateWitnessParameter } from './witness';
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
@@ -53,21 +53,24 @@ export const documentStateIsValid = async (
     if (proof.type !== 'DataIntegrityProof') {
       throw new Error(`Unknown proof type ${proof.type}`);
     }
+
     if (proof.proofPurpose !== 'assertionMethod') {
       throw new Error(
         `Invalid proof purpose '${proof.proofPurpose}' for DID log entry proof. Expected 'assertionMethod'.`
       );
     }
+
     if (proof.cryptosuite !== 'eddsa-jcs-2022') {
       throw new Error(`Unknown cryptosuite ${proof.cryptosuite}`);
     }
 
-    const vm = await resolveVM(proof.verificationMethod);
-    if (!vm?.publicKeyMultibase) {
+    const parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
+    const publicKeyMultibase = parsedVerificationMethod?.keyMultibase;
+    if (!publicKeyMultibase) {
       throw new Error(`Verification Method ${proof.verificationMethod} not found`);
     }
 
-    const publicKey = multibaseDecode(vm.publicKeyMultibase).bytes;
+    const publicKey = multibaseDecode(publicKeyMultibase).bytes;
     if (publicKey[0] !== 0xed || publicKey[1] !== 0x01) {
       throw new Error(`multiKey doesn't include ed25519 header (0xed01)`);
     }

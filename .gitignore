@@ -12,3 +12,4 @@ coverage/
 benchmarks
 CLAUDE.local.md
 package-lock.json
+bun.lock
