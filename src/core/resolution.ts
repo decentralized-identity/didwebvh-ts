@@ -89,7 +89,7 @@ export const resolveDidWebvhVerificationMethod = async (vm: string): Promise<Ver
   const activeDIDs = await getActiveDIDs();
   const controlled = activeDIDs.includes(did);
   const log = await fetchLogFromIdentifier(did, controlled);
-  const resolution = await resolveV1Log(log, { requestedDid: did, verifier: defaultVerifier });
+  const resolution = await resolveLog(log, { requestedDid: did, verifier: defaultVerifier });
   const didDocument = resolution.doc;
 
   if (!didDocument) {
@@ -99,7 +99,7 @@ export const resolveDidWebvhVerificationMethod = async (vm: string): Promise<Ver
   return findVerificationMethod(didDocument as DIDDoc, vm);
 };
 
-export const resolveV1Log = async (
+export const resolveLog = async (
   log: DIDLog,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
@@ -287,8 +287,8 @@ const processResolvedLogEntries = async ({
 
     const resolvedEntryDoc =
       version === '1'
-        ? await processV1GenesisEntry({ resolverContext, entryContext, options })
-        : await processV1SubsequentEntry({
+        ? await processGenesisEntry({ resolverContext, entryContext, options })
+        : await processSubsequentEntry({
             resolverContext,
             entryContext,
             logEntries,
@@ -415,7 +415,7 @@ const validateAndParseLogEntry = ({
   };
 };
 
-const processV1GenesisEntry = async ({
+const processGenesisEntry = async ({
   resolverContext,
   entryContext,
   options,
@@ -480,7 +480,7 @@ const processV1GenesisEntry = async ({
   return sourceEntry.state;
 };
 
-const processV1SubsequentEntry = async ({
+const processSubsequentEntry = async ({
   resolverContext,
   entryContext,
   logEntries,

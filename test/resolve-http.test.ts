@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { resolveDidWebvhVerificationMethod } from '../src/core/resolution';
 import type { DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, resolveDID } from '../src/method';
-import { resolveDidWebvhVerificationMethod } from '../src/method_versions/method.v1.0.resolution';
 import * as utilsModule from '../src/utils';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils';
 import { findVerificationMethod } from '../src/utils/verification-methods';
