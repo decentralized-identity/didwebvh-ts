@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { readLogFromDisk } from '../../src/cli/persistence';
-import type { VerificationMethod } from '../../src/interfaces';
-import { resolveDIDFromLog } from '../../src/method';
-import { generateTestVerificationMethod, TestCryptoImplementation } from '../utils';
+import { generateTestVerificationMethod, TestCryptoImplementation } from '../../../test/utils';
+import type { VerificationMethod } from '../../interfaces';
+import { resolveDIDFromLog } from '../../method';
+import { readLogFromDisk } from '../persistence';
 
 const TEST_DIR = join(process.cwd(), 'test', 'temp-cli-e2e');
 const ENV_FILE = join(process.cwd(), '.env');
@@ -307,6 +307,7 @@ describe('Witness CLI End-to-End Tests', () => {
     const witness = await generateTestVerificationMethod();
     const witnessDid = `did:key:${witness.publicKeyMultibase}`;
     const outputFile = join(TEST_DIR, 'did-witness-multi.json');
+    if (!witness.secretKeyMultibase) throw new Error('Generated witness is missing its secret key');
 
     const proc = runCli([
       'generate-witness-proof',
@@ -317,7 +318,7 @@ describe('Witness CLI End-to-End Tests', () => {
       '--witness-did',
       witnessDid,
       '--witness-secret',
-      witness.secretKeyMultibase!,
+      witness.secretKeyMultibase,
       '--output',
       outputFile,
     ]);
