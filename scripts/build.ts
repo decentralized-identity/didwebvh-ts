@@ -70,21 +70,7 @@ This package includes:
   writeFileSync('./dist/README.md', distReadme);
 }
 
-async function build() {
-  // Clean dist directory first
-  execSync('rm -rf dist');
-
-  // Create output directories
-  console.log('\nCreating output directories...');
-  await Promise.all([
-    ensureDir('./dist/cjs'),
-    ensureDir('./dist/esm'),
-    ensureDir('./dist/browser'),
-    ensureDir('./dist/cli'),
-    ensureDir('./dist/types'),
-  ]);
-
-  // Build ESM for Node.js
+async function buildRuntime() {
   console.log('\nBuilding ESM bundle...');
   await esbuild({
     entryPoints: ['src/index.ts'],
@@ -95,7 +81,6 @@ async function build() {
     sourcemap: true,
   });
 
-  // Build CJS for Node.js
   console.log('\nBuilding CJS bundle...');
   await esbuild({
     entryPoints: ['src/index.ts'],
@@ -106,7 +91,6 @@ async function build() {
     sourcemap: true,
   });
 
-  // Build for Browser
   console.log('\nBuilding Browser bundle...');
   await esbuild({
     entryPoints: ['src/index.ts'],
@@ -121,8 +105,9 @@ async function build() {
       global: 'globalThis',
     },
   });
+}
 
-  // Build CLI
+async function buildCli() {
   console.log('\nBuilding CLI...');
   await esbuild({
     entryPoints: ['src/cli/index.ts'],
@@ -132,23 +117,19 @@ async function build() {
     outfile: 'dist/cli/didwebvh.js',
     sourcemap: true,
   });
+}
 
-  // Generate type declarations
+async function buildDeclarations() {
   console.log('\nGenerating TypeScript declarations...');
 
   // Create a temporary tsconfig for declarations
   const declarationConfig = {
+    extends: './tsconfig.json',
     compilerOptions: {
       declaration: true,
       emitDeclarationOnly: true,
       declarationDir: './dist/types',
-      moduleResolution: 'bundler',
-      module: 'esnext',
-      target: 'esnext',
-      allowSyntheticDefaultImports: true,
-      skipLibCheck: true,
       rootDir: './src',
-      types: ['node'],
     },
     include: ['src/**/*'],
     exclude: ['node_modules', 'dist', 'test'],
@@ -161,6 +142,23 @@ async function build() {
   } finally {
     execSync('rm -f tsconfig.declarations.json');
   }
+}
+
+async function build() {
+  execSync('rm -rf dist');
+
+  console.log('\nCreating output directories...');
+  await Promise.all([
+    ensureDir('./dist/cjs'),
+    ensureDir('./dist/esm'),
+    ensureDir('./dist/browser'),
+    ensureDir('./dist/cli'),
+    ensureDir('./dist/types'),
+  ]);
+
+  await buildRuntime();
+  await buildCli();
+  await buildDeclarations();
 
   // Make CLI executable
   chmodSync('dist/cli/didwebvh.js', 0o755);

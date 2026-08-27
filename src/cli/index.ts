@@ -13,14 +13,13 @@ import type {
   VerificationMethod,
   Verifier,
   WitnessProofFileEntry,
-} from '../interfaces';
-import { createDID, deactivateDID, resolveDID, resolveDIDFromLog, updateDID } from '../method';
+} from '../index';
+import { createDID, deactivateDID, resolveDID, resolveDIDFromLog, signWitnessProofEntries, updateDID } from '../index';
 import { concatBuffers } from '../utils/buffer';
 import { canonicalizeStrict } from '../utils/canonicalize';
 import { createHash } from '../utils/crypto';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats';
 import { parseDidKeyDid } from '../utils/verification-methods';
-import { signWitnessProofEntries } from '../witness';
 import {
   getVerificationMethodsFromEnv,
   readLogFromDisk,
