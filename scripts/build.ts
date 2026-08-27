@@ -132,7 +132,7 @@ async function buildDeclarations() {
       rootDir: './src',
     },
     include: ['src/**/*'],
-    exclude: ['node_modules', 'dist', 'test'],
+    exclude: ['node_modules', 'dist', 'test', 'src/**/__tests__'],
   };
 
   writeFileSync('tsconfig.declarations.json', JSON.stringify(declarationConfig, null, 2));
