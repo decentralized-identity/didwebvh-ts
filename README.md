@@ -220,6 +220,28 @@ app.get('/resolve/:id', async (req, res) => {
 
 `resolveDID` does not throw on failure — it returns a `DIDResolutionResult` with `didDocument: null` and a `didResolutionMetadata.error` code.
 
+### Runtime and CLI separation
+
+The runtime library does not read `process.env`, `.env`, or infer local
+filesystem paths. `resolveDID` uses normative HTTPS resolution by default.
+Applications that manage DID logs locally can provide a caller-owned lookup:
+
+```typescript
+const result = await resolveDID(did, {
+  resolveControlledDid: async (requestedDid) => localLogs.get(requestedDid),
+  witnessProofs: localWitnessProofs, // optional
+});
+```
+
+The callback returns a `DIDLog` or `undefined`. Returning `undefined` uses the
+normal HTTPS fallback. Callback-supplied logs go through the same validation
+pipeline as remotely fetched logs. When explicit witness proofs are omitted,
+the runtime retrieves them from the specification-defined deterministic URL.
+
+The CLI owns environment variables, `.env` persistence, private-key selection,
+and its local log-file layout. `DID_VERIFICATION_METHODS` is therefore a CLI
+setting and does not alter library resolution behavior.
+
 For complete examples, see the [examples](./examples/) directory.
 
 ### Resolution metadata notes (v1.0)
@@ -228,7 +250,7 @@ Resolver failures are surfaced on `didResolutionMetadata`:
 
 - `didResolutionMetadata.error` is one of `"invalidDid"` (the resolved DID or log fails validation), `"invalidDidUrl"` (the DID URL violates `did-url` syntax, e.g. malformed percent-encoding), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). Unknown query parameters are ignored per DID Core extensibility.
 - `didResolutionMetadata.problemDetails` carries RFC9457-style fields (`type`, `title`, `detail`) where available, and `didResolutionMetadata.message` carries the underlying detail string.
-- Whether the resolved DID is locally controlled rides along as `didResolutionMetadata.controlled` (a non-standard extension).
+- Local control is an application concern and is not reported in resolution metadata.
 
 Absence cases (missing DID log or missing DID URL resource) use `didResolutionMetadata.error = "notFound"`.
 
@@ -251,7 +273,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `resolveDID(did: string, options?: ResolutionOptions): Promise<DIDResolutionResult>`
   Resolves a DID to a standard W3C `DIDResolutionResult` (`{ didResolutionMetadata, didDocument, didDocumentMetadata }`). Does not throw on failure.
 
-- `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] }): Promise<DIDResolutionResult>`
+- `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions): Promise<DIDResolutionResult>`
   Resolves directly from an in-memory DID log, returning the same standard shape.
 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`

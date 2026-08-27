@@ -65,7 +65,7 @@ console.log(result.didResolutionMetadata); // DIDResolutionMetadata
    // New
    const document = result.didDocument;
    const scid = result.didDocumentMetadata.scid;
-   const isControlled = result.didResolutionMetadata.controlled; // non-standard extension
+   // Local control is application-owned and is not included in resolution metadata.
    ```
 
 3. **Handle null didDocument** (two cases):
@@ -88,6 +88,23 @@ console.log(result.didResolutionMetadata); // DIDResolutionMetadata
      const document = result.didDocument;
    }
    ```
+
+### Local DID logs and control state
+
+Resolution no longer discovers locally controlled DIDs from library
+configuration or reports a non-standard `controlled` metadata field. If an
+application manages local DID logs, provide the log through the
+`resolveControlledDid` option:
+
+```typescript
+const result = await resolveDID(did, {
+  resolveControlledDid: async (requestedDid) => localLogs.get(requestedDid),
+  witnessProofs: localWitnessProofs, // optional
+});
+```
+
+Return `undefined` from the callback to use the normal HTTPS resolution path.
+The callback-supplied log is validated identically to a remotely fetched log.
 
 ### Reference
 
