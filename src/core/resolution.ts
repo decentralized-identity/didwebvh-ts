@@ -79,9 +79,13 @@ const SUPPORTED_INITIAL_METHODS = new Set([METHOD_PROTOCOL_V0_5, METHOD_PROTOCOL
 const isSupportedInitialMethod = (m: string | undefined): m is string =>
   m !== undefined && SUPPORTED_INITIAL_METHODS.has(m);
 
+type InternalResolutionOptions = ResolutionOptions & {
+  requestedDid?: string;
+};
+
 export const resolveLog = async (
   log: DIDLog,
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
+  options: InternalResolutionOptions = {}
 ): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
   // Stage 1: initialize resolution input and context.
   const logEntries = log.map((l) => deepClone(l));
@@ -218,7 +222,7 @@ const processResolvedLogEntries = async ({
   resolverContext: ResolverContext;
   logEntries: DIDLog;
   initialMethod: string;
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+  options: InternalResolutionOptions;
 }): Promise<void> => {
   let activeMethod = initialMethod; // mutable; changes only on a single permitted upgrade
   let transitionOccurred = false;
@@ -402,7 +406,7 @@ const processGenesisEntry = async ({
 }: {
   resolverContext: ResolverContext;
   entryContext: ParsedResolutionEntryContext;
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+  options: InternalResolutionOptions;
 }): Promise<DIDDoc> => {
   const { entry: sourceEntry, parsedStateDid } = entryContext;
   const { versionTime, parameters, proof } = sourceEntry;
@@ -473,7 +477,7 @@ const processSubsequentEntry = async ({
   logEntries: DIDLog;
   entryIndex: number;
   activeMethod: string;
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+  options: InternalResolutionOptions;
 }): Promise<DIDDoc> => {
   const {
     entry: sourceEntry,
@@ -587,7 +591,7 @@ const finalizeResolutionChecks = async ({
   logEntries,
 }: {
   resolverContext: ResolverContext;
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] };
+  options: InternalResolutionOptions;
   logEntries: DIDLog;
 }): Promise<void> => {
   if (options.requestedDid && resolverContext.didIdMatchCount === 0) {

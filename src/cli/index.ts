@@ -13,7 +13,6 @@ import type {
   SigningOutput,
   VerificationMethod,
   Verifier,
-  WitnessProofFileEntry,
 } from '../interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../method';
 import { fetchLogFromIdentifier } from '../utils';
@@ -274,7 +273,7 @@ export async function handleResolve(args: string[]) {
       log = await fetchLogFromIdentifier(didIdentifier);
     }
 
-    const resolutionOptions: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[]; verifier?: Verifier } = {};
+    const resolutionOptions: ResolutionOptions = {};
     if (witnessFile) {
       const witnessProofs = JSON.parse(fs.readFileSync(witnessFile, 'utf8'));
       resolutionOptions.witnessProofs = witnessProofs;
