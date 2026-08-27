@@ -261,8 +261,10 @@ export interface ResolutionOptions {
   versionTime?: Date;
   verifier?: Verifier;
   scid?: string;
-  /** Internal: full requested DID used to enforce that state.id matches in ≥1 valid version. */
+  // Internal: full requested DID used to enforce that state.id matches in ≥1 valid version.
   requestedDid?: string;
+  // Return locally controlled DID log or undefined
+  resolveControlledDid?: (did: string) => Promise<DIDLog | undefined>;
 }
 
 export interface WitnessProofFileEntry {

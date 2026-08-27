@@ -17,7 +17,7 @@ import type {
   WitnessProofFileEntry,
 } from './interfaces';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result';
-import { fetchLogFromIdentifier, getActiveDIDs, normalizeDidAddress, requireDidDocumentId } from './utils';
+import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils';
 import {
   createDate,
   createNextVersionTime,
@@ -135,32 +135,28 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
  *
  * @param did The DID to resolve.
  * @param options Optional resolver settings.
- * @returns The resolved DID result with resolution metadata and controlled status.
+ * @returns The resolved DID result with resolution metadata.
  */
 export const resolveDID = async (
   did: string,
   options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
 ): Promise<DIDResolutionResult> => {
-  const activeDIDs = await getActiveDIDs();
-  const controlled = activeDIDs.includes(did);
   const verifier = options.verifier ?? defaultVerifier;
-  // Extract the expected SCID from the DID string so the resolver can verify the log's SCID.
-  const didParts = did.split(':');
-  const scid = didParts.length > 2 && didParts[0] === 'did' && didParts[1] === 'webvh' ? didParts[2] : undefined;
   const selectorError = validateSingleVersionSelector(options);
   if (selectorError) {
-    return toErrorResult(selectorError.code, selectorError.detail, {
-      controlled,
-      problemType: selectorError.problemType,
-    });
+    return toErrorResult(selectorError.code, selectorError.detail, { problemType: selectorError.problemType });
   }
+
   try {
-    const log = await fetchLogFromIdentifier(did, controlled);
+    // Validate the requested identifier before asking the caller to locate a controlled log.
+    const { scid } = parseDidWebvhIdentifier(did, 'DID');
+    const controlledLog = options.resolveControlledDid ? await options.resolveControlledDid(did) : undefined;
+    const log = controlledLog ?? (await fetchLogFromIdentifier(did));
     const result = await resolveLog(log, { ...options, verifier, scid, requestedDid: did });
-    return toResolutionResult(result, { controlled });
+    return toResolutionResult(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return toErrorResult(mapErrorToCode(e), message, { controlled });
+    return toErrorResult(mapErrorToCode(e), message);
   }
 };
 

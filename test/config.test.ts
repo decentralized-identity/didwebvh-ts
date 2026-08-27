@@ -1,23 +1,12 @@
-import { afterEach, describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import {
-  config,
   decodeVerificationMethods,
   encodeVerificationMethods,
   getVerificationMethodsFromEnv,
-} from '../src/config';
+} from '../src/cli/persistence';
 import type { VerificationMethod } from '../src/interfaces';
 
-const originalDidVerificationMethods = process.env.DID_VERIFICATION_METHODS;
-
-afterEach(() => {
-  if (originalDidVerificationMethods === undefined) {
-    delete process.env.DID_VERIFICATION_METHODS;
-  } else {
-    process.env.DID_VERIFICATION_METHODS = originalDidVerificationMethods;
-  }
-});
-
-describe('config verification-method helpers', () => {
+describe('CLI verification-method persistence helpers', () => {
   test('round-trips verification methods via encode/decode', () => {
     const methods: VerificationMethod[] = [
       {
@@ -49,11 +38,11 @@ describe('config verification-method helpers', () => {
     expect(decodeVerificationMethods(encodedObject)).toEqual([]);
   });
 
-  test('returns empty array for missing env value', () => {
-    expect(getVerificationMethodsFromEnv(undefined)).toEqual([]);
+  test('returns empty array for missing env value', async () => {
+    await expect(getVerificationMethodsFromEnv({ env: {}, cwd: '/tmp/didwebvh-missing-config' })).resolves.toEqual([]);
   });
 
-  test('reads verification methods from DID_VERIFICATION_METHODS env', () => {
+  test('reads verification methods from DID_VERIFICATION_METHODS env', async () => {
     const methods: VerificationMethod[] = [
       {
         id: 'did:webvh:ghi:example.com#k3',
@@ -63,14 +52,14 @@ describe('config verification-method helpers', () => {
       },
     ];
 
-    process.env.DID_VERIFICATION_METHODS = encodeVerificationMethods(methods);
-
-    expect(config.getVerificationMethods()).toEqual(methods);
+    await expect(
+      getVerificationMethodsFromEnv({ env: { DID_VERIFICATION_METHODS: encodeVerificationMethods(methods) } })
+    ).resolves.toEqual(methods);
   });
 
-  test('returns empty array when DID_VERIFICATION_METHODS is invalid', () => {
-    process.env.DID_VERIFICATION_METHODS = 'bad-value';
-
-    expect(config.getVerificationMethods()).toEqual([]);
+  test('returns empty array when DID_VERIFICATION_METHODS is invalid', async () => {
+    await expect(getVerificationMethodsFromEnv({ env: { DID_VERIFICATION_METHODS: 'bad-value' } })).resolves.toEqual(
+      []
+    );
   });
 });
