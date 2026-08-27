@@ -76,6 +76,23 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didResolutionMetadata.contentType).toBe('application/did+ld+json');
   });
 
+  test('ignores DID_VERIFICATION_METHODS in the runtime environment', async () => {
+    const previous = process.env.DID_VERIFICATION_METHODS;
+    process.env.DID_VERIFICATION_METHODS = 'invalid-runtime-value';
+
+    try {
+      const fetchMock = stubFetchResponse(toJsonl(log));
+      const result = await resolveDID(did, { verifier });
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
+      expect(result.didDocument?.id).toBe(did);
+      expect(result.didResolutionMetadata.error).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env.DID_VERIFICATION_METHODS;
+      else process.env.DID_VERIFICATION_METHODS = previous;
+    }
+  });
+
   test('resolves from a caller-supplied controlled DID log without fetching', async () => {
     const fetchMock = stubFetchResponse('');
 
