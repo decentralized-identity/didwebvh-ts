@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import { resolveLog as resolveDIDFromLogV1 } from '../src/core/resolution';
+import { resolveLog } from '../src/core/resolution';
 import type { CreateDIDInterface, CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats';
@@ -302,45 +302,6 @@ describe('Not So Happy Path Tests', () => {
     expect(result.didResolutionMetadata.problemDetails).toBeUndefined();
   });
 
-  test('Requested DID with matching SCID but mismatched location is rejected', async () => {
-    // Build a valid log for did:webvh:SCID:example.com
-    const { log } = await createDID({
-      address: 'example.com',
-      signer: createTestSigner(authKey),
-      updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
-      verifier: testImplementation,
-    });
-
-    // Construct a DID that shares the same SCID but points at a different location
-    const originalDid = log[0].state.id as string;
-    const scid = originalDid.split(':')[2];
-    const mismatchedDid = `did:webvh:${scid}:different-domain.example`;
-
-    const r = await resolveDIDFromLog(log, { requestedDid: mismatchedDid, verifier: testImplementation });
-    expect(r.didDocument).toBeNull();
-    expect(r.didResolutionMetadata.error).toBe('invalidDid');
-    expect(r.didResolutionMetadata.message).toMatch(/does not match state\.id/);
-  });
-
-  test('Requested DID not present in log is rejected', async () => {
-    const { log } = await createDID({
-      address: 'example.com',
-      signer: createTestSigner(authKey),
-      updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
-      verifier: testImplementation,
-    });
-
-    // Use a syntactically valid did:webvh that is guaranteed to differ from all state.id values in this log.
-    const requestedDidNotInLog = 'did:webvh:zQmXkYw8uM9QW9sW11Qx2Jq4JfY5o7jBq3nK7f4R2m1NpQ:not-in-log.example';
-
-    const r = await resolveDIDFromLog(log, { requestedDid: requestedDidNotInLog, verifier: testImplementation });
-    expect(r.didDocument).toBeNull();
-    expect(r.didResolutionMetadata.error).toBe('invalidDid');
-    expect(r.didResolutionMetadata.message).toMatch(/does not match state\.id/);
-  });
-
   test('rejects log where no state.id matches the resolved DID when requestedDid is omitted', async () => {
     // An empty DID log has no entries, so didIdMatchCount stays 0.
     // The spec requires didIdMatchCount > 0 after processing all entries.
@@ -367,9 +328,10 @@ describe('Not So Happy Path Tests', () => {
 
     // Note: v0.5 is now accepted as a valid initial method. This tampered log has
     // v0.5 method marker but v1.0 log structure, which will fail during hash validation.
-    await expect(resolveDIDFromLogV1(tamperedLog, { verifier: testImplementation })).rejects.toThrow(
-      'not derived from logEntryHash'
-    );
+    const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
+    expect(r.didDocument).toBeNull();
+    expect(r.didResolutionMetadata.error).toBe('invalidDid');
+    expect(r.didResolutionMetadata.message).toContain('not derived from logEntryHash');
   });
 
   test('rejects versionId with missing dash', async () => {
@@ -637,16 +599,6 @@ describe('Not So Happy Path Tests', () => {
     expect(r.didResolutionMetadata.message).toContain(`SCID in DID '${wrongScid}' does not match SCID in log`);
   });
 
-  test('requestedDid matching the actual DID resolves successfully', async () => {
-    const result = await resolveDIDFromLog(initialDID.log, {
-      requestedDid: initialDID.did,
-      verifier: testImplementation,
-    });
-
-    expect(result.didDocument).not.toBeNull();
-    expect(result.didDocument?.id).toBe(initialDID.did);
-  });
-
   test('updateDID rejects when the DID is already deactivated', async () => {
     const { log: deactivatedLog } = await deactivateDID({
       log: initialDID.log,
@@ -686,5 +638,49 @@ describe('Not So Happy Path Tests', () => {
         verifier: testImplementation,
       })
     ).rejects.toThrow('DID already deactivated');
+  });
+});
+
+describe('Internal resolution invariants', () => {
+  let authKey: VerificationMethod;
+  let testImplementation: TestCryptoImplementation;
+
+  beforeAll(async () => {
+    authKey = await generateTestVerificationMethod();
+    testImplementation = new TestCryptoImplementation({ verificationMethod: authKey });
+  });
+
+  test('rejects a requested DID with matching SCID but mismatched location', async () => {
+    const { log } = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const originalDid = log[0].state.id as string;
+    const scid = originalDid.split(':')[2];
+    const mismatchedDid = `did:webvh:${scid}:different-domain.example`;
+
+    await expect(resolveLog(log, { requestedDid: mismatchedDid, verifier: testImplementation })).rejects.toThrow(
+      /does not match state\.id/
+    );
+  });
+
+  test('rejects a requested DID that is not present in the log', async () => {
+    const { log } = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier: testImplementation,
+    });
+
+    const requestedDidNotInLog = 'did:webvh:zQmXkYw8uM9QW9sW11Qx2Jq4JfY5o7jBq3nK7f4R2m1NpQ:not-in-log.example';
+
+    await expect(resolveLog(log, { requestedDid: requestedDidNotInLog, verifier: testImplementation })).rejects.toThrow(
+      /does not match state\.id/
+    );
   });
 });

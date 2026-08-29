@@ -14,7 +14,6 @@ import type {
   ResolutionOptions,
   UpdateDIDInterface,
   UpdateDIDResult,
-  WitnessProofFileEntry,
 } from './interfaces';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result';
 import { fetchLogFromIdentifier, getActiveDIDs, normalizeDidAddress, requireDidDocumentId } from './utils';
@@ -137,10 +136,7 @@ export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDR
  * @param options Optional resolver settings.
  * @returns The resolved DID result with resolution metadata and controlled status.
  */
-export const resolveDID = async (
-  did: string,
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
-): Promise<DIDResolutionResult> => {
+export const resolveDID = async (did: string, options: ResolutionOptions = {}): Promise<DIDResolutionResult> => {
   const activeDIDs = await getActiveDIDs();
   const controlled = activeDIDs.includes(did);
   const verifier = options.verifier ?? defaultVerifier;
@@ -171,10 +167,7 @@ export const resolveDID = async (
  * @param options Optional resolver settings.
  * @returns The resolved DID result with resolution metadata.
  */
-export const resolveDIDFromLog = async (
-  log: DIDLog,
-  options: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[] } = {}
-): Promise<DIDResolutionResult> => {
+export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions = {}): Promise<DIDResolutionResult> => {
   const verifier = options.verifier ?? defaultVerifier;
   const selectorError = validateSingleVersionSelector(options);
   if (selectorError) {
