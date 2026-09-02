@@ -1,3 +1,4 @@
+export { getWitnessRequirements } from './core/witness-requirements';
 export {
   AbstractCrypto,
   createDataIntegrityProofTemplate,

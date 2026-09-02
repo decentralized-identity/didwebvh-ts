@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, test } from 'vitest';
+import { getWitnessRequirements } from '../src';
+import { computeWitnessRequirementChecks } from '../src/core/witness-requirements';
 import type {
   CreateDIDResult,
   DataIntegrityProofTemplate,
@@ -137,6 +139,17 @@ describe('Witness Implementation Tests', async () => {
     expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(2);
     expect(updatedDID.log).toHaveLength(2);
     expect(resolved.didDocumentMetadata?.witness?.witnesses).toHaveLength(2);
+
+    // getWitnessRequirements agrees: first activation is governed by the new
+    // configuration on the same (v2) entry.
+    expect(getWitnessRequirements(updatedDID)).toEqual([
+      {
+        versionId: newVersionId,
+        versionNumber: 2,
+        threshold: 2,
+        witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }, { id: `did:key:${witness2.publicKeyMultibase}` }],
+      },
+    ]);
   });
 
   test('Resolve DID rejects duplicate witness IDs in witness parameters', async () => {
@@ -410,6 +423,16 @@ describe('Witness Implementation Tests', async () => {
     });
     expect(resolved.didDocumentMetadata?.witness?.witnesses).toHaveLength(1);
     expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(1);
+
+    // getWitnessRequirements agrees: the replacing entry (v2) is governed by the
+    // previous list (witness1 + witness2), not the new one.
+    const requirements = getWitnessRequirements(updatedDID);
+    expect(requirements[1].versionId).toBe(newVersionId);
+    expect(requirements[1].threshold).toBe(2);
+    expect(requirements[1].witnesses).toEqual([
+      { id: `did:key:${witness1.publicKeyMultibase}` },
+      { id: `did:key:${witness2.publicKeyMultibase}` },
+    ]);
   });
 
   test('Disable witnessing by setting witness list to null', async () => {
@@ -444,6 +467,66 @@ describe('Witness Implementation Tests', async () => {
       witnessProofs: [...witnessProofs, { versionId: newVersionId, proof: deactivationProofs }],
     });
     expect(resolved.didDocumentMetadata.witness).toEqual({});
+
+    // getWitnessRequirements agrees: the turn-off entry (v2) is still governed by
+    // the previously active list.
+    const requirements = getWitnessRequirements(updatedDID);
+    expect(requirements[1].versionId).toBe(newVersionId);
+    expect(requirements[1].threshold).toBe(2);
+    expect(requirements[1].witnesses).toEqual([
+      { id: `did:key:${witness1.publicKeyMultibase}` },
+      { id: `did:key:${witness2.publicKeyMultibase}` },
+    ]);
+  });
+
+  describe('getWitnessRequirements', () => {
+    test('Genesis without witnesses returns no requirements', async () => {
+      const noWitnessDID = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        verifier: testImplementation,
+      });
+
+      expect(getWitnessRequirements(noWitnessDID)).toEqual([]);
+    });
+
+    test('Genesis with witnesses returns versionId, normalized threshold, and witness list', async () => {
+      const requirements = getWitnessRequirements(initialDID);
+
+      expect(requirements).toEqual([
+        {
+          versionId: initialDID.log[0].versionId,
+          versionNumber: 1,
+          threshold: 2,
+          witnesses: [
+            { id: `did:key:${witness1.publicKeyMultibase}` },
+            { id: `did:key:${witness2.publicKeyMultibase}` },
+          ],
+        },
+      ]);
+    });
+
+    test('Returns defensive copies that callers cannot use to mutate internal state', async () => {
+      const requirements = getWitnessRequirements(initialDID);
+      const originalWitnesses = JSON.parse(JSON.stringify(requirements[0].witnesses));
+
+      requirements[0].witnesses.push({ id: 'did:key:zTamperedWitness' });
+      requirements[0].threshold = 999;
+
+      const requirementsAgain = getWitnessRequirements(initialDID);
+      expect(requirementsAgain[0].witnesses).toEqual(originalWitnesses);
+      expect(requirementsAgain[0].threshold).toBe(2);
+    });
+
+    test('Agrees with the resolver-derived requirements for the same log', async () => {
+      const checks = computeWitnessRequirementChecks(initialDID.log);
+      const requirements = getWitnessRequirements(initialDID);
+
+      expect(requirements.map((r) => r.versionId)).toEqual(checks.map((c) => c.targetVersionId));
+      expect(requirements.map((r) => r.threshold)).toEqual(checks.map((c) => c.witness.threshold));
+    });
   });
 
   test('Verify witness proofs from did-witness.json', async () => {
@@ -724,6 +807,24 @@ describe('Witness Implementation Tests', async () => {
     expect(result.didResolutionMetadata.message).toContain(
       `Witness threshold not met for version ${updatedDid.log[1].versionId}`
     );
+
+    // getWitnessRequirements agrees: the inherited config (witnessDid, threshold 1) also
+    // governs v2, not just v1.
+    const requirements = getWitnessRequirements(updatedDid);
+    expect(requirements).toEqual([
+      {
+        versionId: didWithWitness.log[0].versionId,
+        versionNumber: 1,
+        threshold: 1,
+        witnesses: [{ id: witnessDid }],
+      },
+      {
+        versionId: updatedDid.log[1].versionId,
+        versionNumber: 2,
+        threshold: 1,
+        witnesses: [{ id: witnessDid }],
+      },
+    ]);
   });
 
   test('Resolve does not double-count duplicate proofs from the same witness DID', async () => {

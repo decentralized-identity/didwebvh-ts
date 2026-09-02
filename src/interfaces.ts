@@ -270,3 +270,28 @@ export interface WitnessProofFileEntry {
   versionId: string;
   proof: DataIntegrityProof[];
 }
+
+/**
+ * Common structural input accepted by the witness verification APIs.
+ * `CreateDIDResult`, `UpdateDIDResult`, and the deactivation result are all
+ * structurally compatible because they expose `log: DIDLog`.
+ */
+export interface WitnessVerifiableResult {
+  log: DIDLog;
+}
+
+/**
+ * The witness configuration that governs approval of one DID log entry,
+ * derived by applying the did:webvh witness transition rules rather than
+ * read directly from final resolved metadata.
+ */
+export interface WitnessRequirement {
+  versionId: string;
+  versionNumber: number;
+  threshold: number;
+  witnesses: WitnessEntry[];
+}
+
+export interface VerifyWitnessProofsOptions {
+  verifier?: Verifier;
+}

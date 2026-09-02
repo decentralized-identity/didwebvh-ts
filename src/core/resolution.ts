@@ -13,7 +13,6 @@ import type {
   DIDLogEntry,
   DIDResolutionMeta,
   ResolutionOptions,
-  WitnessParameterResolution,
   WitnessProofFileEntry,
 } from '../interfaces';
 import { buildProblemDetails } from '../resolver-result';
@@ -29,19 +28,13 @@ import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601
 import {
   countVerifiedWitnessApprovals,
   fetchWitnessProofs,
-  hasActiveWitnessRequirement,
   normalizeWitnessThreshold,
   resolveWitnessParameter,
   validateWitnessParameter,
 } from '../witness';
+import { getRequiredWitnessForEntry, type RequiredWitnessCheck } from './witness-requirements';
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
-
-interface RequiredWitnessCheck {
-  targetVersionId: string;
-  targetVersionNumber: number;
-  witness: WitnessParameterResolution;
-}
 
 interface ResolutionSnapshot {
   did: string;
@@ -565,24 +558,6 @@ const processSubsequentEntry = async ({
   }
 
   return sourceEntry.state;
-};
-
-const getRequiredWitnessForEntry = (
-  previousWitness: WitnessParameterResolution | undefined,
-  parameters: DIDLogEntry['parameters'],
-  currentWitness: WitnessParameterResolution | undefined
-): WitnessParameterResolution | undefined => {
-  const explicitWitness = resolveWitnessParameter(parameters);
-
-  if (hasActiveWitnessRequirement(previousWitness)) {
-    return deepClone(previousWitness);
-  }
-
-  if (explicitWitness !== undefined && hasActiveWitnessRequirement(currentWitness)) {
-    return deepClone(currentWitness);
-  }
-
-  return undefined;
 };
 
 const finalizeResolutionChecks = async ({
