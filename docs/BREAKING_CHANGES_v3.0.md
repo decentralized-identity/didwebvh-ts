@@ -23,6 +23,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 
 - **Removed**: `{ did, doc, meta, controlled }` shape
 - **Added**: Standard W3C `{ didDocument, didDocumentMetadata, didResolutionMetadata }` shape
+- **Changed**: Local control is application-owned and is no longer reported in resolution metadata
 - **Reason**: Aligns with W3C DID Resolution spec for ecosystem compatibility
 - **Upgrade**: Update destructuring and field references → [Full guide](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape)
 

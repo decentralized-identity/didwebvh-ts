@@ -76,6 +76,79 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didResolutionMetadata.contentType).toBe('application/did+ld+json');
   });
 
+  test('ignores DID_VERIFICATION_METHODS in the runtime environment', async () => {
+    const previous = process.env.DID_VERIFICATION_METHODS;
+    process.env.DID_VERIFICATION_METHODS = 'invalid-runtime-value';
+
+    try {
+      const fetchMock = stubFetchResponse(toJsonl(log));
+      const result = await resolveDID(did, { verifier });
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
+      expect(result.didDocument?.id).toBe(did);
+      expect(result.didResolutionMetadata.error).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env.DID_VERIFICATION_METHODS;
+      else process.env.DID_VERIFICATION_METHODS = previous;
+    }
+  });
+
+  test('resolves from a caller-supplied controlled DID log without fetching', async () => {
+    const fetchMock = stubFetchResponse('');
+
+    const result = await resolveDID(did, {
+      verifier,
+      resolveControlledDid: async (requestedDid) => {
+        expect(requestedDid).toBe(did);
+        return log;
+      },
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.didDocument?.id).toBe(did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+  });
+
+  test('falls back to remote resolution when controlled DID lookup returns undefined', async () => {
+    const fetchMock = stubFetchResponse(toJsonl(log));
+
+    const result = await resolveDID(did, {
+      verifier,
+      resolveControlledDid: async () => undefined,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did.jsonl');
+    expect(result.didDocument?.id).toBe(did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+  });
+
+  test('maps controlled DID lookup failures to an internalError resolution result', async () => {
+    const result = await resolveDID(did, {
+      verifier,
+      resolveControlledDid: async () => {
+        throw new TypeError('fetch failed');
+      },
+    });
+
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('internalError');
+    expect(result.didResolutionMetadata.message).toContain('fetch failed');
+  });
+
+  test('rejects a caller-supplied log whose state.id does not match the requested DID', async () => {
+    const didParts = did.split(':');
+    const mismatchedDid = `${didParts.slice(0, 3).join(':')}:different-domain.example`;
+
+    const result = await resolveDID(mismatchedDid, {
+      verifier,
+      resolveControlledDid: async () => log,
+    });
+
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toMatch(/does not match state\.id/);
+  });
+
   test('maps an HTTP 404 to the notFound resolution error', async () => {
     silenceConsoleError();
     stubFetchResponse('', { ok: false, status: 404 });

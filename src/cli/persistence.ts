@@ -1,7 +1,21 @@
-import { decodeVerificationMethods, encodeVerificationMethods } from '../config';
+import { base64 } from '@scure/base';
 import type { DIDLog, VerificationMethod } from '../interfaces';
 
 type ProcessVersionsLike = { node?: string };
+
+export const decodeVerificationMethods = (encoded: string): VerificationMethod[] => {
+  try {
+    const decoded = new TextDecoder().decode(base64.decode(encoded));
+    const parsed = JSON.parse(decoded) as unknown;
+    return Array.isArray(parsed) ? (parsed as VerificationMethod[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const encodeVerificationMethods = (methods: VerificationMethod[]): string => {
+  return base64.encode(new TextEncoder().encode(JSON.stringify(methods)));
+};
 
 // Environment detection - treat React Native like a browser and only allow Node.js for filesystem access.
 const isNodeEnvironment =
@@ -159,4 +173,27 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
   } catch (error) {
     console.error('Error writing verification method to .env file:', error);
   }
+};
+
+export type VerificationMethodEnvReadOptions = {
+  cwd?: string;
+  env?: Record<string, string | undefined>;
+};
+
+export const getVerificationMethodsFromEnv = async (
+  options: VerificationMethodEnvReadOptions = {}
+): Promise<VerificationMethod[]> => {
+  const env = options.env ?? process.env;
+  const encoded = env.DID_VERIFICATION_METHODS;
+  if (encoded) {
+    return decodeVerificationMethods(encoded);
+  }
+
+  const envFilePath = `${options.cwd ?? process.cwd()}/.env`;
+  const fs = await getFS();
+  if (!fs.existsSync(envFilePath)) return [];
+
+  const envContent = fs.readFileSync(envFilePath, 'utf8');
+  const match = envContent.match(/^DID_VERIFICATION_METHODS=(.*)$/m);
+  return match?.[1] ? decodeVerificationMethods(match[1]) : [];
 };

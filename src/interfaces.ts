@@ -262,6 +262,8 @@ export interface ResolutionOptions {
   verifier?: Verifier;
   scid?: string;
   witnessProofs?: WitnessProofFileEntry[];
+  // Return locally controlled DID log or undefined
+  resolveControlledDid?: (did: string) => Promise<DIDLog | undefined>;
 }
 
 export interface WitnessProofFileEntry {

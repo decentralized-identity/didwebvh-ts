@@ -1,4 +1,3 @@
-import { config } from './config';
 import { METHOD } from './constants';
 import type { DIDLog, WitnessProofFileEntry } from './interfaces';
 
@@ -18,11 +17,6 @@ export interface ParsedDidWebvhIdentifier {
   paths?: string[];
   locationKey: string;
 }
-
-type ProcessVersionsLike = { node?: string };
-
-type FsModule = typeof import('node:fs');
-type GlobalRequire = (id: string) => FsModule;
 
 // Version parsing/validation utilities
 
@@ -356,7 +350,7 @@ export const getBaseUrl = (id: string) => {
   return `${protocol}://${normalizedHost}${path ? `/${path}` : ''}`;
 };
 
-export const getFileUrl = (id: string) => {
+export const buildDidLogUrl = (id: string) => {
   const parsedDid = parseDidWebvhIdentifier(id, 'did:webvh identifier');
   const baseUrl = getBaseUrl(id);
 
@@ -367,101 +361,13 @@ export const getFileUrl = (id: string) => {
   return `${baseUrl}/.well-known/did.jsonl`;
 };
 
-// Environment detection - treat React Native like a browser and only allow Node.js for filesystem access.
-const isNodeEnvironment =
-  typeof process !== 'undefined' &&
-  typeof window === 'undefined' &&
-  !!(process.versions as ProcessVersionsLike | undefined)?.node;
-
-// Avoid bundlers including `fs`: hide the specifier from static analyzers
-const fsModuleSpecifier = ['node', 'fs'].join(':');
-// We'll resolve require dynamically only in Node runtimes; otherwise use dynamic import with a non-literal
-
-let fsModule: FsModule | null = null;
-let fsImportPromise: Promise<FsModule> | null = null;
-
-const getFS = async (): Promise<FsModule> => {
-  if (!isNodeEnvironment) {
-    throw new Error(
-      'Filesystem access is not available in this environment (React Native, browser, or failed Node.js import)'
-    );
-  }
-
-  if (fsModule) {
-    return fsModule;
-  }
-
-  if (fsImportPromise) {
-    return fsImportPromise;
-  }
-
-  fsImportPromise = (async () => {
-    // Prefer require when present (Node)
-    const maybeRequire = (globalThis as { require?: GlobalRequire }).require;
-    if (typeof maybeRequire === 'function') {
-      try {
-        const module = maybeRequire(fsModuleSpecifier);
-        fsModule = module;
-        return module;
-      } catch {}
-      try {
-        const module = maybeRequire('fs');
-        fsModule = module;
-        return module;
-      } catch {}
-    }
-    // Fallback to dynamic import for ESM runtimes.
-    try {
-      const module = (await import(fsModuleSpecifier)) as FsModule;
-      fsModule = module;
-      return module;
-    } catch {}
-    try {
-      const module = (await import('node:fs')) as FsModule;
-      fsModule = module;
-      return module;
-    } catch {}
-    try {
-      // biome-ignore lint/style/useNodejsImportProtocol: Compatibility fallback for runtimes/bundlers that reject node: builtins.
-      const module = (await import('fs')) as FsModule;
-      fsModule = module;
-      return module;
-    } catch {}
-    throw new Error('Filesystem access is not available in this environment (unable to load fs)');
-  })();
-
-  return fsImportPromise;
-};
-
-export async function fetchLogFromIdentifier(identifier: string, controlled: boolean = false): Promise<DIDLog> {
+export async function fetchLogFromIdentifier(identifier: string): Promise<DIDLog> {
   const parseDidLogText = (text: string): DIDLog => {
     return text.split('\n').map((line) => JSON.parse(line));
   };
 
   try {
-    if (controlled) {
-      const didParts = identifier.split(':');
-      const fileIdentifier = didParts.slice(4).join(':');
-      const logPath = `./src/routes/${fileIdentifier || '.well-known'}/did.jsonl`;
-
-      try {
-        let text: string;
-        if (isNodeEnvironment) {
-          const fs = await getFS();
-          text = fs.readFileSync(logPath, 'utf8').trim();
-        } else {
-          throw new Error('Local log retrieval not supported in this environment');
-        }
-        if (!text) {
-          return [];
-        }
-        return parseDidLogText(text);
-      } catch (error) {
-        throw new Error(`Error reading local DID log: ${error}`);
-      }
-    }
-
-    const url = getFileUrl(identifier);
+    const url = buildDidLogUrl(identifier);
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -480,7 +386,7 @@ export async function fetchLogFromIdentifier(identifier: string, controlled: boo
 
 export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileEntry[]> {
   try {
-    const url = getFileUrl(did).replace('did.jsonl', 'did-witness.json');
+    const url = buildDidLogUrl(did).replace('did.jsonl', 'did-witness.json');
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -492,23 +398,6 @@ export async function fetchWitnessProofs(did: string): Promise<WitnessProofFileE
     console.error('Error fetching witness proofs:', error);
     return [];
   }
-}
-
-export async function getActiveDIDs(): Promise<string[]> {
-  const activeDIDs: string[] = [];
-
-  try {
-    for (const vm of config.getVerificationMethods()) {
-      const did = vm.controller || vm.id?.split('#')[0];
-      if (did) {
-        activeDIDs.push(did);
-      }
-    }
-  } catch (error) {
-    console.error('Error processing verification methods:', error);
-  }
-
-  return activeDIDs;
 }
 
 // Generic object utilities

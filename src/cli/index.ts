@@ -3,7 +3,6 @@
 import fs from 'node:fs';
 import { dirname } from 'node:path';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { getVerificationMethodsFromEnv } from '../config';
 import type {
   DIDLog,
   ResolutionOptions,
@@ -13,16 +12,20 @@ import type {
   SigningOutput,
   VerificationMethod,
   Verifier,
-} from '../interfaces';
-import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../method';
-import { fetchLogFromIdentifier } from '../utils';
+  WitnessProofFileEntry,
+} from '../index';
+import { createDID, deactivateDID, resolveDID, resolveDIDFromLog, signWitnessProofEntries, updateDID } from '../index';
 import { concatBuffers } from '../utils/buffer';
 import { canonicalizeStrict } from '../utils/canonicalize';
 import { createHash } from '../utils/crypto';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats';
 import { parseDidKeyDid } from '../utils/verification-methods';
-import { signWitnessProofEntries } from '../witness';
-import { readLogFromDisk, writeLogToDisk, writeVerificationMethodToEnv } from './persistence';
+import {
+  getVerificationMethodsFromEnv,
+  readLogFromDisk,
+  writeLogToDisk,
+  writeVerificationMethodToEnv,
+} from './persistence';
 
 const usage = `
 Usage: pnpm cli -- [command] [options]
@@ -162,6 +165,23 @@ function createCustomCrypto(verificationMethod?: VerificationMethod): Signer & V
   return new CustomCryptoImplementation(verificationMethod);
 }
 
+function getLocalDidLogPath(did: string): string | undefined {
+  const parts = did.split(':');
+  if (parts.length < 3 || parts[0] !== 'did' || parts[1] !== 'webvh') return undefined;
+  const fileIdentifier = parts.slice(4).join(':');
+  return `./src/routes/${fileIdentifier || '.well-known'}/did.jsonl`;
+}
+
+async function resolveControlledDidFromEnv(did: string): Promise<DIDLog | undefined> {
+  const verificationMethods = await getVerificationMethodsFromEnv();
+  const controlled = verificationMethods.some((vm) => (vm.controller || vm.id?.split('#')[0]) === did);
+  if (!controlled) return undefined;
+
+  const path = getLocalDidLogPath(did);
+  if (!path) return undefined;
+  return readLogFromDisk(path);
+}
+
 export async function handleCreate(args: string[]) {
   const options = parseOptions(args);
 
@@ -265,42 +285,45 @@ export async function handleResolve(args: string[]) {
     process.exit(1);
   }
 
+  const resolutionOptions: ResolutionOptions & { witnessProofs?: WitnessProofFileEntry[]; verifier?: Verifier } = {};
+  if (witnessFile) {
+    const witnessProofs = JSON.parse(fs.readFileSync(witnessFile, 'utf8'));
+    resolutionOptions.witnessProofs = witnessProofs;
+  }
+  resolutionOptions.verifier = createCustomCrypto();
+
   try {
-    let log: DIDLog;
     if (logFile) {
-      log = await readLogFromDisk(logFile);
+      const log = await readLogFromDisk(logFile);
+      const resolution = await resolveDIDFromLog(log, resolutionOptions);
+      const doc = resolution.didDocument;
+      const meta = resolution.didDocumentMetadata;
+      const did = doc?.id ?? log[log.length - 1]?.state?.id ?? '';
+      if (resolution.didResolutionMetadata.error) {
+        console.error('Resolution error:', JSON.stringify(resolution.didResolutionMetadata, null, 2));
+        process.exit(1);
+      }
+      console.log('Resolved DID:', did);
+      console.log('DID Document:', JSON.stringify(doc, null, 2));
+      console.log('Metadata:', JSON.stringify(meta, null, 2));
+      return { did, doc, meta };
     } else {
-      log = await fetchLogFromIdentifier(didIdentifier);
+      const resolution = await resolveDID(didIdentifier, {
+        ...resolutionOptions,
+        resolveControlledDid: resolveControlledDidFromEnv,
+      });
+      const doc = resolution.didDocument;
+      const meta = resolution.didDocumentMetadata;
+      const did = doc?.id ?? didIdentifier;
+      if (resolution.didResolutionMetadata.error) {
+        console.error('Resolution error:', JSON.stringify(resolution.didResolutionMetadata, null, 2));
+        process.exit(1);
+      }
+      console.log('Resolved DID:', did);
+      console.log('DID Document:', JSON.stringify(doc, null, 2));
+      console.log('Metadata:', JSON.stringify(meta, null, 2));
+      return { did, doc, meta };
     }
-
-    const resolutionOptions: ResolutionOptions = {};
-    if (witnessFile) {
-      const witnessProofs = JSON.parse(fs.readFileSync(witnessFile, 'utf8'));
-      resolutionOptions.witnessProofs = witnessProofs;
-    }
-    const crypto = createCustomCrypto();
-    resolutionOptions.verifier = crypto;
-
-    console.time('Resolution time');
-    const resolution = await resolveDIDFromLog(log, resolutionOptions);
-    console.timeEnd('Resolution time');
-
-    const doc = resolution.didDocument;
-    const meta = resolution.didDocumentMetadata;
-    // A deactivated DID resolves successfully with a null document, so fall back
-    // to the identifier carried in the log itself rather than printing an empty id.
-    const did = doc?.id ?? log[log.length - 1]?.state?.id ?? '';
-
-    if (resolution.didResolutionMetadata.error) {
-      console.error('Resolution error:', JSON.stringify(resolution.didResolutionMetadata, null, 2));
-      process.exit(1);
-    }
-
-    console.log('Resolved DID:', did);
-    console.log('DID Document:', JSON.stringify(doc, null, 2));
-    console.log('Metadata:', JSON.stringify(meta, null, 2));
-
-    return { did, doc, meta };
   } catch (error) {
     console.error('Error resolving DID:', error);
     process.exit(1);
@@ -338,7 +361,7 @@ export async function handleUpdate(args: string[]) {
     // console.log('Current meta:', meta);
 
     // Get the verification method from environment
-    const envVMs = getVerificationMethodsFromEnv(process.env.DID_VERIFICATION_METHODS || 'W10=');
+    const envVMs = await getVerificationMethodsFromEnv();
 
     let vm: VerificationMethod | undefined;
     if (updateKey) {
@@ -453,14 +476,7 @@ export async function handleDeactivate(args: string[]) {
     const meta = deactivateResolution.didDocumentMetadata;
 
     // Get the verification method from environment
-    const envContent = fs.readFileSync('.env', 'utf8');
-    const vmMatch = envContent.match(/DID_VERIFICATION_METHODS=(.+)/);
-    if (!vmMatch) {
-      throw new Error('No verification method found in .env file');
-    }
-
-    // Parse the VM from env
-    const vms = getVerificationMethodsFromEnv(vmMatch[1]);
+    const vms = await getVerificationMethodsFromEnv();
     if (!vms || vms.length === 0) {
       throw new Error('No verification method found in environment');
     }

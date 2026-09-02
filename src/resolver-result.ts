@@ -10,7 +10,6 @@ export const WEBVH_ERROR_TYPES = {
 
 export interface WebvhResolutionMetadata extends DIDResolutionMetadata {
   problemDetails?: ProblemDetails;
-  controlled?: boolean;
 }
 
 export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
@@ -124,23 +123,21 @@ export function buildProblemDetails(
 export function toErrorResult(
   code: DidResolutionError,
   detail: string,
-  extras: { controlled?: boolean; problemType?: string } = {}
+  extras: { problemType?: string } = {}
 ): DIDResolutionResult {
   const didResolutionMetadata: WebvhResolutionMetadata = {
     error: code,
     message: detail,
     problemDetails: buildProblemDetails(code, detail, { problemType: extras.problemType }),
   };
-  if (extras.controlled !== undefined) {
-    didResolutionMetadata.controlled = extras.controlled;
-  }
   return { didResolutionMetadata, didDocument: null, didDocumentMetadata: {} };
 }
 
-export function toResolutionResult(
-  core: { did: string; doc: DIDDoc | null; meta: DIDResolutionMeta },
-  extras: { controlled?: boolean } = {}
-): DIDResolutionResult {
+export function toResolutionResult(core: {
+  did: string;
+  doc: DIDDoc | null;
+  meta: DIDResolutionMeta;
+}): DIDResolutionResult {
   const { meta } = core;
   // Split meta into the standard documentMetadata + the resolutionMetadata extras.
   const { error, problemDetails, ...documentMeta } = meta;
@@ -151,9 +148,6 @@ export function toResolutionResult(
     if (problemDetails) {
       didResolutionMetadata.problemDetails = problemDetails;
       didResolutionMetadata.message = problemDetails.detail;
-    }
-    if (extras.controlled !== undefined) {
-      didResolutionMetadata.controlled = extras.controlled;
     }
     // Preserve the resolved document when the core produced one. A valid
     // earlier version can be returned alongside a warning-level error (e.g. an
@@ -167,9 +161,6 @@ export function toResolutionResult(
   }
 
   const didResolutionMetadata: WebvhResolutionMetadata = { contentType: CONTENT_TYPE };
-  if (extras.controlled !== undefined) {
-    didResolutionMetadata.controlled = extras.controlled;
-  }
   return {
     didResolutionMetadata,
     didDocument: (core.doc as DIDResolutionResult['didDocument']) ?? null,

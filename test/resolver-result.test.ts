@@ -81,10 +81,9 @@ describe('mapErrorToCode', () => {
 describe('toResolutionResult', () => {
   test('maps a successful resolution', () => {
     const doc = { id: 'did:webvh:SCID:example.com' };
-    const result = toResolutionResult({ did: doc.id, doc, meta: baseMeta }, { controlled: true });
+    const result = toResolutionResult({ did: doc.id, doc, meta: baseMeta });
     expect(result.didResolutionMetadata.contentType).toBe('application/did+ld+json');
     expect(result.didResolutionMetadata.error).toBeUndefined();
-    expect((result.didResolutionMetadata as { controlled?: boolean }).controlled).toBe(true);
     expect(result.didDocument).toEqual(doc);
     expect(result.didDocumentMetadata.versionId).toBe('1-abc');
     expect((result.didDocumentMetadata as { scid?: string }).scid).toBe('SCID');
@@ -132,10 +131,9 @@ describe('toResolutionResult', () => {
 
 describe('toErrorResult', () => {
   test('builds an error result with code, detail, and synthesized problemDetails', () => {
-    const result = toErrorResult('invalidOptions', 'two selectors supplied', { controlled: false });
+    const result = toErrorResult('invalidOptions', 'two selectors supplied');
     expect(result.didDocument).toBeNull();
     expect(result.didResolutionMetadata.error).toBe('invalidOptions');
-    expect((result.didResolutionMetadata as { controlled?: boolean }).controlled).toBe(false);
     expect(result.didResolutionMetadata.message).toBe('two selectors supplied');
     const problemDetails = (
       result.didResolutionMetadata as { problemDetails?: { type: string; title: string; detail: string } }
