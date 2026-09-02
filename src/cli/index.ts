@@ -278,6 +278,7 @@ export async function handleCreate(args: string[]) {
 
     return { did, doc, meta, log };
   } catch (error) {
+    if (error instanceof CliError) throw error;
     throw new CliError(`Error creating DID: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -330,6 +331,7 @@ export async function handleResolve(args: string[]) {
       return { did, doc, meta };
     }
   } catch (error) {
+    if (error instanceof CliError) throw error;
     throw new CliError(`Error resolving DID: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -454,6 +456,7 @@ export async function handleUpdate(args: string[]) {
 
     return result;
   } catch (error) {
+    if (error instanceof CliError) throw error;
     throw new CliError(`Error updating DID: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -507,6 +510,7 @@ export async function handleDeactivate(args: string[]) {
 
     return result;
   } catch (error) {
+    if (error instanceof CliError) throw error;
     throw new CliError(`Error deactivating DID: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
