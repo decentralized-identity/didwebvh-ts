@@ -665,10 +665,17 @@ export async function main(): Promise<number> {
         showHelp();
         return 0;
       default:
+        showHelp();
         throw new CliError(`Unknown command: ${command}`);
     }
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    if (error instanceof CliError) {
+      console.error(error.message);
+    } else if (error instanceof Error) {
+      console.error(error.stack ?? error.message);
+    } else {
+      console.error(String(error));
+    }
     return error instanceof CliError ? error.exitCode : 1;
   }
 }
