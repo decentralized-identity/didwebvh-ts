@@ -27,4 +27,4 @@ export {
   createWitnessProof,
   signWitnessProofEntries,
   signWitnessProofEntry,
-} from './witness';
+} from './witness-proofs';
