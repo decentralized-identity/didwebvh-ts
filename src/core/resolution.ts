@@ -18,6 +18,7 @@ import type {
 import { buildProblemDetails } from '../resolver-result';
 import {
   deepClone,
+  fetchWitnessProofs,
   parseAndValidateVersionId,
   parseDidWebvhIdentifier,
   replaceValueInObject,
@@ -25,14 +26,13 @@ import {
 } from '../utils';
 import { deriveHash } from '../utils/crypto';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime';
+import { normalizeWitnessThreshold, resolveWitnessParameter, validateWitnessParameter } from '../witness-proofs';
 import {
   countVerifiedWitnessApprovals,
-  fetchWitnessProofs,
-  normalizeWitnessThreshold,
-  resolveWitnessParameter,
-  validateWitnessParameter,
-} from '../witness';
-import { getRequiredWitnessForEntry, type RequiredWitnessCheck, type WitnessCheckResult } from './witness-requirements';
+  getRequiredWitnessForEntry,
+  type RequiredWitnessCheck,
+  type WitnessCheckResult,
+} from './witness-evaluation';
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
 

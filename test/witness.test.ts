@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
 import { getWitnessRequirements, verifyWitnessProofs } from '../src';
-import { computeWitnessRequirementChecks } from '../src/core/witness-requirements';
+import { computeWitnessRequirementChecks, countWitnessApprovals } from '../src/core/witness-evaluation';
 import type {
   CreateDIDResult,
   DataIntegrityProofTemplate,
@@ -12,12 +12,7 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils/verification-methods';
-import {
-  countWitnessApprovals,
-  createWitnessProof,
-  signWitnessProofEntries,
-  signWitnessProofEntry,
-} from '../src/witness';
+import { createWitnessProof, signWitnessProofEntries, signWitnessProofEntry } from '../src/witness-proofs';
 import {
   asPublicVerificationMethods,
   buildV05Genesis,

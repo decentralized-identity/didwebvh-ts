@@ -2,7 +2,7 @@ import type { DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries';
 import { resolveLog } from './core/resolution';
-import { computeWitnessRequirementChecks } from './core/witness-requirements';
+import { computeWitnessRequirementChecks } from './core/witness-evaluation';
 import { generateParallelDidWeb } from './did-document';
 import type {
   CreateDIDInterface,
@@ -36,7 +36,7 @@ import {
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime';
 import { defaultVerifier } from './verifier';
-import { normalizeWitnessThreshold, resolveWitnessParameter, validateWitnessParameter } from './witness';
+import { normalizeWitnessThreshold, resolveWitnessParameter, validateWitnessParameter } from './witness-proofs';
 
 const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
   const resolvedWitness = resolveWitnessParameter(entry.parameters);
