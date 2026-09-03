@@ -2,6 +2,7 @@ import type { DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries';
 import { resolveLog } from './core/resolution';
+import { computeWitnessRequirementChecks } from './core/witness-requirements';
 import { generateParallelDidWeb } from './did-document';
 import type {
   CreateDIDInterface,
@@ -14,9 +15,20 @@ import type {
   ResolutionOptions,
   UpdateDIDInterface,
   UpdateDIDResult,
+  VerifyWitnessProofsOptions,
+  WitnessProofFileEntry,
+  WitnessRequirement,
+  WitnessVerifiableResult,
+  WitnessVerificationResult,
 } from './interfaces';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result';
-import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils';
+import {
+  deepClone,
+  fetchLogFromIdentifier,
+  normalizeDidAddress,
+  parseDidWebvhIdentifier,
+  requireDidDocumentId,
+} from './utils';
 import {
   createDate,
   createNextVersionTime,
@@ -24,7 +36,7 @@ import {
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime';
 import { defaultVerifier } from './verifier';
-import { resolveWitnessParameter, validateWitnessParameter } from './witness';
+import { normalizeWitnessThreshold, resolveWitnessParameter, validateWitnessParameter } from './witness';
 
 const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
   const resolvedWitness = resolveWitnessParameter(entry.parameters);
@@ -274,5 +286,69 @@ export const deactivateDID = async (
     doc: entry.state,
     meta,
     log: [...log, entry],
+  };
+};
+
+/**
+ * Derives the witness approvals required for each entry in a DID log that requires witnessing.
+ *
+ * @param result A created, updated, or resolved DID result containing the log to inspect.
+ * @returns The witness requirements for each entry that requires witnessing.
+ */
+export const getWitnessRequirements = (result: WitnessVerifiableResult): WitnessRequirement[] => {
+  const checks = computeWitnessRequirementChecks(result.log);
+
+  return checks.map((check) => ({
+    versionId: check.targetVersionId,
+    versionNumber: check.targetVersionNumber,
+    threshold: normalizeWitnessThreshold(check.witness.threshold),
+    witnesses: deepClone(check.witness.witnesses ?? []),
+  }));
+};
+
+/**
+ * Verifies that every witness requirement in a DID log is satisfied by the locally supplied
+ * witness proofs without network fetch.
+ *
+ * @param result A created, updated, or resolved DID result containing the log to verify.
+ * @param witnessProofs The witness proofs to verify against the log, in place of a network fetch.
+ * @param options Optional verifier override.
+ * @returns Per-entry witness requirements annotated with counted approvals and satisfaction.
+ * @throws If the log or supplied proofs fail any non-witness-threshold verification.
+ */
+export const verifyWitnessProofs = async (
+  result: WitnessVerifiableResult,
+  witnessProofs: WitnessProofFileEntry[],
+  options: VerifyWitnessProofsOptions = {}
+): Promise<WitnessVerificationResult> => {
+  const requirements = getWitnessRequirements(result);
+  let checkOutcomes: { targetVersionId: string; approvals: number; satisfied: boolean }[] = [];
+
+  await resolveLog(result.log, {
+    witnessProofs,
+    verifier: options.verifier ?? defaultVerifier,
+    onWitnessChecksComputed: (checks) => {
+      checkOutcomes = checks.map((check) => ({
+        targetVersionId: check.targetVersionId,
+        approvals: check.approvals,
+        satisfied: check.satisfied,
+      }));
+    },
+  });
+
+  const outcomesByVersionId = new Map(checkOutcomes.map((outcome) => [outcome.targetVersionId, outcome]));
+
+  const annotatedRequirements = requirements.map((requirement) => {
+    const outcome = outcomesByVersionId.get(requirement.versionId);
+    return {
+      ...requirement,
+      approvals: outcome?.approvals ?? 0,
+      satisfied: outcome?.satisfied ?? false,
+    };
+  });
+
+  return {
+    verified: annotatedRequirements.every((requirement) => requirement.satisfied),
+    requirements: annotatedRequirements,
   };
 };

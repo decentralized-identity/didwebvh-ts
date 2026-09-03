@@ -32,7 +32,7 @@ import {
   resolveWitnessParameter,
   validateWitnessParameter,
 } from '../witness';
-import { getRequiredWitnessForEntry, type RequiredWitnessCheck } from './witness-requirements';
+import { getRequiredWitnessForEntry, type RequiredWitnessCheck, type WitnessCheckResult } from './witness-requirements';
 
 const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, unknown> => Object.hasOwn(obj, key);
 
@@ -74,6 +74,10 @@ const isSupportedInitialMethod = (m: string | undefined): m is string =>
 
 type InternalResolutionOptions = ResolutionOptions & {
   requestedDid?: string;
+  // Internal-only hook used by `verifyWitnessProofs` (see method.ts) to observe
+  // per-entry witness check outcomes without converting an unmet threshold
+  // into a thrown error.
+  onWitnessChecksComputed?: (checks: WitnessCheckResult[]) => void;
 };
 
 export const resolveLog = async (
@@ -583,6 +587,7 @@ const finalizeResolutionChecks = async ({
       onThresholdFailure: () => {
         resolverContext.witnessThresholdFailure = true;
       },
+      onWitnessChecksComputed: options.onWitnessChecksComputed,
     });
   }
 };
@@ -594,6 +599,7 @@ const enforceRequiredWitnessChecks = async ({
   logEntries,
   verifier,
   onThresholdFailure,
+  onWitnessChecksComputed,
 }: {
   requiredWitnessChecks: RequiredWitnessCheck[];
   witnessProofs: WitnessProofFileEntry[] | undefined;
@@ -601,6 +607,7 @@ const enforceRequiredWitnessChecks = async ({
   logEntries: DIDLog;
   verifier: ResolutionOptions['verifier'];
   onThresholdFailure: () => void;
+  onWitnessChecksComputed?: (checks: WitnessCheckResult[]) => void;
 }): Promise<void> => {
   let resolvedWitnessProofs = witnessProofs;
   if (!resolvedWitnessProofs) {
@@ -608,6 +615,13 @@ const enforceRequiredWitnessChecks = async ({
   }
 
   const publishedVersionNumbers = new Map(logEntries.map((entry, index) => [entry.versionId, index + 1]));
+
+  // When `onWitnessChecksComputed` is supplied (internal-only, see
+  // `verifyWitnessProofs` in method.ts), every check is computed and reported
+  // to the caller instead of throwing on the first unmet threshold, so the
+  // caller can report a complete per-entry breakdown rather than stopping at
+  // the first failure.
+  const computedChecks: WitnessCheckResult[] = [];
 
   for (const check of requiredWitnessChecks) {
     const candidateProofs = resolvedWitnessProofs.filter((witnessProof) => {
@@ -622,12 +636,25 @@ const enforceRequiredWitnessChecks = async ({
       verifier
     );
     const threshold = normalizeWitnessThreshold(check.witness.threshold);
+    const satisfied = approvals >= threshold;
 
-    if (approvals < threshold) {
+    if (onWitnessChecksComputed) {
+      computedChecks.push({ ...check, approvals, satisfied });
+      if (!satisfied) {
+        onThresholdFailure();
+      }
+      continue;
+    }
+
+    if (!satisfied) {
       onThresholdFailure();
       throw new Error(
         `Witness threshold not met for version ${check.targetVersionId}: got ${approvals}, need ${check.witness.threshold}`
       );
     }
+  }
+
+  if (onWitnessChecksComputed) {
+    onWitnessChecksComputed(computedChecks);
   }
 };

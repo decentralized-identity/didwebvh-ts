@@ -295,3 +295,11 @@ export interface WitnessRequirement {
 export interface VerifyWitnessProofsOptions {
   verifier?: Verifier;
 }
+
+export interface WitnessVerificationResult {
+  verified: boolean;
+  requirements: (WitnessRequirement & {
+    satisfied: boolean;
+    approvals: number;
+  })[];
+}

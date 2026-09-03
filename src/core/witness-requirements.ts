@@ -1,22 +1,22 @@
-import type {
-  DIDLog,
-  DIDLogEntry,
-  WitnessParameterResolution,
-  WitnessRequirement,
-  WitnessVerifiableResult,
-} from '../interfaces';
+import type { DIDLog, DIDLogEntry, WitnessParameterResolution } from '../interfaces';
 import { deepClone, parseAndValidateVersionId } from '../utils';
-import {
-  hasActiveWitnessRequirement,
-  normalizeWitnessThreshold,
-  resolveWitnessParameter,
-  validateWitnessParameter,
-} from '../witness';
+import { hasActiveWitnessRequirement, resolveWitnessParameter, validateWitnessParameter } from '../witness';
 
 export interface RequiredWitnessCheck {
   targetVersionId: string;
   targetVersionNumber: number;
   witness: WitnessParameterResolution;
+}
+
+/**
+ * A single required-witness check paired with the outcome of counting
+ * verified approvals against it. Used by `verifyWitnessProofs` to report an
+ * unmet threshold as data rather than throwing, while other verification
+ * failures (hash chain, SCID, controller proof, etc.) still throw as before.
+ */
+export interface WitnessCheckResult extends RequiredWitnessCheck {
+  approvals: number;
+  satisfied: boolean;
 }
 
 /**
@@ -96,25 +96,4 @@ export const computeWitnessRequirementChecks = (log: DIDLog): RequiredWitnessChe
   });
 
   return checks;
-};
-
-/**
- * Derives the witness approvals required for every entry in `result.log` that
- * requires witnessing. Unlike inspecting the final resolved `meta.witness`,
- * this correctly distinguishes the configuration that approves a given
- * transition from the configuration that becomes active after publication.
- *
- * Synchronous and verifier-independent: it performs structural witness-list
- * validation only, not Data Integrity proof verification. Returns defensive
- * copies so callers cannot mutate state held elsewhere.
- */
-export const getWitnessRequirements = (result: WitnessVerifiableResult): WitnessRequirement[] => {
-  const checks = computeWitnessRequirementChecks(result.log);
-
-  return checks.map((check) => ({
-    versionId: check.targetVersionId,
-    versionNumber: check.targetVersionNumber,
-    threshold: normalizeWitnessThreshold(check.witness.threshold),
-    witnesses: deepClone(check.witness.witnesses ?? []),
-  }));
 };
