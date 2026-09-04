@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
 import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../src/assertions';
+import { countVerifiedWitnessApprovals } from '../src/core/witness-evaluation';
 import {
   AbstractCrypto,
   createDataIntegrityProofTemplate,
@@ -23,7 +24,7 @@ import {
   multibaseEncode,
 } from '../src/utils/multiformats';
 import * as vmUtilsModule from '../src/utils/verification-methods';
-import { countVerifiedWitnessApprovals, createWitnessProof } from '../src/witness';
+import { createWitnessProof } from '../src/witness-proofs';
 
 // Mock crypto implementation for testing
 class MockCryptoImplementation extends AbstractCrypto implements Verifier {

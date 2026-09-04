@@ -4,7 +4,7 @@ import { canonicalizeStrict } from './utils/canonicalize';
 import { createHash, createSCID, deriveNextKeyHash } from './utils/crypto';
 import { decodeBase58Btc, decodeMultihash, MultihashAlgorithm, multibaseDecode } from './utils/multiformats';
 import { parseDidKeyVerificationMethod } from './utils/verification-methods';
-import { validateWitnessParameter } from './witness';
+import { validateWitnessParameter } from './witness-proofs';
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
   const parsedVerificationMethod = parseDidKeyVerificationMethod(verificationMethod);

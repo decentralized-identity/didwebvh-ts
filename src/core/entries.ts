@@ -20,7 +20,7 @@ import type {
 import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils';
 import { createSCID, deriveHash } from '../utils/crypto';
 import { sanitizeVerificationMethods } from '../utils/verification-methods';
-import { validateWitnessParameter } from '../witness';
+import { validateWitnessParameter } from '../witness-proofs';
 
 export interface PreparedEntry {
   entry: DIDLogEntry;

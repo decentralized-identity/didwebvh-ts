@@ -7,7 +7,7 @@ import type {
   WitnessProofFileEntry,
 } from '../src/interfaces';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
-import { createWitnessProof } from '../src/witness';
+import { createWitnessProof } from '../src/witness-proofs';
 import {
   asPublicVerificationMethods,
   createTestSigner,

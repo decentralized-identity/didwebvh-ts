@@ -4,17 +4,11 @@ import type {
   DataIntegrityProofTemplate,
   DIDLogEntry,
   Signer,
-  Verifier,
   WitnessEntry,
   WitnessParameterResolution,
-  WitnessProofFileEntry,
   WitnessSigningOptions,
   WitnessSigningResult,
 } from './interfaces';
-import { fetchWitnessProofs } from './utils';
-import { concatBuffers } from './utils/buffer';
-import { canonicalizeStrict } from './utils/canonicalize';
-import { createHash } from './utils/crypto';
 import { multibaseDecode } from './utils/multiformats';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods';
 
@@ -198,110 +192,3 @@ export function validateWitnessParameter(witness: WitnessParameterResolution): v
     ids.add(parsedDid.did);
   }
 }
-
-export function countWitnessApprovals(proofs: DataIntegrityProof[], witnesses: WitnessEntry[]): number {
-  const processed = new Set<string>();
-  const witnessesByDid = new Map(
-    witnesses.map((witness) => {
-      const parsedDid = parseDidKeyDid(witness.id);
-      return [parsedDid.did, witness];
-    })
-  );
-
-  for (const proof of proofs) {
-    const parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
-    const witness = witnessesByDid.get(parsedVerificationMethod.did);
-    if (witness) {
-      if (proof.cryptosuite !== 'eddsa-jcs-2022') {
-        throw new Error('Invalid witness proof cryptosuite');
-      }
-      processed.add(witness.id);
-    }
-  }
-
-  return processed.size;
-}
-
-export async function countVerifiedWitnessApprovals(
-  logEntry: DIDLogEntry,
-  witnessProofs: WitnessProofFileEntry[],
-  currentWitness: WitnessParameterResolution,
-  verifier?: Verifier
-): Promise<number> {
-  if (!verifier) {
-    throw new Error('Verifier implementation is required');
-  }
-
-  let approvals = 0;
-  const processedWitnesses = new Set<string>();
-  const witnessesByDid = new Map(
-    (currentWitness.witnesses ?? []).map((witness) => {
-      const parsedDid = parseDidKeyDid(witness.id);
-      return [parsedDid.did, witness];
-    })
-  );
-
-  for (const proofSet of witnessProofs) {
-    for (const proof of proofSet.proof) {
-      try {
-        if (proof.type !== 'DataIntegrityProof') {
-          throw new Error('Invalid witness proof type');
-        }
-
-        if (proof.proofPurpose !== 'assertionMethod') {
-          throw new Error('Invalid witness proof purpose');
-        }
-
-        if (proof.cryptosuite !== 'eddsa-jcs-2022') {
-          throw new Error('Invalid witness proof cryptosuite');
-        }
-
-        const parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
-        const witness = witnessesByDid.get(parsedVerificationMethod.did);
-        if (!witness || processedWitnesses.has(witness.id)) {
-          continue;
-        }
-
-        const publicKeyMultibase = parsedVerificationMethod.keyMultibase;
-        if (!publicKeyMultibase) {
-          throw new Error(`Verification Method ${proof.verificationMethod} not found`);
-        }
-
-        const publicKey = multibaseDecode(publicKeyMultibase).bytes;
-        if (publicKey.length !== 34) {
-          throw new Error(`Invalid public key length ${publicKey.length} (should be 34 bytes)`);
-        }
-
-        const { proofValue, ...proofWithoutValue } = proof;
-
-        // Verify against the proof entry's own versionId (what the witness signed); a
-        // later proof cumulatively approves earlier entries.
-        const canonicalizedData = canonicalizeStrict({ versionId: proofSet.versionId });
-        const canonicalizedProof = canonicalizeStrict(proofWithoutValue);
-        const dataHash = await createHash(canonicalizedData);
-        const proofHash = await createHash(canonicalizedProof);
-        const input = concatBuffers(proofHash, dataHash);
-        const signature = multibaseDecode(proofValue).bytes;
-
-        const verified = await verifier.verify(signature, input, publicKey.slice(2));
-
-        if (!verified) {
-          throw new Error('Invalid witness proof signature');
-        }
-
-        approvals++;
-        processedWitnesses.add(witness.id);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `Ignoring invalid witness proof for version ${proofSet.versionId} ` +
-            `(verificationMethod: ${proof.verificationMethod}): ${message}`
-        );
-      }
-    }
-  }
-
-  return approvals;
-}
-
-export { fetchWitnessProofs };
