@@ -7,7 +7,15 @@ export {
 } from './cryptography';
 export { generateParallelDidWeb } from './did-document';
 export * from './interfaces';
-export { createDID, deactivateDID, resolveDID, resolveDIDFromLog, updateDID } from './method';
+export {
+  createDID,
+  deactivateDID,
+  getWitnessRequirements,
+  resolveDID,
+  resolveDIDFromLog,
+  updateDID,
+  verifyWitnessProofs,
+} from './method';
 export type { GetResolverConfig } from './resolver';
 export { getResolver } from './resolver';
 export type { ResolutionOptionsError, WebvhDocumentMetadata, WebvhResolutionMetadata } from './resolver-result';
