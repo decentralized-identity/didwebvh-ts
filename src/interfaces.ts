@@ -253,6 +253,7 @@ export interface DeactivateDIDInterface {
   log: DIDLog;
   signer: Signer;
   verifier?: Verifier;
+  witnessProofs?: WitnessProofFileEntry[];
 }
 
 export interface ResolutionOptions {
@@ -273,8 +274,7 @@ export interface WitnessProofFileEntry {
 
 /**
  * Common structural input accepted by the witness verification APIs.
- * `CreateDIDResult`, `UpdateDIDResult`, and the deactivation result are all
- * structurally compatible because they expose `log: DIDLog`.
+ * Compatible with any method exposing `log: DIDLog`.
  */
 export interface WitnessVerifiableResult {
   log: DIDLog;

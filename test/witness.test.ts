@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
 import { getWitnessRequirements, verifyWitnessProofs } from '../src';
 import { computeWitnessRequirementChecks } from '../src/core/witness-requirements';
 import type {
@@ -8,7 +8,7 @@ import type {
   Signer,
   VerificationMethod,
 } from '../src/interfaces';
-import { createDID, resolveDIDFromLog, updateDID } from '../src/method';
+import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method';
 import { deriveHash } from '../src/utils/crypto';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils/verification-methods';
@@ -692,6 +692,205 @@ describe('Witness Implementation Tests', async () => {
       for (const requirement of result.requirements) {
         expect(requirement.satisfied).toBe(true);
         expect(requirement.approvals).toBe(1);
+      }
+    });
+
+    test('Deactivating a witnessed DID validates the prior log using caller-supplied witnessProofs, and the resulting entry is checked via verifyWitnessProofs', async () => {
+      const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+      const genesisDid = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier: testImplementation,
+      });
+
+      const genesisVersionId = genesisDid.log[0].versionId;
+      const genesisWitnessProofs = [
+        {
+          versionId: genesisVersionId,
+          proof: [
+            await createWitnessProof(
+              createWitnessSigner(witness1),
+              genesisVersionId,
+              witnessVerificationMethod(witness1)
+            ),
+          ],
+        },
+      ];
+
+      // Deactivate: resolving the prior (witnessed) log must use the caller-supplied
+      // proofs rather than falling back to a network fetch of did-witness.json.
+      const deactivated = await deactivateDID({
+        log: genesisDid.log,
+        signer: createTestSigner(authKey),
+        verifier: testImplementation,
+        witnessProofs: genesisWitnessProofs,
+      });
+
+      expect(deactivated.meta.deactivated).toBe(true);
+      expect(deactivated.log).toHaveLength(2);
+
+      // The still-active genesis configuration also governs the deactivation entry
+      // itself (v2); a proof signing the deactivation entry's own versionId cumulatively
+      // satisfies both the genesis (v1) and deactivation (v2) requirements.
+      const deactivationVersionId = deactivated.log[1].versionId;
+      const cumulativeWitnessProofs = [
+        {
+          versionId: deactivationVersionId,
+          proof: [
+            await createWitnessProof(
+              createWitnessSigner(witness1),
+              deactivationVersionId,
+              witnessVerificationMethod(witness1)
+            ),
+          ],
+        },
+      ];
+
+      const result = await verifyWitnessProofs(deactivated, cumulativeWitnessProofs, { verifier: testImplementation });
+
+      expect(result.verified).toBe(true);
+      expect(result.requirements).toEqual([
+        {
+          versionId: genesisVersionId,
+          versionNumber: 1,
+          threshold: 1,
+          witnesses: [{ id: witnessDid }],
+          approvals: 1,
+          satisfied: true,
+        },
+        {
+          versionId: deactivationVersionId,
+          versionNumber: 2,
+          threshold: 1,
+          witnesses: [{ id: witnessDid }],
+          approvals: 1,
+          satisfied: true,
+        },
+      ]);
+    });
+
+    test('deactivateDID rejects when a witness is required but witnessProofs is omitted, without a network fetch', async () => {
+      const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+      const genesisDid = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier: testImplementation,
+      });
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network fetch should not occur'));
+
+      try {
+        await expect(
+          deactivateDID({
+            log: genesisDid.log,
+            signer: createTestSigner(authKey),
+            verifier: testImplementation,
+          })
+        ).rejects.toThrow();
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    test('updateDID rejects when a witness is required but witnessProofs is omitted, without a network fetch', async () => {
+      const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+      const genesisDid = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier: testImplementation,
+      });
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network fetch should not occur'));
+
+      try {
+        await expect(
+          updateDID({
+            log: genesisDid.log,
+            signer: createTestSigner(authKey),
+            updateKeys: [authKey.publicKeyMultibase!],
+            verificationMethods: asPublicVerificationMethods(authKey),
+            verifier: testImplementation,
+          })
+        ).rejects.toThrow();
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    test('updateDID and deactivateDID never fetch witness proofs over the network when witnessProofs is supplied', async () => {
+      const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+      const genesisDid = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        verificationMethods: asPublicVerificationMethods(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier: testImplementation,
+      });
+
+      const genesisVersionId = genesisDid.log[0].versionId;
+      const genesisWitnessProofs = [
+        {
+          versionId: genesisVersionId,
+          proof: [
+            await createWitnessProof(
+              createWitnessSigner(witness1),
+              genesisVersionId,
+              witnessVerificationMethod(witness1)
+            ),
+          ],
+        },
+      ];
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network fetch should not occur'));
+
+      try {
+        const updatedDid = await updateDID({
+          log: genesisDid.log,
+          signer: createTestSigner(authKey),
+          updateKeys: [authKey.publicKeyMultibase!],
+          verificationMethods: asPublicVerificationMethods(authKey),
+          verifier: testImplementation,
+          witnessProofs: genesisWitnessProofs,
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+
+        const updatedVersionId = updatedDid.log[1].versionId;
+        const updatedWitnessProofs = [
+          {
+            versionId: updatedVersionId,
+            proof: [
+              await createWitnessProof(
+                createWitnessSigner(witness1),
+                updatedVersionId,
+                witnessVerificationMethod(witness1)
+              ),
+            ],
+          },
+        ];
+
+        await deactivateDID({
+          log: updatedDid.log,
+          signer: createTestSigner(authKey),
+          verifier: testImplementation,
+          witnessProofs: updatedWitnessProofs,
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
       }
     });
   });
