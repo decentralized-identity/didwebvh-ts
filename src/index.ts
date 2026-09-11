@@ -1,3 +1,9 @@
+export type {
+  VerifiedWitnessCandidate,
+  VerifyWitnessCandidateOptions,
+  WitnessRefusalCode,
+} from './core/witness-candidate.js';
+export { verifyWitnessCandidate, WitnessRefusal } from './core/witness-candidate.js';
 export {
   AbstractCrypto,
   createDataIntegrityProofTemplate,
