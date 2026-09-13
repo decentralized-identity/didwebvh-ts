@@ -76,6 +76,28 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didResolutionMetadata.contentType).toBe('application/did+ld+json');
   });
 
+  test.each([
+    ['localhost.example.com', [], 'https://localhost.example.com/.well-known/did.jsonl'],
+    ['example.com', ['localhost'], 'https://example.com/localhost/did.jsonl'],
+    ['localhost:8000', [], 'https://localhost:8000/.well-known/did.jsonl'],
+  ])('resolves %s with paths %j over HTTPS', async (address, paths, expectedUrl) => {
+    const created = await createDID({
+      address,
+      paths,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      verificationMethods: asPublicVerificationMethods(authKey),
+      verifier,
+    });
+    const fetchMock = stubFetchResponse(toJsonl(created.log));
+
+    const result = await resolveDID(created.did, { verifier });
+
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(expectedUrl);
+    expect(result.didDocument?.id).toBe(created.did);
+    expect(result.didResolutionMetadata.error).toBeUndefined();
+  });
+
   test('ignores DID_VERIFICATION_METHODS in the runtime environment', async () => {
     const previous = process.env.DID_VERIFICATION_METHODS;
     process.env.DID_VERIFICATION_METHODS = 'invalid-runtime-value';

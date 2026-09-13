@@ -9,6 +9,24 @@ import {
 } from '../src/utils.js';
 
 describe('Resolver URL derivation', () => {
+  test.each([
+    ['localhost', 'localhost', '/.well-known'],
+    ['localhost%3A8000', 'localhost:8000', '/.well-known'],
+    ['localhost.example.com', 'localhost.example.com', '/.well-known'],
+    ['my-localhost.example.com', 'my-localhost.example.com', '/.well-known'],
+    ['cdn-localhost.example', 'cdn-localhost.example', '/.well-known'],
+    ['localhost.example.com%3A8443', 'localhost.example.com:8443', '/.well-known'],
+    ['example.com:localhost', 'example.com/localhost', ''],
+    ['example.com:api:localhost:issuer', 'example.com/api/localhost/issuer', ''],
+    ['example.com%3A8443:localhost', 'example.com:8443/localhost', ''],
+    ['%6Cocalhost.example.com', 'localhost.example.com', '/.well-known'],
+  ])('Keeps HTTPS when localhost appears in %s', (address, location, logDirectory) => {
+    const did = `did:webvh:scid:${address}`;
+
+    expect(getBaseUrl(did)).toBe(`https://${location}`);
+    expect(buildDidLogUrl(did)).toBe(`https://${location}${logDirectory}/did.jsonl`);
+  });
+
   test('Uses https for localhost DID host', () => {
     const did = 'did:webvh:scid:localhost%3A8000:test:path';
     expect(getBaseUrl(did)).toBe('https://localhost:8000/test/path');

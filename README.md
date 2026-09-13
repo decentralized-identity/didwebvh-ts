@@ -318,7 +318,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
   Creates a new DID. Always produces a v1.0 log.
   Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`) or legacy `domain`.
-  Resolver URL mapping uses `http://localhost` for local testing and `https://` for non-local hosts.
+  Resolver URL mapping always uses `https://`, including for `localhost` and identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
 - `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
