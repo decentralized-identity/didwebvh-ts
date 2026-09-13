@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { resolveLog } from '../src/core/resolution.js';
-import type { CreateDIDInterface, CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces.js';
+import type { CreateDIDInterface, CreateDIDResult, DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats.js';
 import {
@@ -10,10 +10,11 @@ import {
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 describe('Not So Happy Path Tests', () => {
-  let authKey: VerificationMethod;
+  let authKey: TestVerificationMethod;
   let testImplementation: TestCryptoImplementation;
   let initialDID: CreateDIDResult;
 
@@ -642,7 +643,7 @@ describe('Not So Happy Path Tests', () => {
 });
 
 describe('Internal resolution invariants', () => {
-  let authKey: VerificationMethod;
+  let authKey: TestVerificationMethod;
   let testImplementation: TestCryptoImplementation;
 
   beforeAll(async () => {

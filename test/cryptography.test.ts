@@ -57,6 +57,7 @@ describe('Injectable Cryptography Tests', () => {
       verificationMethod: {
         id: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
         type: 'Multikey',
+        controller: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
         publicKeyMultibase: updateKey,
       },
     });
@@ -67,6 +68,7 @@ describe('Injectable Cryptography Tests', () => {
         verificationMethod: {
           id: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
           type: 'Multikey',
+          controller: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
           publicKeyMultibase: updateKey,
         },
       },
@@ -322,6 +324,7 @@ describe('Assertion Guards', () => {
       verificationMethod: {
         id: `did:key:${updateKey}`,
         type: 'Multikey',
+        controller: `did:key:${updateKey}`,
         publicKeyMultibase: updateKey,
       },
     },
@@ -520,6 +523,7 @@ describe('Crypto Helpers', () => {
         verificationMethod: {
           id: 'did:key:zDynamic#zDynamic',
           type: 'Multikey',
+          controller: 'did:key:zDynamic',
           publicKeyMultibase: 'zDynamic',
         },
         useStaticId: false,
@@ -534,7 +538,9 @@ describe('Crypto Helpers', () => {
     const crypto = new MockCryptoImplementation(
       {
         verificationMethod: {
+          id: '',
           type: 'Multikey',
+          controller: 'did:key:zNoId',
           publicKeyMultibase: 'zNoId',
         },
         useStaticId: false,

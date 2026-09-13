@@ -1,5 +1,5 @@
-import type { DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } from 'did-resolver';
-import type { DIDDoc, DIDResolutionMeta, DidResolutionError, ProblemDetails } from './interfaces.js';
+import type { DIDDocument, DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } from 'did-resolver';
+import type { DIDResolutionMeta, DidResolutionError, ProblemDetails } from './interfaces.js';
 
 /** `problemDetails.type` URIs from the did:webvh resolution-error registry. */
 export const WEBVH_ERROR_TYPES = {
@@ -135,7 +135,7 @@ export function toErrorResult(
 
 export function toResolutionResult(core: {
   did: string;
-  doc: DIDDoc | null;
+  doc: DIDDocument | null;
   meta: DIDResolutionMeta;
 }): DIDResolutionResult {
   const { meta } = core;
@@ -155,7 +155,7 @@ export function toResolutionResult(core: {
     // fails witness verification); dropping it would hide a legitimate result.
     return {
       didResolutionMetadata,
-      didDocument: (core.doc as DIDResolutionResult['didDocument']) ?? null,
+      didDocument: core.doc,
       didDocumentMetadata,
     };
   }
@@ -163,7 +163,7 @@ export function toResolutionResult(core: {
   const didResolutionMetadata: WebvhResolutionMetadata = { contentType: CONTENT_TYPE };
   return {
     didResolutionMetadata,
-    didDocument: (core.doc as DIDResolutionResult['didDocument']) ?? null,
+    didDocument: core.doc,
     didDocumentMetadata,
   };
 }

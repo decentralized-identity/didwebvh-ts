@@ -1,3 +1,4 @@
+import type { DIDDocument, Service, VerificationMethod } from 'did-resolver';
 import {
   BASE_CONTEXT,
   CONTEXT_LINKED_VP,
@@ -8,7 +9,6 @@ import {
   ServiceFragment,
   VERIFICATION_RELATIONSHIPS,
 } from './constants.js';
-import type { DIDDoc, ServiceEndpoint, VerificationMethod } from './interfaces.js';
 import { normalizeVMs } from './utils/verification-methods.js';
 import { deepClone, getBaseUrl, replaceValueInObject } from './utils.js';
 
@@ -20,12 +20,12 @@ type CreateDIDDocOptions = {
   assertionMethod?: string[];
   keyAgreement?: string[];
   alsoKnownAs?: string[];
-  services?: DIDDoc['service'];
+  services?: DIDDocument['service'];
 };
 
 type ServiceIdStyle = 'absolute' | 'fragment';
 
-export function validateCreateDidDocument(didDocument: DIDDoc): void {
+export function validateCreateDidDocument(didDocument: DIDDocument): void {
   if (!didDocument || typeof didDocument !== 'object') {
     throw new Error('didDocument must be an object');
   }
@@ -37,7 +37,7 @@ export function validateCreateDidDocument(didDocument: DIDDoc): void {
   }
 }
 
-export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsWeb?: boolean }): DIDDoc {
+export function enrichAlsoKnownAs(doc: DIDDocument, did: string, opts: { alsoKnownAsWeb?: boolean }): DIDDocument {
   if (doc.alsoKnownAs !== undefined && !Array.isArray(doc.alsoKnownAs)) {
     throw new Error('alsoKnownAs is not an array');
   }
@@ -67,12 +67,12 @@ export function enrichAlsoKnownAs(doc: DIDDoc, did: string, opts: { alsoKnownAsW
   };
 }
 
-export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDoc }> => {
+export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDocument }> => {
   const { did } = options;
   const all = normalizeVMs(options.verificationMethods, did);
   const derivedProperties = ['verificationMethod', ...VERIFICATION_RELATIONSHIPS] as const;
   const directProperties = ['authentication', 'assertionMethod', 'keyAgreement', 'alsoKnownAs'] as const;
-  const assignIfPresent = <K extends keyof DIDDoc>(property: K, value: DIDDoc[K] | undefined) => {
+  const assignIfPresent = <K extends keyof DIDDocument>(property: K, value: DIDDocument[K] | undefined) => {
     if (Array.isArray(value) && value.length === 0) {
       return;
     }
@@ -82,7 +82,7 @@ export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc:
     }
   };
 
-  const doc: DIDDoc = {
+  const doc: DIDDocument = {
     '@context': options.context || BASE_CONTEXT,
     id: did,
     controller: did,
@@ -112,9 +112,9 @@ export function replaceCreateDidPlaceholders<T>(input: T, scid: string, did: str
 
 export function addDefaultDidWebvhServices(
   did: string,
-  doc: DIDDoc,
+  doc: DIDDocument,
   options: { idStyle?: ServiceIdStyle } = {}
-): DIDDoc {
+): DIDDocument {
   const services = Array.isArray(doc.service) ? [...doc.service] : [];
   const baseUrl = getBaseUrl(did);
   const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -127,7 +127,7 @@ export function addDefaultDidWebvhServices(
     const fragmentForm = `#${fragment}`;
     const absoluteForm = `${did}#${fragment}`;
 
-    return services.some((service: ServiceEndpoint) => {
+    return services.some((service: Service) => {
       const serviceId = service.id || '';
       return serviceId === fragmentForm || serviceId === absoluteForm;
     });
@@ -155,7 +155,7 @@ export function addDefaultDidWebvhServices(
   return changed ? { ...doc, service: services } : doc;
 }
 
-export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc {
+export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocument): DIDDocument {
   let webDoc = addDefaultDidWebvhServices(didwebvhDid, deepClone(didwebvhDoc), { idStyle: 'fragment' });
 
   const scidPrefix = didwebvhDid.replace(/^did:webvh:([^:]+):.*$/, 'did:webvh:$1:');

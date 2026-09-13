@@ -1,3 +1,4 @@
+import type { DIDDocument } from 'did-resolver';
 import { documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
 import { METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
@@ -10,7 +11,6 @@ import {
 import type {
   CreateDIDInterface,
   DeactivateDIDInterface,
-  DIDDoc,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
@@ -134,7 +134,7 @@ export async function prepareGenesisEntry({
 }): Promise<PreparedEntry> {
   const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
 
-  let doc: DIDDoc;
+  let doc: DIDDocument;
   if (options.didDocument) {
     validateCreateDidDocument(options.didDocument);
     doc = deepClone(options.didDocument);

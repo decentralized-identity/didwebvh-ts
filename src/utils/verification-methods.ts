@@ -1,15 +1,16 @@
+import type { DIDDocument, VerificationMethod } from 'did-resolver';
 import type { VerificationRelationship } from '../constants.js';
 import { DID_KEY_PREFIX, VERIFICATION_RELATIONSHIPS } from '../constants.js';
-import type { DIDDoc, ParsedDidKeyVerificationMethod, VerificationMethod } from '../interfaces.js';
+import type { ParsedDidKeyVerificationMethod } from '../interfaces.js';
 import { multibaseDecode } from './multiformats.js';
 
-type NormalizedVerificationMethods = Required<Pick<DIDDoc, 'verificationMethod' | VerificationRelationship>>;
+type NormalizedVerificationMethods = Required<Pick<DIDDocument, 'verificationMethod' | VerificationRelationship>>;
 
 export function sanitizeVerificationMethods(
   verificationMethods?: VerificationMethod[]
 ): VerificationMethod[] | undefined {
   return verificationMethods?.map((vm) => {
-    if (vm.secretKeyMultibase) {
+    if ('secretKeyMultibase' in vm && vm.secretKeyMultibase) {
       console.warn(
         'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
       );
@@ -37,7 +38,7 @@ export function createVMID(vm: VerificationMethod, did: string | null): string {
 
 export function normalizeVMs(
   verificationMethod: VerificationMethod[] | undefined,
-  did: string | null = null
+  did: string
 ): NormalizedVerificationMethods {
   const all: NormalizedVerificationMethods = {
     verificationMethod: [],
@@ -52,15 +53,18 @@ export function normalizeVMs(
     return all;
   }
 
-  const vms = verificationMethod.map((vm) => ({
-    ...vm,
-    id: vm.id ?? createVMID(vm, did),
-    controller: vm.controller ?? did ?? undefined,
-  }));
+  const vms: VerificationMethod[] = verificationMethod.map((vm) => {
+    const normalized = {
+      ...vm,
+      id: (vm.id ?? createVMID(vm, did)).replaceAll('{DID}', did),
+      controller: (vm.controller ?? did).replaceAll('{DID}', did),
+    };
+    return normalized;
+  });
   all.verificationMethod = vms;
 
   for (const vm of vms) {
-    const relationship = vm.purpose;
+    const relationship = 'purpose' in vm ? vm.purpose : undefined;
     if (!relationship) {
       continue;
     }
@@ -73,7 +77,7 @@ export function normalizeVMs(
   return all;
 }
 
-export function findVerificationMethod(doc: DIDDoc, vmId: string): VerificationMethod | null {
+export function findVerificationMethod(doc: DIDDocument, vmId: string): VerificationMethod | null {
   const directMatch = doc.verificationMethod?.find((vm) => vm.id === vmId);
   if (directMatch) {
     return directMatch;
@@ -85,7 +89,7 @@ export function findVerificationMethod(doc: DIDDoc, vmId: string): VerificationM
   };
 
   for (const relationship of VERIFICATION_RELATIONSHIPS) {
-    const relationshipValues = doc[relationship as keyof DIDDoc];
+    const relationshipValues = doc[relationship as keyof DIDDocument];
     if (Array.isArray(relationshipValues)) {
       const match = relationshipValues.find(hasMatchingId);
       if (match) {

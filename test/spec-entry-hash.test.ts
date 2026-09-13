@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import type { DIDLog, VerificationMethod } from '../src/interfaces.js';
+import type { DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { deriveHash } from '../src/utils/crypto.js';
 import {
@@ -7,6 +7,7 @@ import {
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 // didwebvh v1.0 §"Entry Hash Generation and Verification":
@@ -25,7 +26,7 @@ async function specEntryHashForEntry(entry: DIDLog[number], previousVersionId: s
 }
 
 describe('didwebvh v1.0 entryHash spec compliance', () => {
-  let authKey: VerificationMethod;
+  let authKey: TestVerificationMethod;
   let verifier: TestCryptoImplementation;
   let log: DIDLog;
 

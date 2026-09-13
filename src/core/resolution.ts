@@ -1,3 +1,4 @@
+import type { DIDDocument } from 'did-resolver';
 import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions.js';
 import {
   DEFAULT_TTL_SECONDS,
@@ -8,7 +9,6 @@ import {
 } from '../constants.js';
 import { addDefaultDidWebvhServices } from '../did-document.js';
 import type {
-  DIDDoc,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
@@ -42,7 +42,7 @@ const hasOwn = <K extends PropertyKey>(obj: object, key: K): obj is Record<K, un
 
 interface ResolutionSnapshot {
   did: string;
-  doc: DIDDoc | null;
+  doc: DIDDocument | null;
   meta: DIDResolutionMeta;
 }
 
@@ -51,7 +51,7 @@ interface ResolverContext {
   host: string;
   previousVersionTime: Date | undefined;
   did: string;
-  doc: DIDDoc | null;
+  doc: DIDDocument | null;
   resolvedSnapshot: ResolutionSnapshot | null;
   lastValidSnapshot: ResolutionSnapshot | null;
   requiredWitnessChecks: RequiredWitnessCheck[];
@@ -91,7 +91,7 @@ type InternalResolutionOptions = ResolutionOptions & {
 export const resolveLog = async (
   log: DIDLog,
   options: InternalResolutionOptions = {}
-): Promise<{ did: string; doc: DIDDoc | null; meta: DIDResolutionMeta }> => {
+): Promise<{ did: string; doc: DIDDocument | null; meta: DIDResolutionMeta }> => {
   const { result, witnessChecks } = await resolveLogWithWitnessResults(log, options);
   const failedCheck = witnessChecks.find((check) => !check.satisfied);
   if (failedCheck) {
@@ -117,7 +117,7 @@ export const resolveLogWithWitnessResults = async (
   log: DIDLog,
   options: InternalResolutionOptions = {}
 ): Promise<{
-  result: { did: string; doc: DIDDoc | null; meta: DIDResolutionMeta };
+  result: { did: string; doc: DIDDocument | null; meta: DIDResolutionMeta };
   witnessChecks: WitnessCheckResult[];
 }> => {
   // Stage 1: initialize resolution input and context.
@@ -441,7 +441,7 @@ const processGenesisEntry = async ({
   resolverContext: ResolverContext;
   entryContext: ParsedResolutionEntryContext;
   options: InternalResolutionOptions;
-}): Promise<DIDDoc> => {
+}): Promise<DIDDocument> => {
   const { entry: sourceEntry, parsedStateDid } = entryContext;
   const { versionTime, parameters, proof } = sourceEntry;
 
@@ -510,7 +510,7 @@ const processSubsequentEntry = async ({
   logEntries: DIDLog;
   entryIndex: number;
   options: InternalResolutionOptions;
-}): Promise<DIDDoc> => {
+}): Promise<DIDDocument> => {
   const {
     entry: sourceEntry,
     parsedVersion: { version, entryHash },

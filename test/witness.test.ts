@@ -5,7 +5,6 @@ import type {
   DataIntegrityProofTemplate,
   DIDLog,
   Signer,
-  VerificationMethod,
   WitnessProofFileEntry,
 } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
@@ -25,11 +24,12 @@ import {
   createTestVerifier,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 describe('Witness Implementation Tests', async () => {
-  let authKey: VerificationMethod;
-  let witness1: VerificationMethod, witness2: VerificationMethod, witness3: VerificationMethod;
+  let authKey: TestVerificationMethod;
+  let witness1: TestVerificationMethod, witness2: TestVerificationMethod, witness3: TestVerificationMethod;
   let initialDID: CreateDIDResult;
   let testImplementation: TestCryptoImplementation;
 
@@ -41,7 +41,7 @@ describe('Witness Implementation Tests', async () => {
     testImplementation = new TestCryptoImplementation({ verificationMethod: authKey });
   });
 
-  const witnessVerificationMethod = (vm: VerificationMethod) =>
+  const witnessVerificationMethod = (vm: TestVerificationMethod) =>
     `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`;
 
   const expectResolverRequirementsToMatch = async (log: DIDLog, witnessProofs: WitnessProofFileEntry[]) => {
@@ -1916,7 +1916,7 @@ describe('Witness Implementation Tests', async () => {
     expect(proof.proofValue).toBe('zInvalidButPresent');
   });
 
-  const createWitnessSigner = (verificationMethod: VerificationMethod) => {
+  const createWitnessSigner = (verificationMethod: TestVerificationMethod) => {
     const signer = createTestSigner(verificationMethod);
     return async (data: { versionId: string }, proofTemplate?: DataIntegrityProofTemplate) => {
       const proof: DataIntegrityProofTemplate = {

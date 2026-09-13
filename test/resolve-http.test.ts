@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { DIDLog, VerificationMethod } from '../src/interfaces.js';
+import type { DIDLog } from '../src/interfaces.js';
 import { createDID, resolveDID } from '../src/method.js';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils.js';
 import {
@@ -7,6 +7,7 @@ import {
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 const toJsonl = (log: DIDLog) => log.map((entry) => JSON.stringify(entry)).join('\n');
@@ -42,7 +43,7 @@ const restoreStubs = () => {
 };
 
 describe('resolveDID over HTTPS', () => {
-  let authKey: VerificationMethod;
+  let authKey: TestVerificationMethod;
   let verifier: TestCryptoImplementation;
   let did: string;
   let log: DIDLog;
