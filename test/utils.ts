@@ -3,6 +3,7 @@ import { METHOD, METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V0_5, SCID_PLACEHOLDER }
 import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography.js';
 import { createDIDDoc, replaceCreateDidPlaceholders } from '../src/did-document.js';
 import type {
+  DataIntegrityProofPurpose,
   DIDLog,
   DIDLogEntry,
   Signer,
@@ -18,7 +19,12 @@ import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats.js';
 import { deepClone, normalizeDidAddress } from '../src/utils.js';
 
-export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhead: number): Promise<DIDLog> => {
+export type TestVerificationMethod = VerificationMethod & {
+  secretKeyMultibase: string;
+  purpose: DataIntegrityProofPurpose;
+};
+
+export const createFutureDIDLog = async (authKey: TestVerificationMethod, minutesAhead: number): Promise<DIDLog> => {
   const futureCreated = new Date(Date.now() + minutesAhead * 60 * 1000).toISOString();
   const signer = createTestSigner(authKey);
   const controller = `did:${METHOD}:${SCID_PLACEHOLDER}:example.com`;
@@ -68,7 +74,7 @@ export const createFutureDIDLog = async (authKey: VerificationMethod, minutesAhe
 export class TestCryptoImplementation extends AbstractCrypto implements Verifier {
   private keyPair: { publicKey: Uint8Array; seed: Uint8Array };
 
-  constructor(options: SignerOptions) {
+  constructor(options: SignerOptions & { verificationMethod: TestVerificationMethod }) {
     super(options);
     if (!options.verificationMethod?.secretKeyMultibase || !options.verificationMethod.publicKeyMultibase) {
       throw new Error('TestCryptoImplementation requires secret and public multibase keys');
@@ -98,14 +104,9 @@ export class TestCryptoImplementation extends AbstractCrypto implements Verifier
 
 // Helper to generate verification method for tests
 export async function generateTestVerificationMethod(
-  purpose:
-    | 'authentication'
-    | 'assertionMethod'
-    | 'keyAgreement'
-    | 'capabilityInvocation'
-    | 'capabilityDelegation' = 'authentication',
+  purpose: DataIntegrityProofPurpose = 'authentication',
   id?: string
-): Promise<VerificationMethod> {
+): Promise<TestVerificationMethod> {
   const keyPair = ed25519.keygen();
   // seed||publicKey (64 bytes) matches the legacy @stablelib/ed25519 secret layout.
   const secretKey = multibaseEncode(
@@ -114,8 +115,9 @@ export async function generateTestVerificationMethod(
   );
   const publicKey = multibaseEncode(new Uint8Array([0xed, 0x01, ...keyPair.publicKey]), MultibaseEncoding.BASE58_BTC);
   return {
-    id,
+    id: id ?? `{DID}#${publicKey.slice(-8)}`,
     type: 'Multikey',
+    controller: '{DID}',
     publicKeyMultibase: publicKey,
     secretKeyMultibase: secretKey,
     purpose,
@@ -123,20 +125,27 @@ export async function generateTestVerificationMethod(
 }
 
 // Helper to create a signer from a verification method
-export function createTestSigner(verificationMethod: VerificationMethod): Signer {
+export function createTestSigner(verificationMethod: TestVerificationMethod): Signer {
   return new TestCryptoImplementation({ verificationMethod });
 }
 
 // Helper to create a test verifier
-export function createTestVerifier(verificationMethod: VerificationMethod): Verifier {
+export function createTestVerifier(verificationMethod: TestVerificationMethod): Verifier {
   return new TestCryptoImplementation({ verificationMethod });
 }
 
 // Helper to produce DID document-safe verification methods by stripping secret key material
-export function asPublicVerificationMethods(...verificationMethods: VerificationMethod[]): VerificationMethod[] {
+export function asPublicVerificationMethods(
+  ...verificationMethods: TestVerificationMethod[]
+): Array<VerificationMethod & { purpose: DataIntegrityProofPurpose }> {
   return verificationMethods.map((verificationMethod) => {
-    const { secretKeyMultibase, ...publicVerificationMethod } = verificationMethod;
-    return publicVerificationMethod;
+    return {
+      id: verificationMethod.id,
+      type: verificationMethod.type,
+      controller: verificationMethod.controller,
+      publicKeyMultibase: verificationMethod.publicKeyMultibase,
+      purpose: verificationMethod.purpose,
+    };
   });
 }
 

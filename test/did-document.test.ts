@@ -6,7 +6,7 @@ import {
   generateParallelDidWeb,
   validateCreateDidDocument,
 } from '../src/did-document.js';
-import type { DIDDoc, VerificationMethod } from '../src/interfaces.js';
+import type { DIDDocument, VerificationMethod } from '../src/interfaces.js';
 import { createDID, updateDID } from '../src/method.js';
 import { createVMID, findVerificationMethod, normalizeVMs } from '../src/utils/verification-methods.js';
 import {
@@ -17,57 +17,109 @@ import {
 } from './utils.js';
 
 describe('didDocument create pass-through', () => {
-  test('warns and strips secretKeyMultibase when createDID receives secret-bearing verificationMethods', async () => {
+  test('rejects secretKeyMultibase when createDID receives secret-bearing verificationMethods', async () => {
     const authKey = await generateTestVerificationMethod();
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    try {
-      const { doc } = await createDID({
+    await expect(
+      createDID({
         address: 'example.com',
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: [authKey],
-      });
-
-      expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
-      expect((doc.verificationMethod ?? []).every((vm) => vm.secretKeyMultibase === undefined)).toBe(true);
-    } finally {
-      console.warn = originalWarn;
-    }
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
   });
 
   test('creates DID from pass-through didDocument and replaces placeholders', async () => {
     const authKey = await generateTestVerificationMethod();
     const signer = createTestSigner(authKey);
     const verifier = createTestVerifier(authKey);
+    const didDocument: DIDDocument & { exampleExtension: { enabled: boolean } } = {
+      id: '{DID}',
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      controller: 'did:example:controller',
+      service: [
+        {
+          id: '{DID}#service-1',
+          type: 'LinkedDomains',
+          serviceEndpoint: 'https://example.com',
+        },
+      ],
+      exampleExtension: { enabled: true },
+    };
 
     const { did, doc } = await createDID({
       address: 'example.com',
       signer,
       verifier,
       updateKeys: [authKey.publicKeyMultibase!],
-      didDocument: {
-        id: '{DID}',
-        '@context': ['https://www.w3.org/ns/did/v1'],
-        service: [
-          {
-            id: '{DID}#service-1',
-            type: 'LinkedDomains',
-            serviceEndpoint: 'https://example.com',
-          },
-        ],
-      },
+      didDocument,
     });
 
     expect(doc.id).toBe(did);
     expect(doc.id).toBe(`did:webvh:${did.split(':')[2]}:example.com`);
+    expect(doc['@context']).toEqual(['https://www.w3.org/ns/did/v1']);
+    expect(doc.controller).toBe('did:example:controller');
     expect(doc.service?.[0]?.id).toBe(`${did}#service-1`);
+    expect((doc as typeof didDocument).exampleExtension).toEqual({ enabled: true });
+  });
+
+  test('rejects private key material in pass-through didDocument', async () => {
+    const authKey = await generateTestVerificationMethod();
+
+    await expect(
+      createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        verifier: createTestVerifier(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: {
+          id: '{DID}',
+          verificationMethod: [
+            {
+              id: '#key-1',
+              type: 'Multikey',
+              controller: '{DID}',
+              publicKeyMultibase: authKey.publicKeyMultibase,
+              secretKeyMultibase: authKey.secretKeyMultibase,
+            },
+          ],
+        } as unknown as DIDDocument,
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
+  });
+
+  test('rejects nested private key material in pass-through didDocument', async () => {
+    const authKey = await generateTestVerificationMethod();
+
+    await expect(
+      createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        verifier: createTestVerifier(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: {
+          id: '{DID}',
+          verificationMethod: [
+            {
+              id: '#key-1',
+              type: 'ConditionalProof2022',
+              controller: '{DID}',
+              conditionOr: [
+                {
+                  id: '#nested-key',
+                  type: 'Multikey',
+                  controller: '{DID}',
+                  publicKeyMultibase: authKey.publicKeyMultibase,
+                  secretKeyMultibase: authKey.secretKeyMultibase,
+                },
+              ],
+            },
+          ],
+        } as unknown as DIDDocument,
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
   });
 
   test('rejects pass-through didDocument without placeholder in id', async () => {
@@ -139,7 +191,7 @@ describe('didDocument create pass-through', () => {
     ).rejects.toThrow('alsoKnownAs is not an array');
   });
 
-  test('warns and strips secretKeyMultibase when updateDID receives secret-bearing verificationMethods', async () => {
+  test('rejects secretKeyMultibase when updateDID receives secret-bearing verificationMethods', async () => {
     const authKey = await generateTestVerificationMethod();
     const created = await createDID({
       address: 'example.com',
@@ -149,26 +201,15 @@ describe('didDocument create pass-through', () => {
       verificationMethods: asPublicVerificationMethods(authKey),
     });
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    try {
-      const updated = await updateDID({
+    await expect(
+      updateDID({
         log: created.log,
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: [authKey],
-      });
-
-      expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
-      expect((updated.doc.verificationMethod ?? []).every((vm) => vm.secretKeyMultibase === undefined)).toBe(true);
-    } finally {
-      console.warn = originalWarn;
-    }
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
   });
 });
 
@@ -405,7 +446,7 @@ describe('generateParallelDidWeb', () => {
 
   test('default-service helper returns original object unchanged when both implicit services already exist', () => {
     const did = 'did:webvh:zQmExample:example.com:path';
-    const existing: DIDDoc = {
+    const existing: DIDDocument = {
       id: did,
       service: [
         {
@@ -430,7 +471,7 @@ describe('generateParallelDidWeb', () => {
   test('adds implicit #files and #whois services to DID with pre-existing #files, preserving custom endpoint', () => {
     // Regression test: verify no duplication when #files already exists
     const did = 'did:webvh:zQmExample:example.com';
-    const withPreexistingFiles: DIDDoc = {
+    const withPreexistingFiles: DIDDocument = {
       id: did,
       service: [
         {
@@ -456,7 +497,7 @@ describe('generateParallelDidWeb', () => {
 
   test('foreign DID service ids ending with #files/#whois do not suppress implicit services', () => {
     const did = 'did:webvh:zQmExample:example.com';
-    const withForeignServices: DIDDoc = {
+    const withForeignServices: DIDDocument = {
       id: did,
       service: [
         {
@@ -512,22 +553,23 @@ describe('generateParallelDidWeb', () => {
 
 describe('did-document helper branches', () => {
   test('validateCreateDidDocument rejects non-object and non-string id', () => {
-    expect(() => validateCreateDidDocument(null as unknown as DIDDoc)).toThrow('didDocument must be an object');
-    expect(() => validateCreateDidDocument({ id: 123 } as unknown as DIDDoc)).toThrow(
+    expect(() => validateCreateDidDocument(null as unknown as DIDDocument)).toThrow('didDocument must be an object');
+    expect(() => validateCreateDidDocument({ id: 123 } as unknown as DIDDocument)).toThrow(
       "didDocument 'id' field must be a string"
     );
   });
 
   test('enrichAlsoKnownAs rejects invalid did:webvh identifier when alias flag is enabled', () => {
-    expect(() => enrichAlsoKnownAs({ id: '{DID}' } as DIDDoc, 'did:example:123', { alsoKnownAsWeb: true })).toThrow(
-      "Invalid did:webvh id 'did:example:123'"
-    );
+    expect(() =>
+      enrichAlsoKnownAs({ id: '{DID}' } as DIDDocument, 'did:example:123', { alsoKnownAsWeb: true })
+    ).toThrow("Invalid did:webvh id 'did:example:123'");
   });
 
   test('createVMID falls back to random suffix when publicKeyMultibase is missing', () => {
     const vm: VerificationMethod = {
       id: '#temporary',
       type: 'Multikey',
+      controller: 'did:webvh:zQmExample:example.com',
     };
 
     const vmId = createVMID(vm, 'did:webvh:zQmExample:example.com');
@@ -539,7 +581,9 @@ describe('did-document helper branches', () => {
     const normalized = normalizeVMs(
       [
         {
+          id: '#key-1',
           type: 'Multikey',
+          controller: did,
           publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
         },
       ],
@@ -555,10 +599,11 @@ describe('did-document helper branches', () => {
     const vm: VerificationMethod = {
       id: '#rel-vm',
       type: 'Multikey',
+      controller: 'did:webvh:zQmExample:example.com',
       publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
     };
 
-    const doc: DIDDoc = {
+    const doc: DIDDocument = {
       id: 'did:webvh:zQmExample:example.com',
       authentication: [vm as unknown as string],
     };
@@ -589,17 +634,17 @@ describe('did-document helper branches', () => {
 
   test('createDIDDoc propagates populated relationship field and omits other empty fields', async () => {
     const assertionVmId = 'did:webvh:zQmExample:example.com#assertion-key-1';
+    const assertionMethod = {
+      id: assertionVmId,
+      type: 'Multikey',
+      controller: 'did:webvh:zQmExample:example.com',
+      publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+      purpose: 'assertionMethod' as const,
+    };
 
     const { doc } = await createDIDDoc({
       did: 'did:webvh:zQmExample:example.com',
-      verificationMethods: [
-        {
-          id: assertionVmId,
-          type: 'Multikey',
-          publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-          purpose: 'assertionMethod',
-        },
-      ],
+      verificationMethods: [assertionMethod],
       authentication: [],
       keyAgreement: [],
       alsoKnownAs: [],

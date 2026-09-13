@@ -1,25 +1,27 @@
 import { describe, expect, test } from 'vitest';
 import {
+  type CliSigningKey,
   decodeVerificationMethods,
   encodeVerificationMethods,
   getVerificationMethodsFromEnv,
-} from '../src/cli/persistence.js';
-import type { VerificationMethod } from '../src/interfaces.js';
+} from '../persistence.js';
 
 describe('CLI verification-method persistence helpers', () => {
   test('round-trips verification methods via encode/decode', () => {
-    const methods: VerificationMethod[] = [
+    const methods: CliSigningKey[] = [
       {
         id: 'did:webvh:abc:example.com#k1',
         type: 'Multikey',
         controller: 'did:webvh:abc:example.com',
         publicKeyMultibase: 'z6MkhQ...',
+        secretKeyMultibase: 'z3u2...',
       },
       {
         id: 'did:webvh:def:example.com#k2',
         type: 'Multikey',
         controller: 'did:webvh:def:example.com',
         publicKeyMultibase: 'z6Mks9...',
+        secretKeyMultibase: 'z3u3...',
       },
     ];
 
@@ -43,12 +45,13 @@ describe('CLI verification-method persistence helpers', () => {
   });
 
   test('reads verification methods from DID_VERIFICATION_METHODS env', async () => {
-    const methods: VerificationMethod[] = [
+    const methods: CliSigningKey[] = [
       {
         id: 'did:webvh:ghi:example.com#k3',
         type: 'Multikey',
         controller: 'did:webvh:ghi:example.com',
         publicKeyMultibase: 'z6Mkmn...',
+        secretKeyMultibase: 'z3u4...',
       },
     ];
 

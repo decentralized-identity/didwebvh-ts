@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from 'vitest';
-import type { CreateDIDResult, DIDLog, DIDLogEntry, ServiceEndpoint, VerificationMethod } from '../src/interfaces.js';
+import type { CreateDIDResult, DIDLog, DIDLogEntry, Service } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { deriveHash, deriveNextKeyHash } from '../src/utils/crypto.js';
 import { createDate } from '../src/utils/iso8601-datetime.js';
@@ -8,13 +8,14 @@ import {
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 let log: DIDLog;
-let authKey1: VerificationMethod,
-  authKey2: VerificationMethod,
-  authKey3: VerificationMethod,
-  authKey4: VerificationMethod;
+let authKey1: TestVerificationMethod,
+  authKey2: TestVerificationMethod,
+  authKey3: TestVerificationMethod,
+  authKey4: TestVerificationMethod;
 let testImplementation: TestCryptoImplementation;
 
 let nonPortableDID: CreateDIDResult;
@@ -210,7 +211,7 @@ test('Normal resolution path augments default #files and #whois services', async
   });
 
   const resolved = await resolveDIDFromLog(created.log, { verifier });
-  const services = (resolved.didDocument?.service ?? []) as ServiceEndpoint[];
+  const services = (resolved.didDocument?.service ?? []) as Service[];
   const filesService = services.find((service) => service.id?.endsWith('#files'));
   const whoisService = services.find((service) => service.id?.endsWith('#whois'));
 
@@ -596,7 +597,7 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
   const resolvedDid = result.didDocument?.id;
 
   // Verify that the implicit #files service was NOT added (only custom service exists)
-  const filesServices = ((result.didDocument?.service as ServiceEndpoint[]) || []).filter((s: ServiceEndpoint) => {
+  const filesServices = ((result.didDocument?.service as Service[]) || []).filter((s: Service) => {
     const id = s.id || '';
     return id.endsWith('#files');
   });
@@ -606,7 +607,7 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
   expect(filesServices[0].serviceEndpoint).toBe('https://custom.example.com');
 
   // Verify #whois was still added as implicit service
-  const whoisServices = ((result.didDocument?.service as ServiceEndpoint[]) || []).filter((s: ServiceEndpoint) => {
+  const whoisServices = ((result.didDocument?.service as Service[]) || []).filter((s: Service) => {
     const id = s.id || '';
     return id.endsWith('#whois');
   });
@@ -629,7 +630,7 @@ test('End-to-end: pathed + percent-encoded DID with both implicit services resol
 
   // Resolve and verify implicit services
   const result = await resolveDIDFromLog(createdLog, { verifier: testImplementation });
-  const services = (result.didDocument?.service as ServiceEndpoint[]) || [];
+  const services = (result.didDocument?.service as Service[]) || [];
 
   // Verify #files service
   const filesServices = services.filter((s) => {
@@ -682,7 +683,7 @@ test('Regression: DID with both #files and #whois pre-existing does not duplicat
 
   // Resolve and verify no duplicates
   const result = await resolveDIDFromLog(createdLog, { verifier: testImplementation });
-  const services = (result.didDocument?.service as ServiceEndpoint[]) || [];
+  const services = (result.didDocument?.service as Service[]) || [];
 
   // Verify exactly one #files service with custom endpoint (not duplicated)
   const filesServices = services.filter((s) => {

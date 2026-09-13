@@ -1,15 +1,16 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import type { CreateDIDResult, DIDLog, VerificationMethod } from '../src/interfaces.js';
+import type { CreateDIDResult, DIDLog } from '../src/interfaces.js';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import {
   asPublicVerificationMethods,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 describe('Portability', () => {
-  let authKey: VerificationMethod;
+  let authKey: TestVerificationMethod;
   let testImplementation: TestCryptoImplementation;
   let nonPortableDID: CreateDIDResult;
   let portableDID: CreateDIDResult;

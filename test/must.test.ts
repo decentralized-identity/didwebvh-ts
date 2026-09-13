@@ -1,11 +1,5 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import type {
-  CreateDIDResult,
-  DataIntegrityProofTemplate,
-  DIDLog,
-  VerificationMethod,
-  WitnessProofFileEntry,
-} from '../src/interfaces.js';
+import type { CreateDIDResult, DataIntegrityProofTemplate, DIDLog, WitnessProofFileEntry } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { createWitnessProof } from '../src/witness.js';
 import {
@@ -13,12 +7,13 @@ import {
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 describe('did:webvh normative tests', async () => {
   let newDoc1: CreateDIDResult['doc'];
   let newLog1: DIDLog;
-  let authKey1: VerificationMethod;
+  let authKey1: TestVerificationMethod;
   let testImplementation: TestCryptoImplementation;
 
   beforeAll(async () => {
@@ -86,18 +81,18 @@ describe('did:webvh normative tests', async () => {
 });
 
 describe('did:webvh normative witness tests', async () => {
-  let authKey1: VerificationMethod;
-  let witness1: VerificationMethod, witness2: VerificationMethod, witness3: VerificationMethod;
+  let authKey1: TestVerificationMethod;
+  let witness1: TestVerificationMethod, witness2: TestVerificationMethod, witness3: TestVerificationMethod;
   let initialDID: CreateDIDResult;
   let testImplementation: TestCryptoImplementation;
   let witnessImpl1: TestCryptoImplementation,
     witnessImpl2: TestCryptoImplementation,
     witnessImpl3: TestCryptoImplementation;
 
-  const witnessVerificationMethod = (vm: VerificationMethod) =>
+  const witnessVerificationMethod = (vm: TestVerificationMethod) =>
     `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`;
 
-  const createWitnessSigner = (verificationMethod: VerificationMethod) => {
+  const createWitnessSigner = (verificationMethod: TestVerificationMethod) => {
     const signer = createTestSigner(verificationMethod);
     return async (data: { versionId: string }, proofTemplate?: DataIntegrityProofTemplate) => {
       const proof: DataIntegrityProofTemplate = {
@@ -263,7 +258,7 @@ describe('did:webvh normative witness tests', async () => {
 });
 
 describe('Must Tests', () => {
-  let authKey1: VerificationMethod;
+  let authKey1: TestVerificationMethod;
   let testImplementation: TestCryptoImplementation;
 
   beforeAll(async () => {

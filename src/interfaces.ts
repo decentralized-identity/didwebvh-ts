@@ -1,3 +1,7 @@
+import type { DIDDocument, Service, VerificationMethod } from 'did-resolver';
+
+export type { DIDDocument, Service, ServiceEndpoint, VerificationMethod } from 'did-resolver';
+
 export type DataIntegrityProofPurpose =
   | 'authentication'
   | 'assertionMethod'
@@ -21,7 +25,7 @@ export interface DataIntegrityProofTemplate {
   proofPurpose: DataIntegrityProofPurpose;
 }
 
-export type SignableDocument = DIDLogEntry | DIDDoc | Pick<DIDLogEntry, 'versionId'>;
+export type SignableDocument = DIDLogEntry | DIDDocument | Pick<DIDLogEntry, 'versionId'>;
 
 export interface SigningInput<TDocument = SignableDocument> {
   document: TDocument;
@@ -83,31 +87,6 @@ export interface DIDResolutionMeta {
   latestVersionId?: string;
 }
 
-export interface DIDDoc {
-  '@context'?: string | string[] | object | object[];
-  id?: string;
-  controller?: string | string[];
-  alsoKnownAs?: string[];
-  authentication?: string[];
-  assertionMethod?: string[];
-  keyAgreement?: string[];
-  capabilityInvocation?: string[];
-  capabilityDelegation?: string[];
-  verificationMethod?: VerificationMethod[];
-  service?: ServiceEndpoint[];
-}
-
-export interface VerificationMethod {
-  id?: string;
-  type: string;
-  controller?: string;
-  publicKeyMultibase?: string;
-  secretKeyMultibase?: string;
-  purpose?: DataIntegrityProofPurpose;
-  publicKeyJwk?: JsonObject;
-  use?: string;
-}
-
 export interface WitnessEntry {
   id: string; // did:key DID
 }
@@ -164,42 +143,35 @@ export interface DIDLogEntry {
     ttl?: string | number | null;
     deactivated?: boolean;
   };
-  state: DIDDoc;
+  state: DIDDocument;
   proof?: DataIntegrityProof[];
 }
 
 export type DIDLog = DIDLogEntry[];
 
-export interface ServiceEndpoint {
-  id?: string;
-  type: string | string[];
-  serviceEndpoint?: string | string[] | JsonValue;
-  [key: string]: unknown;
-}
-
 export interface CreateDIDResult {
   did: string;
-  doc: DIDDoc;
+  doc: DIDDocument;
   meta: DIDResolutionMeta;
   log: DIDLog;
-  webDoc?: DIDDoc;
+  webDoc?: DIDDocument;
 }
 
 export interface UpdateDIDResult {
   did: string;
-  doc: DIDDoc;
+  doc: DIDDocument;
   meta: DIDResolutionMeta;
   log: DIDLog;
-  webDoc?: DIDDoc;
+  webDoc?: DIDDocument;
 }
 
 export interface CreateDIDInterface {
   address?: string;
   signer: Signer;
   updateKeys: string[];
-  verificationMethods?: VerificationMethod[];
-  didDocument?: DIDDoc;
-  services?: ServiceEndpoint[];
+  verificationMethods?: Array<VerificationMethod & { purpose?: DataIntegrityProofPurpose }>;
+  didDocument?: DIDDocument;
+  services?: Service[];
   paths?: string[];
   context?: string | string[] | object | object[];
   alsoKnownAs?: string[];
@@ -232,7 +204,7 @@ export interface UpdateDIDInterface {
    */
   updated?: string;
   updateKeys?: string[];
-  verificationMethods?: VerificationMethod[];
+  verificationMethods?: Array<VerificationMethod & { purpose?: DataIntegrityProofPurpose }>;
   context?: string | string[] | object | object[];
   alsoKnownAs?: string[];
   portable?: boolean;
@@ -245,7 +217,7 @@ export interface UpdateDIDInterface {
   keyAgreement?: string[];
   witnessProofs?: WitnessProofFileEntry[];
   address?: string;
-  services?: ServiceEndpoint[];
+  services?: Service[];
   paths?: string[];
 }
 

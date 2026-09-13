@@ -1,6 +1,6 @@
 import { Resolver } from 'did-resolver';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { DIDLog, VerificationMethod } from '../src/interfaces.js';
+import type { DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, updateDID } from '../src/method.js';
 import { getResolver } from '../src/resolver.js';
 import {
@@ -8,6 +8,7 @@ import {
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
+  type TestVerificationMethod,
 } from './utils.js';
 
 const toJsonl = (log: DIDLog) => log.map((entry) => JSON.stringify(entry)).join('\n');
@@ -39,7 +40,7 @@ describe('getResolver integration', () => {
   let fullLog: DIDLog;
   let v1Id: string;
   let v2Id: string;
-  let authKey: VerificationMethod;
+  let authKey: TestVerificationMethod;
   let verifier: TestCryptoImplementation;
   let resolver: Resolver;
 

@@ -1,4 +1,4 @@
-import type { DIDResolutionResult } from 'did-resolver';
+import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
 import { resolveLog, resolveLogWithWitnessResults } from './core/resolution.js';
@@ -8,7 +8,6 @@ import type {
   CreateDIDInterface,
   CreateDIDResult,
   DeactivateDIDInterface,
-  DIDDoc,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
@@ -259,7 +258,7 @@ export const updateDID = async (options: UpdateDIDInterface): Promise<UpdateDIDR
  */
 export const deactivateDID = async (
   options: DeactivateDIDInterface & { updateKeys?: string[] }
-): Promise<{ did: string; doc: DIDDoc; meta: DIDResolutionMeta; log: DIDLog }> => {
+): Promise<{ did: string; doc: DIDDocument; meta: DIDResolutionMeta; log: DIDLog }> => {
   if (options.updateKeys !== undefined) {
     options = { ...options, updateKeys: normalizeUpdateKeys(options.updateKeys) };
   }
