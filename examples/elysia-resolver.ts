@@ -2,18 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { Elysia } from 'elysia';
 import { AbstractCrypto, resolveDID } from '../src/index.js';
-import type { DIDDoc, SigningInput, SigningOutput, Verifier } from '../src/types.js';
+import type { DIDDocument, SigningInput, SigningOutput, VerificationMethod, Verifier } from '../src/types.js';
 
 class ElysiaVerifier extends AbstractCrypto implements Verifier {
-  constructor(
-    public readonly verificationMethod: {
-      id: string;
-      controller: string;
-      type: string;
-      publicKeyMultibase: string;
-      secretKeyMultibase: string;
-    }
-  ) {
+  constructor(public readonly verificationMethod: VerificationMethod) {
     super({ verificationMethod });
   }
 
@@ -37,7 +29,6 @@ const createElysiaVerifier = () => {
     controller: 'did:example:123',
     type: 'Ed25519VerificationKey2020',
     publicKeyMultibase: `z123`,
-    secretKeyMultibase: `z123`,
   });
 };
 
@@ -68,7 +59,7 @@ const getFile = async ({
 }: {
   params: { path: string; file: string };
   isRemote?: boolean;
-  didDocument?: DIDDoc;
+  didDocument?: DIDDocument;
 }) => {
   try {
     if (isRemote) {
@@ -170,7 +161,7 @@ const app = new Elysia()
         };
       }
       const did = resolution.didDocument?.id ?? '';
-      const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
+      const doc = resolution.didDocument ?? undefined;
       const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);
 
       const didParts = did.split(':');

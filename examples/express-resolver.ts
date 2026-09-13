@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { resolveDID } from 'didwebvh-ts';
-import type { DIDDoc, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
+import type { DIDDocument, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
 import express from 'express';
 
 class ExpressVerifier implements Verifier {
@@ -69,7 +69,7 @@ const getFile = async ({
 }: {
   params: { path: string; file: string };
   isRemote?: boolean;
-  didDocument?: DIDDoc;
+  didDocument?: DIDDocument;
 }) => {
   try {
     if (isRemote) {
@@ -161,7 +161,7 @@ app.get('/resolve/:id', async (req, res) => {
       });
     }
     const did = resolution.didDocument?.id ?? '';
-    const doc = (resolution.didDocument as DIDDoc | null) ?? undefined;
+    const doc = resolution.didDocument ?? undefined;
     const controlled = Boolean((resolution.didResolutionMetadata as { controlled?: boolean }).controlled);
 
     const didParts = did.split(':');
