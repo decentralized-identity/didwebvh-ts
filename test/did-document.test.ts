@@ -17,29 +17,18 @@ import {
 } from './utils.js';
 
 describe('didDocument create pass-through', () => {
-  test('warns and strips secretKeyMultibase when createDID receives secret-bearing verificationMethods', async () => {
+  test('rejects secretKeyMultibase when createDID receives secret-bearing verificationMethods', async () => {
     const authKey = await generateTestVerificationMethod();
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    try {
-      const { doc } = await createDID({
+    await expect(
+      createDID({
         address: 'example.com',
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: [authKey],
-      });
-
-      expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
-      expect((doc.verificationMethod ?? []).every((vm) => !('secretKeyMultibase' in vm))).toBe(true);
-    } finally {
-      console.warn = originalWarn;
-    }
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
   });
 
   test('creates DID from pass-through didDocument and replaces placeholders', async () => {
@@ -74,6 +63,63 @@ describe('didDocument create pass-through', () => {
     expect(doc.controller).toBe('did:example:controller');
     expect(doc.service?.[0]?.id).toBe(`${did}#service-1`);
     expect((doc as typeof didDocument).exampleExtension).toEqual({ enabled: true });
+  });
+
+  test('rejects private key material in pass-through didDocument', async () => {
+    const authKey = await generateTestVerificationMethod();
+
+    await expect(
+      createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        verifier: createTestVerifier(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: {
+          id: '{DID}',
+          verificationMethod: [
+            {
+              id: '#key-1',
+              type: 'Multikey',
+              controller: '{DID}',
+              publicKeyMultibase: authKey.publicKeyMultibase,
+              secretKeyMultibase: authKey.secretKeyMultibase,
+            },
+          ],
+        } as unknown as DIDDocument,
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
+  });
+
+  test('rejects nested private key material in pass-through didDocument', async () => {
+    const authKey = await generateTestVerificationMethod();
+
+    await expect(
+      createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        verifier: createTestVerifier(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: {
+          id: '{DID}',
+          verificationMethod: [
+            {
+              id: '#key-1',
+              type: 'ConditionalProof2022',
+              controller: '{DID}',
+              conditionOr: [
+                {
+                  id: '#nested-key',
+                  type: 'Multikey',
+                  controller: '{DID}',
+                  publicKeyMultibase: authKey.publicKeyMultibase,
+                  secretKeyMultibase: authKey.secretKeyMultibase,
+                },
+              ],
+            },
+          ],
+        } as unknown as DIDDocument,
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
   });
 
   test('rejects pass-through didDocument without placeholder in id', async () => {
@@ -145,7 +191,7 @@ describe('didDocument create pass-through', () => {
     ).rejects.toThrow('alsoKnownAs is not an array');
   });
 
-  test('warns and strips secretKeyMultibase when updateDID receives secret-bearing verificationMethods', async () => {
+  test('rejects secretKeyMultibase when updateDID receives secret-bearing verificationMethods', async () => {
     const authKey = await generateTestVerificationMethod();
     const created = await createDID({
       address: 'example.com',
@@ -155,26 +201,15 @@ describe('didDocument create pass-through', () => {
       verificationMethods: asPublicVerificationMethods(authKey),
     });
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    try {
-      const updated = await updateDID({
+    await expect(
+      updateDID({
         log: created.log,
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verificationMethods: [authKey],
-      });
-
-      expect(warnings.some((msg) => msg.includes('Removing secretKeyMultibase'))).toBe(true);
-      expect((updated.doc.verificationMethod ?? []).every((vm) => !('secretKeyMultibase' in vm))).toBe(true);
-    } finally {
-      console.warn = originalWarn;
-    }
+      })
+    ).rejects.toThrow('private key material must not be included in DID documents');
   });
 });
 

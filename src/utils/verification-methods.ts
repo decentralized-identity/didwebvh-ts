@@ -6,16 +6,40 @@ import { multibaseDecode } from './multiformats.js';
 
 type NormalizedVerificationMethods = Required<Pick<DIDDocument, 'verificationMethod' | VerificationRelationship>>;
 
+export function assertNoPrivateVerificationMaterial(didDocument: DIDDocument): void {
+  const visit = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) {
+      for (const [index, item] of value.entries()) {
+        visit(item, `${path}[${index}]`);
+      }
+      return;
+    }
+    if (typeof value !== 'object' || value === null) {
+      return;
+    }
+
+    for (const [property, nestedValue] of Object.entries(value)) {
+      const propertyPath = `${path}.${property}`;
+      if (property === 'secretKeyMultibase' && nestedValue !== undefined) {
+        throw new Error(
+          `${propertyPath} contains private key material; private key material must not be included in DID documents`
+        );
+      }
+      visit(nestedValue, propertyPath);
+    }
+  };
+
+  visit(didDocument, 'didDocument');
+}
+
 export function sanitizeVerificationMethods(
   verificationMethods?: VerificationMethod[]
 ): VerificationMethod[] | undefined {
-  return verificationMethods?.map((vm) => {
-    if ('secretKeyMultibase' in vm && vm.secretKeyMultibase) {
-      console.warn(
-        'Warning: Removing secretKeyMultibase from verification method - secret keys should not be stored in DID documents'
+  return verificationMethods?.map((vm, index) => {
+    if ('secretKeyMultibase' in vm && vm.secretKeyMultibase !== undefined) {
+      throw new Error(
+        `verificationMethods[${index}] contains secretKeyMultibase; private key material must not be included in DID documents`
       );
-      const { secretKeyMultibase, ...safeVm } = vm;
-      return safeVm;
     }
 
     return vm;

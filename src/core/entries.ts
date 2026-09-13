@@ -18,7 +18,7 @@ import type {
   WitnessParameterResolution,
 } from '../interfaces.js';
 import { createSCID, deriveHash } from '../utils/crypto.js';
-import { sanitizeVerificationMethods } from '../utils/verification-methods.js';
+import { assertNoPrivateVerificationMaterial, sanitizeVerificationMethods } from '../utils/verification-methods.js';
 import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils.js';
 import { validateWitnessParameter } from '../witness.js';
 
@@ -137,6 +137,7 @@ export async function prepareGenesisEntry({
   let doc: DIDDocument;
   if (options.didDocument) {
     validateCreateDidDocument(options.didDocument);
+    assertNoPrivateVerificationMaterial(options.didDocument);
     doc = deepClone(options.didDocument);
   } else {
     if (!safeVerificationMethods || safeVerificationMethods.length === 0) {
