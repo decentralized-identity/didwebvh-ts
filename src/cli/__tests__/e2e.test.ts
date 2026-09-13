@@ -3,9 +3,8 @@ import fs from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { generateTestVerificationMethod, TestCryptoImplementation } from '../../../test/utils.js';
-import type { VerificationMethod } from '../../interfaces.js';
 import { resolveDIDFromLog } from '../../method.js';
-import { readLogFromDisk } from '../persistence.js';
+import { type CliSigningKey, readLogFromDisk } from '../persistence.js';
 
 const REPO_ROOT = process.cwd();
 const TEST_DIR = join(REPO_ROOT, 'test', 'temp-cli-e2e');
@@ -49,7 +48,7 @@ afterAll(() => {
 });
 
 // Helper function to create a temporary verification method file for CLI commands
-function createTempVerificationMethod(vm: VerificationMethod): string {
+function createTempVerificationMethod(vm: CliSigningKey): string {
   const tempFile = join(TEST_DIR, `vm-${Date.now()}.json`);
   const vmData = Buffer.from(JSON.stringify([vm])).toString('base64');
   fs.writeFileSync(tempFile, vmData);

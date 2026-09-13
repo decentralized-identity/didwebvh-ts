@@ -1,19 +1,24 @@
 import { base64 } from '@scure/base';
-import type { DIDLog, VerificationMethod } from '../interfaces.js';
+import type { VerificationMethod } from 'did-resolver';
+import type { DIDLog } from '../interfaces.js';
+
+export type CliSigningKey = VerificationMethod & {
+  secretKeyMultibase: string;
+};
 
 type ProcessVersionsLike = { node?: string };
 
-export const decodeVerificationMethods = (encoded: string): VerificationMethod[] => {
+export const decodeVerificationMethods = (encoded: string): CliSigningKey[] => {
   try {
     const decoded = new TextDecoder().decode(base64.decode(encoded));
     const parsed = JSON.parse(decoded) as unknown;
-    return Array.isArray(parsed) ? (parsed as VerificationMethod[]) : [];
+    return Array.isArray(parsed) ? (parsed as CliSigningKey[]) : [];
   } catch {
     return [];
   }
 };
 
-export const encodeVerificationMethods = (methods: VerificationMethod[]): string => {
+export const encodeVerificationMethods = (methods: CliSigningKey[]): string => {
   return base64.encode(new TextEncoder().encode(JSON.stringify(methods)));
 };
 
@@ -118,7 +123,7 @@ export const writeLogToDisk = async (path: string, log: DIDLog) => {
   }
 };
 
-export const writeVerificationMethodToEnv = async (verificationMethod: VerificationMethod) => {
+export const writeVerificationMethodToEnv = async (verificationMethod: CliSigningKey) => {
   const envFilePath = `${process.cwd()}/.env`;
 
   const vmData = {
@@ -158,7 +163,7 @@ export const writeVerificationMethodToEnv = async (verificationMethod: Verificat
       existingData = [vmData];
     }
 
-    const encodedData = encodeVerificationMethods(existingData as VerificationMethod[]);
+    const encodedData = encodeVerificationMethods(existingData);
 
     // If DID_VERIFICATION_METHODS already exists, replace it
     if (envContent.includes('DID_VERIFICATION_METHODS=')) {
@@ -183,7 +188,7 @@ export type VerificationMethodEnvReadOptions = {
 
 export const getVerificationMethodsFromEnv = async (
   options: VerificationMethodEnvReadOptions = {}
-): Promise<VerificationMethod[]> => {
+): Promise<CliSigningKey[]> => {
   const env = options.env ?? process.env;
   const encoded = env.DID_VERIFICATION_METHODS;
   if (encoded) {
