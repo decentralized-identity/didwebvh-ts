@@ -67,6 +67,9 @@ export function enrichAlsoKnownAs(doc: DIDDocument, did: string, opts: { alsoKno
   };
 }
 
+/**
+ * @deprecated Legacy partial document assembly helper. Pass complete 'didDocument' directly to createDID / updateDID instead. Will be removed in next PR.
+ */
 export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDocument }> => {
   const { did } = options;
   const all = normalizeVMs(options.verificationMethods, did);

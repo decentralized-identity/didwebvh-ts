@@ -16,6 +16,7 @@ export interface ParsedDidWebvhIdentifier {
   didDomainComponent: string;
   paths?: string[];
   locationKey: string;
+  did: string;
 }
 
 // Version parsing/validation utilities

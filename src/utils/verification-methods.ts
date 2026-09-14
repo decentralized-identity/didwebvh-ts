@@ -46,6 +46,9 @@ export function sanitizeVerificationMethods(
   });
 }
 
+/**
+ * @deprecated Legacy helper for synthesizing VM IDs with random suffixes. Pass explicit IDs in 'didDocument' instead. Will be removed in next PR.
+ */
 export function createVMID(vm: VerificationMethod, did: string | null): string {
   const randomSuffix = (() => {
     const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -60,6 +63,9 @@ export function createVMID(vm: VerificationMethod, did: string | null): string {
   return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || randomSuffix}`;
 }
 
+/**
+ * @deprecated Legacy helper for normalizing VM 'purpose' into verification relationships. Supply explicit relationships in 'didDocument' instead. Will be removed in next PR.
+ */
 export function normalizeVMs(
   verificationMethod: VerificationMethod[] | undefined,
   did: string
