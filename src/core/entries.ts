@@ -1,6 +1,6 @@
 import type { DIDDocument } from 'did-resolver';
 import { documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
-import { METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants.js';
+import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER, VERIFICATION_RELATIONSHIPS } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
 import {
   createDIDDoc,
@@ -18,8 +18,12 @@ import type {
   WitnessParameterResolution,
 } from '../interfaces.js';
 import { createSCID, deriveHash } from '../utils/crypto.js';
-import { assertNoPrivateVerificationMaterial, sanitizeVerificationMethods } from '../utils/verification-methods.js';
-import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier } from '../utils.js';
+import {
+  assertNoPrivateVerificationMaterial,
+  assertValidAuthoredVerificationMethods,
+  sanitizeVerificationMethods,
+} from '../utils/verification-methods.js';
+import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier, replaceValueInObject } from '../utils.js';
 import { validateWitnessParameter } from '../witness.js';
 
 export interface PreparedEntry {
@@ -37,11 +41,11 @@ const resolveNextDidContext = ({
   lastEntryDid: string;
   parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
   portable: boolean;
-}): { controller: string } => {
+}): { did: string } => {
   const requestedAddress = options.address;
   if (!requestedAddress) {
     return {
-      controller: lastEntryDid,
+      did: lastEntryDid,
     };
   }
 
@@ -52,14 +56,14 @@ const resolveNextDidContext = ({
     fallbackPaths: parsedLastEntryDid.paths ?? [],
     context: 'updateDID path segments',
   });
-  const controller = normalizedAddress.controller;
+  const did = normalizedAddress.did;
 
-  if (controller !== lastEntryDid && !portable) {
+  if (did !== lastEntryDid && !portable) {
     throw new Error('Cannot move DID: portability is disabled');
   }
 
   return {
-    controller,
+    did,
   };
 };
 
@@ -125,11 +129,11 @@ function shouldInjectMethodParameter(log: DIDLog): boolean {
 
 export async function prepareGenesisEntry({
   options,
-  controller,
+  did,
   createdDate,
 }: {
   options: CreateDIDInterface;
-  controller: string;
+  did: string;
   createdDate: string;
 }): Promise<PreparedEntry> {
   const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
@@ -138,7 +142,8 @@ export async function prepareGenesisEntry({
   if (options.didDocument) {
     validateCreateDidDocument(options.didDocument);
     assertNoPrivateVerificationMaterial(options.didDocument);
-    doc = deepClone(options.didDocument);
+    assertValidAuthoredVerificationMethods(options.didDocument);
+    doc = replaceValueInObject(deepClone(options.didDocument), DID_PLACEHOLDER, did) as DIDDocument;
   } else {
     if (!safeVerificationMethods || safeVerificationMethods.length === 0) {
       throw new Error('verificationMethods must be provided when didDocument is not supplied');
@@ -146,13 +151,13 @@ export async function prepareGenesisEntry({
 
     const didDocResult = await createDIDDoc({
       ...options,
-      did: controller,
+      did,
       verificationMethods: safeVerificationMethods,
     });
     doc = didDocResult.doc;
   }
 
-  doc = enrichAlsoKnownAs(doc, controller, {
+  doc = enrichAlsoKnownAs(doc, did, {
     alsoKnownAsWeb: options.alsoKnownAsWeb,
   });
 
@@ -178,7 +183,7 @@ export async function prepareGenesisEntry({
 
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   params.scid = await createSCID(initialLogEntryHash);
-  const didWithScid = controller.replaceAll(SCID_PLACEHOLDER, params.scid);
+  const didWithScid = did.replaceAll(SCID_PLACEHOLDER, params.scid);
   const entry = replaceCreateDidPlaceholders(initialLogEntry, params.scid, didWithScid);
   entry.state = enrichAlsoKnownAs(entry.state, didWithScid, {
     alsoKnownAsWeb: options.alsoKnownAsWeb,
@@ -268,51 +273,123 @@ export async function prepareUpdateEntry({
 
   const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
 
-  const { controller } = resolveNextDidContext({
+  const { did: nextDid } = resolveNextDidContext({
     options,
     lastEntryDid,
     parsedLastEntryDid,
     portable: lastMeta.portable,
   });
 
-  const { doc: normalizedUpdateDoc } = await createDIDDoc({
-    ...options,
-    did: controller,
-    context: options.context || lastEntry.state['@context'],
-    verificationMethods: safeVerificationMethods ?? [],
-  });
+  let doc: DIDDocument;
+  if (options.didDocument) {
+    assertNoPrivateVerificationMaterial(options.didDocument);
+    assertValidAuthoredVerificationMethods(options.didDocument);
+    doc = deepClone(options.didDocument);
 
-  const doc = deepClone(lastEntry.state);
-  doc['@context'] = normalizedUpdateDoc['@context'];
-  doc.id = normalizedUpdateDoc.id;
-  doc.controller = normalizedUpdateDoc.controller;
+    if (doc.id && nextDid === lastEntryDid && doc.id !== lastEntryDid) {
+      throw new Error(`Updated DID document id must match expected DID '${lastEntryDid}', got '${doc.id}'`);
+    }
+  } else if (
+    safeVerificationMethods !== undefined ||
+    options.services !== undefined ||
+    options.authentication !== undefined ||
+    options.assertionMethod !== undefined ||
+    options.keyAgreement !== undefined ||
+    options.alsoKnownAs !== undefined ||
+    options.context !== undefined
+  ) {
+    const { doc: normalizedUpdateDoc } = await createDIDDoc({
+      ...options,
+      did: nextDid,
+      context: options.context || lastEntry.state['@context'],
+      verificationMethods: safeVerificationMethods ?? [],
+    });
 
-  if (safeVerificationMethods !== undefined) {
-    doc.verificationMethod = normalizedUpdateDoc.verificationMethod;
-    doc.authentication = normalizedUpdateDoc.authentication;
-    doc.assertionMethod = normalizedUpdateDoc.assertionMethod;
-    doc.keyAgreement = normalizedUpdateDoc.keyAgreement;
-    doc.capabilityDelegation = normalizedUpdateDoc.capabilityDelegation;
-    doc.capabilityInvocation = normalizedUpdateDoc.capabilityInvocation;
+    doc = deepClone(lastEntry.state);
+    doc['@context'] = normalizedUpdateDoc['@context'];
+    doc.id = normalizedUpdateDoc.id;
+    doc.controller = normalizedUpdateDoc.controller;
+
+    if (safeVerificationMethods !== undefined) {
+      doc.verificationMethod = normalizedUpdateDoc.verificationMethod;
+      doc.authentication = normalizedUpdateDoc.authentication;
+      doc.assertionMethod = normalizedUpdateDoc.assertionMethod;
+      doc.keyAgreement = normalizedUpdateDoc.keyAgreement;
+      doc.capabilityDelegation = normalizedUpdateDoc.capabilityDelegation;
+      doc.capabilityInvocation = normalizedUpdateDoc.capabilityInvocation;
+    }
+
+    if (options.services !== undefined) {
+      doc.service = options.services;
+    }
+    if (options.authentication !== undefined) {
+      doc.authentication = options.authentication;
+    }
+    if (options.assertionMethod !== undefined) {
+      doc.assertionMethod = options.assertionMethod;
+    }
+    if (options.keyAgreement !== undefined) {
+      doc.keyAgreement = options.keyAgreement;
+    }
+    if (options.alsoKnownAs !== undefined) {
+      doc.alsoKnownAs = options.alsoKnownAs;
+    }
+  } else {
+    doc = deepClone(lastEntry.state);
   }
 
-  if (options.services !== undefined) {
-    doc.service = options.services;
-  }
-  if (options.authentication !== undefined) {
-    doc.authentication = options.authentication;
-  }
-  if (options.assertionMethod !== undefined) {
-    doc.assertionMethod = options.assertionMethod;
-  }
-  if (options.keyAgreement !== undefined) {
-    doc.keyAgreement = options.keyAgreement;
-  }
-  if (options.alsoKnownAs !== undefined) {
-    doc.alsoKnownAs = options.alsoKnownAs;
-  }
+  if (nextDid !== lastEntryDid) {
+    doc.id = nextDid;
 
-  if (controller !== lastEntryDid) {
+    // Rewrite self-referential top-level controller
+    if (typeof doc.controller === 'string') {
+      if (doc.controller === lastEntryDid) {
+        doc.controller = nextDid;
+      }
+    } else if (Array.isArray(doc.controller)) {
+      doc.controller = doc.controller.map((c) => (c === lastEntryDid ? nextDid : c));
+    }
+
+    // Rewrite self-referential verification methods in verificationMethod
+    if (Array.isArray(doc.verificationMethod)) {
+      doc.verificationMethod = doc.verificationMethod.map((vm) => {
+        const updated = { ...vm };
+        if (updated.controller === lastEntryDid) {
+          updated.controller = nextDid;
+        }
+        if (typeof updated.id === 'string' && updated.id.startsWith(`${lastEntryDid}#`)) {
+          updated.id = `${nextDid}#${updated.id.slice(lastEntryDid.length + 1)}`;
+        }
+        return updated;
+      });
+    }
+
+    // Rewrite self-referential verification methods in relationships
+    for (const rel of VERIFICATION_RELATIONSHIPS) {
+      const relArray = doc[rel as keyof DIDDocument];
+      if (Array.isArray(relArray)) {
+        (doc as Record<string, unknown>)[rel] = relArray.map((item) => {
+          if (typeof item === 'string') {
+            if (item.startsWith(`${lastEntryDid}#`)) {
+              return `${nextDid}#${item.slice(lastEntryDid.length + 1)}`;
+            }
+            return item;
+          }
+          if (typeof item === 'object' && item !== null) {
+            const updated = { ...(item as Record<string, unknown>) };
+            if (updated.controller === lastEntryDid) {
+              updated.controller = nextDid;
+            }
+            if (typeof updated.id === 'string' && updated.id.startsWith(`${lastEntryDid}#`)) {
+              updated.id = `${nextDid}#${updated.id.slice(lastEntryDid.length + 1)}`;
+            }
+            return updated;
+          }
+          return item;
+        });
+      }
+    }
+
     const aliases = Array.isArray(doc.alsoKnownAs) ? [...doc.alsoKnownAs] : [];
     if (!aliases.includes(lastEntryDid)) {
       aliases.push(lastEntryDid);
