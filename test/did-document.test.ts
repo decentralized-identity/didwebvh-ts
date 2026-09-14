@@ -1,16 +1,15 @@
 import { describe, expect, test } from 'vitest';
 import {
   addDefaultDidWebvhServices,
-  createDIDDoc,
   enrichAlsoKnownAs,
   generateParallelDidWeb,
   validateCreateDidDocument,
 } from '../src/did-document.js';
 import type { DIDDocument, VerificationMethod } from '../src/interfaces.js';
 import { createDID, updateDID } from '../src/method.js';
-import { createVMID, findVerificationMethod, normalizeVMs } from '../src/utils/verification-methods.js';
+import { findVerificationMethod } from '../src/utils/verification-methods.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   createTestVerifier,
   generateTestVerificationMethod,
@@ -26,7 +25,10 @@ describe('didDocument create pass-through', () => {
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: [authKey],
+        didDocument: {
+          id: '{DID}',
+          verificationMethod: [authKey],
+        } as unknown as DIDDocument,
       })
     ).rejects.toThrow('private key material must not be included in DID documents');
   });
@@ -198,7 +200,7 @@ describe('didDocument create pass-through', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     await expect(
@@ -207,7 +209,10 @@ describe('didDocument create pass-through', () => {
         signer: createTestSigner(authKey),
         verifier: createTestVerifier(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: [authKey],
+        didDocument: {
+          id: created.did,
+          verificationMethod: [authKey],
+        } as unknown as DIDDocument,
       })
     ).rejects.toThrow('private key material must not be included in DID documents');
   });
@@ -243,7 +248,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -258,7 +263,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -273,7 +278,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       alsoKnownAsWeb: true,
     });
 
@@ -289,7 +294,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     expect(result.webDoc).toBeUndefined();
@@ -302,7 +307,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -324,7 +329,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -343,7 +348,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -362,7 +367,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -381,7 +386,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       alsoKnownAsWeb: true,
     });
 
@@ -394,13 +399,15 @@ describe('generateParallelDidWeb', () => {
   test('removes duplicate entries from alsoKnownAs when generating parallel did:web doc', async () => {
     const authKey = await generateTestVerificationMethod();
     const baseAlias = 'did:example:original';
+    const didDoc = createTestDIDDocument(authKey);
+    didDoc.alsoKnownAs = [baseAlias, baseAlias, 'did:example:another', baseAlias];
+
     const { did, doc } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
-      alsoKnownAs: [baseAlias, baseAlias, 'did:example:another', baseAlias],
+      didDocument: didDoc,
     });
 
     const webDoc = generateParallelDidWeb(did, doc);
@@ -426,7 +433,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       alsoKnownAsWeb: true,
     });
 
@@ -435,8 +442,6 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
-      alsoKnownAs: created.doc.alsoKnownAs,
     });
 
     expect(updated.webDoc).toBeDefined();
@@ -533,7 +538,7 @@ describe('generateParallelDidWeb', () => {
       signer: createTestSigner(authKey),
       verifier: createTestVerifier(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
     });
 
     // Verify DID format includes port and path
@@ -565,36 +570,6 @@ describe('did-document helper branches', () => {
     ).toThrow("Invalid did:webvh id 'did:example:123'");
   });
 
-  test('createVMID falls back to random suffix when publicKeyMultibase is missing', () => {
-    const vm: VerificationMethod = {
-      id: '#temporary',
-      type: 'Multikey',
-      controller: 'did:webvh:zQmExample:example.com',
-    };
-
-    const vmId = createVMID(vm, 'did:webvh:zQmExample:example.com');
-    expect(vmId).toMatch(/^did:webvh:zQmExample:example.com#[a-z0-9]{8}$/);
-  });
-
-  test('normalizeVMs keeps vm without purpose out of relationship arrays', () => {
-    const did = 'did:webvh:zQmExample:example.com';
-    const normalized = normalizeVMs(
-      [
-        {
-          id: '#key-1',
-          type: 'Multikey',
-          controller: did,
-          publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-        },
-      ],
-      did
-    );
-
-    expect(normalized.verificationMethod).toHaveLength(1);
-    expect(normalized.authentication).toEqual([]);
-    expect(normalized.assertionMethod).toEqual([]);
-  });
-
   test('findVerificationMethod resolves from relationship object and returns null when not found', () => {
     const vm: VerificationMethod = {
       id: '#rel-vm',
@@ -610,53 +585,6 @@ describe('did-document helper branches', () => {
 
     expect(findVerificationMethod(doc, '#rel-vm')).toEqual(vm);
     expect(findVerificationMethod(doc, '#missing')).toBeNull();
-  });
-
-  test('createDIDDoc omits empty derived/direct relationship fields', async () => {
-    const { doc } = await createDIDDoc({
-      did: 'did:webvh:zQmExample:example.com',
-      verificationMethods: [],
-      authentication: [],
-      assertionMethod: [],
-      keyAgreement: [],
-      alsoKnownAs: [],
-    });
-
-    expect(doc).not.toHaveProperty('verificationMethod');
-    expect(doc).not.toHaveProperty('authentication');
-    expect(doc).not.toHaveProperty('assertionMethod');
-    expect(doc).not.toHaveProperty('keyAgreement');
-    expect(doc).not.toHaveProperty('capabilityDelegation');
-    expect(doc).not.toHaveProperty('capabilityInvocation');
-    expect(doc).not.toHaveProperty('alsoKnownAs');
-    expect(doc).not.toHaveProperty('service');
-  });
-
-  test('createDIDDoc propagates populated relationship field and omits other empty fields', async () => {
-    const assertionVmId = 'did:webvh:zQmExample:example.com#assertion-key-1';
-    const assertionMethod = {
-      id: assertionVmId,
-      type: 'Multikey',
-      controller: 'did:webvh:zQmExample:example.com',
-      publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-      purpose: 'assertionMethod' as const,
-    };
-
-    const { doc } = await createDIDDoc({
-      did: 'did:webvh:zQmExample:example.com',
-      verificationMethods: [assertionMethod],
-      authentication: [],
-      keyAgreement: [],
-      alsoKnownAs: [],
-    });
-
-    expect(doc.assertionMethod).toEqual([assertionVmId]);
-    expect(doc.verificationMethod).toHaveLength(1);
-    expect(doc).not.toHaveProperty('authentication');
-    expect(doc).not.toHaveProperty('keyAgreement');
-    expect(doc).not.toHaveProperty('alsoKnownAs');
-    expect(doc).not.toHaveProperty('capabilityDelegation');
-    expect(doc).not.toHaveProperty('capabilityInvocation');
   });
 });
 

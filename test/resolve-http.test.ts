@@ -3,7 +3,7 @@ import type { DIDLog } from '../src/interfaces.js';
 import { createDID, resolveDID } from '../src/method.js';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -55,7 +55,7 @@ describe('resolveDID over HTTPS', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     }));
   });
@@ -87,7 +87,7 @@ describe('resolveDID over HTTPS', () => {
       paths,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
     const fetchMock = stubFetchResponse(toJsonl(created.log));

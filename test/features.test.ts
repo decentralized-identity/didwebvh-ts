@@ -4,7 +4,7 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { deriveHash, deriveNextKeyHash } from '../src/utils/crypto.js';
 import { createDate } from '../src/utils/iso8601-datetime.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -28,41 +28,38 @@ beforeAll(async () => {
   authKey4 = await generateTestVerificationMethod();
   testImplementation = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-  const { doc: newDoc1, log: newLog1 } = await createDID({
+  const { log: newLog1 } = await createDID({
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     verifier: testImplementation,
   });
 
-  const { doc: newDoc2, log: newLog2 } = await updateDID({
+  const { log: newLog2 } = await updateDID({
     log: newLog1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey2.publicKeyMultibase!],
-    context: newDoc1['@context'],
-    verificationMethods: asPublicVerificationMethods(authKey2),
+    didDocument: createTestDIDDocument(authKey2),
     updated: createDate(new Date('2021-02-01T08:32:55Z')),
     verifier: testImplementation,
   });
 
-  const { doc: newDoc3, log: newLog3 } = await updateDID({
+  const { log: newLog3 } = await updateDID({
     log: newLog2,
     signer: createTestSigner(authKey2),
     updateKeys: [authKey3.publicKeyMultibase!],
-    context: newDoc2['@context'],
-    verificationMethods: asPublicVerificationMethods(authKey3),
+    didDocument: createTestDIDDocument(authKey3),
     updated: createDate(new Date('2021-03-01T08:32:55Z')),
     verifier: testImplementation,
   });
 
-  const { doc: newDoc4, log: newLog4 } = await updateDID({
+  const { log: newLog4 } = await updateDID({
     log: newLog3,
     signer: createTestSigner(authKey3),
     updateKeys: [authKey4.publicKeyMultibase!],
-    context: newDoc3['@context'],
-    verificationMethods: asPublicVerificationMethods(authKey4),
+    didDocument: createTestDIDDocument(authKey4),
     updated: createDate(new Date('2021-04-01T08:32:55Z')),
     verifier: testImplementation,
   });
@@ -73,7 +70,7 @@ beforeAll(async () => {
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     portable: false, // Set portable to false
     verifier: testImplementation,
@@ -83,7 +80,7 @@ beforeAll(async () => {
     address: 'example.com',
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey2),
+    didDocument: createTestDIDDocument(authKey2),
     created: createDate(new Date('2021-01-01T08:32:55Z')),
     portable: true, // Set portable to true
     verifier: testImplementation,
@@ -143,7 +140,7 @@ test('Resolver metadata defaults ttl to 3600 when ttl is absent', async () => {
     address: 'example.com',
     signer: createTestSigner(authKey),
     updateKeys: [authKey.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey),
+    didDocument: createTestDIDDocument(authKey),
     verifier,
   });
 
@@ -162,7 +159,7 @@ test('Resolver metadata emits configured ttl as string when ttl is explicitly se
     address: 'example.com',
     signer,
     updateKeys: [authKey.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey),
+    didDocument: createTestDIDDocument(authKey),
     verifier,
     created: '2024-01-01T00:00:00Z',
   });
@@ -206,7 +203,7 @@ test('Normal resolution path augments default #files and #whois services', async
     address: 'example.com',
     signer: createTestSigner(key),
     updateKeys: [key.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(key),
+    didDocument: createTestDIDDocument(key),
     verifier,
   });
 
@@ -252,7 +249,7 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     verifier: testImplementation,
   });
 
@@ -261,7 +258,7 @@ test('Empty nextKeyHashes array should not enable prerotation', async () => {
     log: log1,
     signer: createTestSigner(authKey1),
     updateKeys: [authKey2.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey2),
+    didDocument: createTestDIDDocument(authKey2),
     verifier: testImplementation,
   });
 
@@ -277,7 +274,7 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -286,7 +283,7 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
     log: log1,
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey2),
+    didDocument: createTestDIDDocument(authKey2),
     verifier: testImplementation,
   });
 
@@ -303,7 +300,7 @@ test('deactivateDID with pre-rotation active produces a resolvable deactivated l
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -334,7 +331,7 @@ test('Historical versionId on a deactivated log keeps historical document and re
     address: 'example.com',
     signer: createTestSigner(authKey),
     updateKeys: [authKey.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey),
+    didDocument: createTestDIDDocument(authKey),
     verifier,
     created: '2024-01-01T00:00:00Z',
   });
@@ -343,7 +340,7 @@ test('Historical versionId on a deactivated log keeps historical document and re
     log: created.log,
     signer: createTestSigner(authKey),
     updateKeys: [authKey.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey),
+    didDocument: createTestDIDDocument(authKey),
     verifier,
     updated: '2024-01-01T00:00:01Z',
   });
@@ -352,7 +349,7 @@ test('Historical versionId on a deactivated log keeps historical document and re
     log: updated1.log,
     signer: createTestSigner(authKey),
     updateKeys: [authKey.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey),
+    didDocument: createTestDIDDocument(authKey),
     verifier,
     updated: '2024-01-01T00:00:02Z',
   });
@@ -380,7 +377,7 @@ test('deactivateDID rejects keys that are not in the prior nextKeyHashes', async
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -401,7 +398,7 @@ test('deactivateDID omitting updateKeys is rejected while pre-rotation is active
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -421,7 +418,7 @@ test('Omitted updateKeys is rejected while pre-rotation is active', async () => 
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -430,7 +427,7 @@ test('Omitted updateKeys is rejected while pre-rotation is active', async () => 
     updateDID({
       log,
       signer: createTestSigner(authKey2),
-      verificationMethods: asPublicVerificationMethods(authKey2),
+      didDocument: createTestDIDDocument(authKey2),
       verifier: testImplementation,
     })
   ).rejects.toThrow('updateKeys must be provided while pre-rotation is active');
@@ -442,7 +439,7 @@ test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -452,7 +449,7 @@ test('Explicit empty nextKeyHashes disables pre-rotation', async () => {
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
     nextKeyHashes: [],
-    verificationMethods: asPublicVerificationMethods(authKey2),
+    didDocument: createTestDIDDocument(authKey2),
     verifier: testImplementation,
   });
 
@@ -470,7 +467,7 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -484,7 +481,7 @@ test('updateKeys MUST be in previous nextKeyHashes when updating', async () => {
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
       nextKeyHashes: [],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier: testImplementation,
     })
   ).rejects.toThrow('Invalid update key');
@@ -497,7 +494,7 @@ test('updateKeys MUST be in nextKeyHashes when reading', async () => {
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     nextKeyHashes: [nextKeyHash],
     verifier: testImplementation,
   });
@@ -574,6 +571,14 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
     '@context': ['https://www.w3.org/ns/did/v1'],
     id: 'did:webvh:{SCID}:example.com',
     controller: ['did:webvh:{SCID}:example.com'],
+    verificationMethod: [
+      {
+        id: 'did:webvh:{SCID}:example.com#key-1',
+        type: authKey1.type,
+        controller: 'did:webvh:{SCID}:example.com',
+        publicKeyMultibase: authKey1.publicKeyMultibase,
+      },
+    ],
     service: [
       {
         id: 'did:webvh:{SCID}:example.com#files', // Absolute form with placeholder
@@ -583,11 +588,10 @@ test('Absolute service IDs prevent implicit service duplication', async () => {
     ],
   };
 
-  const { log: createdLog, doc: createdDoc } = await createDID({
+  const { log: createdLog } = await createDID({
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
     didDocument: customDidDocument,
     verifier: testImplementation,
   });
@@ -622,7 +626,7 @@ test('End-to-end: pathed + percent-encoded DID with both implicit services resol
     address: 'https://example.com:9443/orgs/acme',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
+    didDocument: createTestDIDDocument(authKey1),
     verifier: testImplementation,
   });
 
@@ -657,6 +661,14 @@ test('Regression: DID with both #files and #whois pre-existing does not duplicat
     '@context': ['https://www.w3.org/ns/did/v1'],
     id: 'did:webvh:{SCID}:example.com',
     controller: ['did:webvh:{SCID}:example.com'],
+    verificationMethod: [
+      {
+        id: 'did:webvh:{SCID}:example.com#key-1',
+        type: authKey1.type,
+        controller: 'did:webvh:{SCID}:example.com',
+        publicKeyMultibase: authKey1.publicKeyMultibase,
+      },
+    ],
     service: [
       {
         id: 'did:webvh:{SCID}:example.com#files',
@@ -672,11 +684,10 @@ test('Regression: DID with both #files and #whois pre-existing does not duplicat
     ],
   };
 
-  const { log: createdLog, did: createdDid } = await createDID({
+  const { log: createdLog } = await createDID({
     address: 'example.com',
     signer: createTestSigner(authKey1),
     updateKeys: [authKey1.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey1),
     didDocument: customDidDoc,
     verifier: testImplementation,
   });

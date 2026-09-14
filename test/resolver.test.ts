@@ -4,7 +4,7 @@ import type { DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, updateDID } from '../src/method.js';
 import { getResolver } from '../src/resolver.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -53,7 +53,7 @@ describe('getResolver integration', () => {
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
       created: '2023-01-01T00:00:00Z',
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
     did = created.did;
@@ -62,7 +62,6 @@ describe('getResolver integration', () => {
       log: created.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       updated: '2023-02-01T00:00:01Z',
       verifier,
     });

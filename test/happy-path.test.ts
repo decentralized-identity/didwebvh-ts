@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
+import type { DIDDocument } from '../src/interfaces.js';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -16,7 +17,7 @@ describe('Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -31,11 +32,33 @@ describe('Happy Path Tests', () => {
     const authKey2 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
+    const keyId1 = `{DID}#${authKey1.publicKeyMultibase!.slice(-8)}`;
+    const keyId2 = `{DID}#${authKey2.publicKeyMultibase!.slice(-8)}`;
+    const didDocument: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      verificationMethod: [
+        {
+          id: keyId1,
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey1.publicKeyMultibase!,
+        },
+        {
+          id: keyId2,
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey2.publicKeyMultibase!,
+        },
+      ],
+      authentication: [keyId1, keyId2],
+    };
+
     const { did, doc, log } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1, authKey2),
+      didDocument,
       verifier,
     });
 
@@ -50,20 +73,34 @@ describe('Happy Path Tests', () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { log: initialLog } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const authKey2 = await generateTestVerificationMethod();
+    const nextDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: did,
+      verificationMethod: [
+        {
+          id: `${did}#${authKey2.publicKeyMultibase!.slice(-8)}`,
+          type: 'Multikey',
+          controller: did,
+          publicKeyMultibase: authKey2.publicKeyMultibase!,
+        },
+      ],
+      authentication: [`${did}#${authKey2.publicKeyMultibase!.slice(-8)}`],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey2),
+      didDocument: nextDoc,
       verifier,
     });
 
@@ -76,21 +113,44 @@ describe('Happy Path Tests', () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { log: initialLog } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const authKey2 = await generateTestVerificationMethod();
     const authKey3 = await generateTestVerificationMethod();
+    const keyId2 = `${did}#${authKey2.publicKeyMultibase!.slice(-8)}`;
+    const keyId3 = `${did}#${authKey3.publicKeyMultibase!.slice(-8)}`;
+
+    const nextDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: did,
+      verificationMethod: [
+        {
+          id: keyId2,
+          type: 'Multikey',
+          controller: did,
+          publicKeyMultibase: authKey2.publicKeyMultibase!,
+        },
+        {
+          id: keyId3,
+          type: 'Multikey',
+          controller: did,
+          publicKeyMultibase: authKey3.publicKeyMultibase!,
+        },
+      ],
+      authentication: [keyId2, keyId3],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey2, authKey3),
+      didDocument: nextDoc,
       verifier,
     });
 
@@ -104,20 +164,26 @@ describe('Happy Path Tests', () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { log: initialLog } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const externalDID = 'did:example:123#key-1';
+    const nextDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: did,
+      authentication: [externalDID],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      authentication: [externalDID],
+      didDocument: nextDoc,
       verifier,
     });
 
@@ -126,33 +192,51 @@ describe('Happy Path Tests', () => {
   });
 
   test('Update DID with custom verification relationships', async () => {
-    // Create a verification method with authentication purpose for initial DID
-    const authKey1 = await generateTestVerificationMethod('authentication');
+    const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    // Create the initial DID
-    const { log: initialLog, did } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
-    // Create verification methods with specific purposes
-    const assertionKey = await generateTestVerificationMethod('assertionMethod');
-    const keyAgreementKey = await generateTestVerificationMethod('keyAgreement');
+    const assertionKey = await generateTestVerificationMethod();
+    const keyAgreementKey = await generateTestVerificationMethod();
+    const assertionId = `${did}#${assertionKey.publicKeyMultibase!.slice(-8)}`;
+    const agreementId = `${did}#${keyAgreementKey.publicKeyMultibase!.slice(-8)}`;
 
-    // Update the DID with the new verification methods
+    const nextDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: did,
+      verificationMethod: [
+        {
+          id: assertionId,
+          type: 'Multikey',
+          controller: did,
+          publicKeyMultibase: assertionKey.publicKeyMultibase!,
+        },
+        {
+          id: agreementId,
+          type: 'Multikey',
+          controller: did,
+          publicKeyMultibase: keyAgreementKey.publicKeyMultibase!,
+        },
+      ],
+      assertionMethod: [assertionId],
+      keyAgreement: [agreementId],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(assertionKey, keyAgreementKey),
+      didDocument: nextDoc,
       verifier,
     });
 
-    // Check that the verification methods were added correctly
     expect(updatedDoc.verificationMethod).toHaveLength(2);
     expect(updatedDoc.assertionMethod).toHaveLength(1);
     expect(updatedDoc.keyAgreement).toHaveLength(1);
@@ -162,11 +246,11 @@ describe('Happy Path Tests', () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { log: initialLog } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
@@ -176,11 +260,17 @@ describe('Happy Path Tests', () => {
       serviceEndpoint: 'https://example.com/service',
     };
 
+    const nextDoc: DIDDocument = {
+      ...createTestDIDDocument(authKey1, { keyId: `${did}#${authKey1.publicKeyMultibase!.slice(-8)}` }),
+      id: did,
+      service: [service],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      services: [service],
+      didDocument: nextDoc,
       verifier,
     });
 
@@ -192,20 +282,26 @@ describe('Happy Path Tests', () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { log: initialLog } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const alias = 'did:web:example.com';
+    const nextDoc: DIDDocument = {
+      ...createTestDIDDocument(authKey1, { keyId: `${did}#${authKey1.publicKeyMultibase!.slice(-8)}` }),
+      id: did,
+      alsoKnownAs: [alias],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      alsoKnownAs: [alias],
+      didDocument: nextDoc,
       verifier,
     });
 
@@ -222,7 +318,7 @@ describe('Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
@@ -246,7 +342,7 @@ describe('Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
@@ -271,22 +367,22 @@ describe('Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
-      alsoKnownAs: ['did:example:one'],
-      services: [
-        {
-          id: '#svc',
-          type: 'LinkedDomains',
-          serviceEndpoint: 'https://example.com',
-        },
-      ],
+      didDocument: createTestDIDDocument(authKey1, {
+        alsoKnownAs: ['did:example:one'],
+        services: [
+          {
+            id: '#svc',
+            type: 'LinkedDomains',
+            serviceEndpoint: 'https://example.com',
+          },
+        ],
+      }),
       verifier,
     });
 
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
-      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -308,14 +404,13 @@ describe('Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const { log: updatedLog, meta } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
-      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
@@ -323,48 +418,60 @@ describe('Happy Path Tests', () => {
     expect(meta.updateKeys).toEqual([authKey1.publicKeyMultibase!]);
   });
 
-  test('Update DID with explicit assertionMethod option', async () => {
+  test('Update DID with explicit assertionMethod in didDocument', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { log: initialLog } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const externalRef = 'did:example:assertion#key-1';
+    const nextDoc: DIDDocument = {
+      ...createTestDIDDocument(authKey1, { keyId: `${did}#${authKey1.publicKeyMultibase!.slice(-8)}` }),
+      id: did,
+      assertionMethod: [externalRef],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      assertionMethod: [externalRef],
+      didDocument: nextDoc,
       verifier,
     });
 
     expect(updatedDoc.assertionMethod).toEqual([externalRef]);
   });
 
-  test('Update DID with explicit keyAgreement option', async () => {
+  test('Update DID with explicit keyAgreement in didDocument', async () => {
     const authKey1 = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { log: initialLog } = await createDID({
+    const { did, log: initialLog } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const externalRef = 'did:example:agreement#key-1';
+    const nextDoc: DIDDocument = {
+      ...createTestDIDDocument(authKey1, { keyId: `${did}#${authKey1.publicKeyMultibase!.slice(-8)}` }),
+      id: did,
+      keyAgreement: [externalRef],
+    };
+
     const { doc: updatedDoc } = await updateDID({
       log: initialLog,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      keyAgreement: [externalRef],
+      didDocument: nextDoc,
       verifier,
     });
 
@@ -379,21 +486,19 @@ describe('Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier,
     });
 
     const { log: log2 } = await updateDID({
       log: log1,
       signer: createTestSigner(authKey1),
-      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 
     const { log: log3 } = await updateDID({
       log: log2,
       signer: createTestSigner(authKey1),
-      verificationMethods: asPublicVerificationMethods(authKey1),
       verifier,
     });
 

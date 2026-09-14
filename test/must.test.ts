@@ -3,7 +3,7 @@ import type { CreateDIDResult, DataIntegrityProofTemplate, DIDLog, WitnessProofF
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { createWitnessProof } from '../src/witness.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -11,7 +11,6 @@ import {
 } from './utils.js';
 
 describe('did:webvh normative tests', async () => {
-  let newDoc1: CreateDIDResult['doc'];
   let newLog1: DIDLog;
   let authKey1: TestVerificationMethod;
   let testImplementation: TestCryptoImplementation;
@@ -20,16 +19,15 @@ describe('did:webvh normative tests', async () => {
     authKey1 = await generateTestVerificationMethod();
     testImplementation = new TestCryptoImplementation({ verificationMethod: authKey1 });
 
-    const { doc, log } = await createDID({
+    const { log } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       created: '2024-01-01T08:32:55Z',
       verifier: testImplementation,
     });
 
-    newDoc1 = doc;
     newLog1 = log;
   });
 
@@ -49,12 +47,11 @@ describe('did:webvh normative tests', async () => {
     const authKey2 = await generateTestVerificationMethod();
 
     // Sign with authKey1 (authorized by previous updateKeys), rotate to authKey2
-    const { doc: updatedDoc, log: updatedLog } = await updateDID({
+    const { log: updatedLog } = await updateDID({
       log: newLog1,
       signer: createTestSigner(authKey1),
       updateKeys: [authKey2.publicKeyMultibase!],
-      context: newDoc1['@context'],
-      verificationMethods: asPublicVerificationMethods(authKey2),
+      didDocument: createTestDIDDocument(authKey2),
       updated: '2024-02-01T08:32:55Z',
       verifier: testImplementation,
     });
@@ -127,7 +124,7 @@ describe('did:webvh normative witness tests', async () => {
       address: 'example.com',
       signer: createTestSigner(authKey1),
       updateKeys: [authKey1.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey1),
+      didDocument: createTestDIDDocument(authKey1),
       verifier: testImplementation,
       witness: {
         threshold: 2,
@@ -143,11 +140,11 @@ describe('did:webvh normative witness tests', async () => {
   test('witness parameter MUST use did:key DIDs', async () => {
     let err: unknown;
     try {
-      const { doc, log, did } = await createDID({
+      await createDID({
         address: 'example.com',
         signer: createTestSigner(authKey1),
         updateKeys: [authKey1.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey1),
+        didDocument: createTestDIDDocument(authKey1),
         verifier: testImplementation,
         witness: {
           threshold: 2,

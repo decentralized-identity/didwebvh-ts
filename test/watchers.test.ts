@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -17,7 +17,7 @@ describe('Watcher Handling', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       watchers,
       verifier,
     });
@@ -35,7 +35,7 @@ describe('Watcher Handling', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       watchers,
       verifier,
     });
@@ -44,7 +44,6 @@ describe('Watcher Handling', () => {
       log: initial.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier,
     });
 
@@ -61,7 +60,7 @@ describe('Watcher Handling', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       watchers,
       verifier,
     });
@@ -70,7 +69,6 @@ describe('Watcher Handling', () => {
       log: initial.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       watchers: null,
       verifier,
     });

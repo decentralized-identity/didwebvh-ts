@@ -4,8 +4,8 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { deriveHash, deriveNextKeyHash } from '../src/utils/crypto.js';
 import {
   appendV05LogEntry,
-  asPublicVerificationMethods,
   buildV05Genesis,
+  createTestDIDDocument,
   createTestSigner,
   createTestVerifier,
   generateTestVerificationMethod,
@@ -14,7 +14,7 @@ import {
 describe('Backwards Compatibility', () => {
   describe('v0.5 Genesis Resolution', () => {
     test('Pure v0.5 genesis resolves', async () => {
-      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const authKey = await generateTestVerificationMethod('key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
 
@@ -22,7 +22,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         versionTime: '2024-01-01T00:00:00Z',
         verifier,
       });
@@ -36,7 +36,7 @@ describe('Backwards Compatibility', () => {
     });
 
     test('v0.5 genesis + v0.5 update chain resolves; update omits unchanged parameters', async () => {
-      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const authKey = await generateTestVerificationMethod('key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
 
@@ -44,7 +44,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         versionTime: '2024-01-01T00:00:00Z',
         verifier,
       });
@@ -52,7 +52,7 @@ describe('Backwards Compatibility', () => {
       const log1 = await appendV05LogEntry({
         log: log0,
         signer,
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         versionTime: '2024-01-01T00:00:01Z',
         verifier,
       });
@@ -70,8 +70,8 @@ describe('Backwards Compatibility', () => {
     });
 
     test('v0.5 update entry with nextKeyHashes: null disables prerotation', async () => {
-      const authKey1 = await generateTestVerificationMethod('assertionMethod', 'key-1');
-      const authKey2 = await generateTestVerificationMethod('assertionMethod', 'key-2');
+      const authKey1 = await generateTestVerificationMethod('key-1');
+      const authKey2 = await generateTestVerificationMethod('key-2');
       const signer1 = createTestSigner(authKey1);
       const signer2 = createTestSigner(authKey2);
       const verifier = createTestVerifier(authKey1);
@@ -82,7 +82,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer: signer1,
         updateKeys: [authKey1.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey1),
+        didDocument: createTestDIDDocument(authKey1),
         nextKeyHashes: [nextKeyHash],
         versionTime: '2024-01-01T00:00:00Z',
         verifier,
@@ -93,7 +93,7 @@ describe('Backwards Compatibility', () => {
         log: log0,
         signer: signer2,
         updateKeys: [authKey2.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey2),
+        didDocument: createTestDIDDocument(authKey2),
         nextKeyHashes: null,
         versionTime: '2024-01-01T00:00:01Z',
         verifier,
@@ -109,7 +109,7 @@ describe('Backwards Compatibility', () => {
     });
 
     test('v1.0 log entry with deprecated nextKeyHashes: null resolves and normalizes to []', async () => {
-      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const authKey = await generateTestVerificationMethod('key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
 
@@ -117,7 +117,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         verifier,
         created: '2024-01-01T00:00:00Z',
       });
@@ -128,7 +128,7 @@ describe('Backwards Compatibility', () => {
         log: genesis.log,
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         nextKeyHashes: null,
         versionTime: '2024-01-01T00:00:01Z',
         verifier,
@@ -144,7 +144,7 @@ describe('Backwards Compatibility', () => {
     });
 
     test('v1.0 log entry with legacy ttl: null resolves and normalizes ttl to default', async () => {
-      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const authKey = await generateTestVerificationMethod('key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
 
@@ -152,7 +152,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         verifier,
         created: '2024-01-01T00:00:00Z',
       });
@@ -191,7 +191,7 @@ describe('Backwards Compatibility', () => {
     });
 
     test('carry-forward omitted updateKeys across multiple v0.5 entries', async () => {
-      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const authKey = await generateTestVerificationMethod('key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
 
@@ -199,7 +199,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         versionTime: '2024-01-01T00:00:00Z',
         verifier,
       });
@@ -230,7 +230,7 @@ describe('Backwards Compatibility', () => {
     });
 
     test('Coherently signed v0.5 entry with wrong predecessor value is rejected', async () => {
-      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const authKey = await generateTestVerificationMethod('key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
 
@@ -238,7 +238,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         versionTime: '2024-01-01T00:00:00Z',
         verifier,
       });
@@ -294,9 +294,9 @@ describe('Backwards Compatibility', () => {
 
     beforeAll(async () => {
       // Create three key pairs
-      authKey1 = await generateTestVerificationMethod('assertionMethod', 'key-1');
-      authKey2 = await generateTestVerificationMethod('assertionMethod', 'key-2');
-      authKey3 = await generateTestVerificationMethod('assertionMethod', 'key-3');
+      authKey1 = await generateTestVerificationMethod('key-1');
+      authKey2 = await generateTestVerificationMethod('key-2');
+      authKey3 = await generateTestVerificationMethod('key-3');
 
       // Create signers
       signer1 = createTestSigner(authKey1);
@@ -309,7 +309,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer: signer1,
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey1),
+        didDocument: createTestDIDDocument(authKey1),
         versionTime: '2024-01-01T00:00:00Z',
         verifier: testVerifier,
       });
@@ -319,7 +319,7 @@ describe('Backwards Compatibility', () => {
         log: log0,
         signer: signer2,
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey2),
+        didDocument: createTestDIDDocument(authKey2),
         versionTime: '2024-01-01T00:00:01Z',
         verifier: testVerifier,
       });
@@ -329,7 +329,7 @@ describe('Backwards Compatibility', () => {
         log: log1,
         signer: signer3,
         updateKeys: [authKey3.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey3),
+        didDocument: createTestDIDDocument(authKey3),
         updated: '2024-01-01T00:00:02Z',
         verifier: testVerifier,
       });
@@ -340,7 +340,7 @@ describe('Backwards Compatibility', () => {
         log: log2,
         signer: signer3,
         updateKeys: [authKey3.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey3),
+        didDocument: createTestDIDDocument(authKey3),
         updated: '2024-01-01T00:00:03Z',
         verifier: testVerifier,
       });
@@ -382,7 +382,7 @@ describe('Backwards Compatibility', () => {
         signer: signer2,
         method: 'did:webvh:0.5',
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!, authKey3.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey2),
+        didDocument: createTestDIDDocument(authKey2),
         versionTime: '2024-01-02T00:00:00Z',
         verifier: testVerifier,
       });
@@ -392,7 +392,7 @@ describe('Backwards Compatibility', () => {
         signer: signer3,
         method: 'did:webvh:1.0',
         updateKeys: [authKey3.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey3),
+        didDocument: createTestDIDDocument(authKey3),
         versionTime: '2024-01-02T00:00:01Z',
         verifier: testVerifier,
       });
@@ -402,7 +402,7 @@ describe('Backwards Compatibility', () => {
         signer: signer3,
         method: 'did:webvh:1.0',
         updateKeys: [authKey3.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey3),
+        didDocument: createTestDIDDocument(authKey3),
         versionTime: '2024-01-02T00:00:02Z',
         verifier: testVerifier,
       });
@@ -447,7 +447,7 @@ describe('Backwards Compatibility', () => {
       const tamperedLog = JSON.parse(JSON.stringify(log2));
       // Entry 3 (transition) is signed by key3, but previous keys (key1, key2) are not in updateKeys
       // The proof verification should fail because the signer must be in the active updateKeys from entry 2
-      const unauthorizedKey = await generateTestVerificationMethod('assertionMethod', 'unauthorized');
+      const unauthorizedKey = await generateTestVerificationMethod('unauthorized');
       const unauthorizedSigner = createTestSigner(unauthorizedKey);
 
       // Re-sign entry 3 with the unauthorized key (corrupting the existing proof)
@@ -472,8 +472,8 @@ describe('Backwards Compatibility', () => {
     });
 
     test('updateDID on v0.5 genesis produces v1.0 entry', async () => {
-      const authKey1 = await generateTestVerificationMethod('assertionMethod', 'key-1');
-      const authKey2 = await generateTestVerificationMethod('assertionMethod', 'key-2');
+      const authKey1 = await generateTestVerificationMethod('key-1');
+      const authKey2 = await generateTestVerificationMethod('key-2');
       const signer1 = createTestSigner(authKey1);
       const signer2 = createTestSigner(authKey2);
       const verifier = createTestVerifier(authKey1);
@@ -483,7 +483,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer: signer1,
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey1),
+        didDocument: createTestDIDDocument(authKey1),
         verifier,
       });
 
@@ -495,7 +495,7 @@ describe('Backwards Compatibility', () => {
         log: v05Log,
         signer: signer2,
         updateKeys: [authKey2.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey2),
+        didDocument: createTestDIDDocument(authKey2),
         verifier,
       });
 
@@ -513,7 +513,7 @@ describe('Backwards Compatibility', () => {
     });
 
     test('deactivateDID on v0.5 genesis produces v1.0 entry', async () => {
-      const authKey = await generateTestVerificationMethod('assertionMethod', 'key-1');
+      const authKey = await generateTestVerificationMethod('key-1');
       const signer = createTestSigner(authKey);
       const verifier = createTestVerifier(authKey);
 
@@ -522,7 +522,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer,
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         verifier,
       });
 
@@ -555,8 +555,8 @@ describe('Backwards Compatibility', () => {
     });
 
     test('updateDID v0.5→v1.0 transition only adds method once (not redundantly on subsequent v1.0 updates)', async () => {
-      const authKey1 = await generateTestVerificationMethod('assertionMethod', 'key-1');
-      const authKey2 = await generateTestVerificationMethod('assertionMethod', 'key-2');
+      const authKey1 = await generateTestVerificationMethod('key-1');
+      const authKey2 = await generateTestVerificationMethod('key-2');
       const signer1 = createTestSigner(authKey1);
       const signer2 = createTestSigner(authKey2);
       const verifier = createTestVerifier(authKey1);
@@ -566,7 +566,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer: signer1,
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey1),
+        didDocument: createTestDIDDocument(authKey1),
         verifier,
       });
 
@@ -578,7 +578,7 @@ describe('Backwards Compatibility', () => {
         log: v05Log,
         signer: signer2,
         updateKeys: [authKey2.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey2),
+        didDocument: createTestDIDDocument(authKey2),
         verifier,
       });
 
@@ -593,7 +593,7 @@ describe('Backwards Compatibility', () => {
       const result2 = await updateDID({
         log: result1.log,
         signer: signer2,
-        verificationMethods: asPublicVerificationMethods(authKey2),
+        didDocument: createTestDIDDocument(authKey2),
         verifier,
       });
 
@@ -611,8 +611,8 @@ describe('Backwards Compatibility', () => {
     });
 
     test('deactivateDID v0.5→v1.0 transition only adds method once (not redundantly on subsequent deactivation)', async () => {
-      const authKey1 = await generateTestVerificationMethod('assertionMethod', 'key-1');
-      const authKey2 = await generateTestVerificationMethod('assertionMethod', 'key-2');
+      const authKey1 = await generateTestVerificationMethod('key-1');
+      const authKey2 = await generateTestVerificationMethod('key-2');
       const signer1 = createTestSigner(authKey1);
       const signer2 = createTestSigner(authKey2);
       const verifier = createTestVerifier(authKey1);
@@ -622,7 +622,7 @@ describe('Backwards Compatibility', () => {
         address: 'example.com',
         signer: signer1,
         updateKeys: [authKey1.publicKeyMultibase!, authKey2.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey1),
+        didDocument: createTestDIDDocument(authKey1),
         verifier,
       });
 
@@ -634,7 +634,7 @@ describe('Backwards Compatibility', () => {
         log: v05Log,
         signer: signer2,
         updateKeys: [authKey2.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey2),
+        didDocument: createTestDIDDocument(authKey2),
         verifier,
       });
 

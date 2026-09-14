@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import type { CreateDIDResult, DIDLog } from '../src/interfaces.js';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -23,7 +23,7 @@ describe('Portability', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -32,7 +32,7 @@ describe('Portability', () => {
       portable: true,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
   });
@@ -73,7 +73,7 @@ describe('Portability', () => {
       portable: false,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -152,7 +152,6 @@ describe('Portability', () => {
       address: 'example.org',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -176,7 +175,6 @@ describe('Portability', () => {
         address: 'example.org',
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
         verifier: testImplementation,
       })
     ).rejects.toThrow('Cannot move DID: portability is disabled');
@@ -188,7 +186,7 @@ describe('Portability', () => {
       paths: ['dids', 'alice'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -198,7 +196,6 @@ describe('Portability', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -213,7 +210,6 @@ describe('Portability', () => {
       address: 'https://example.org/dids/alice',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 

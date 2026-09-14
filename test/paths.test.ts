@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { createDID } from '../src/method.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -15,7 +15,7 @@ describe('Paths feature', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -33,7 +33,7 @@ describe('Paths feature', () => {
       paths: ['api'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -52,7 +52,7 @@ describe('Paths feature', () => {
       paths: ['api', 'v1', 'users'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -73,7 +73,7 @@ describe('Paths feature', () => {
       paths: [],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -91,7 +91,7 @@ describe('Paths feature', () => {
       paths: ['path-with-dash', 'path_with_underscore', 'path.with.dots'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -112,7 +112,7 @@ describe('Paths feature', () => {
       paths: ['api', 'health'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -132,7 +132,7 @@ describe('Paths feature', () => {
       paths: ['api', 'v2'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey, { controller: '{DID}' }),
       verifier,
     });
 
@@ -149,7 +149,7 @@ describe('Paths feature', () => {
       paths: ['secure', 'keys'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier,
     });
 
@@ -169,7 +169,7 @@ describe('Paths feature', () => {
         paths: ['api', '..', 'secrets'],
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         verifier,
       })
     ).rejects.toThrow('createDID path segments must not contain dot-segments');
@@ -185,7 +185,7 @@ describe('Paths feature', () => {
         paths: ['api', 'a%2Fb'],
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         verifier,
       })
     ).rejects.toThrow('createDID path segments must not contain decoded slash within a single path segment');
