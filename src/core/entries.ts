@@ -4,12 +4,12 @@ import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER, VERIFICATION_R
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
 import { enrichAlsoKnownAs, replaceCreateDidPlaceholders, validateCreateDidDocument } from '../did-document.js';
 import type {
-  CreateDIDInterface,
-  DeactivateDIDInterface,
+  CreateDIDOptions,
+  DeactivateDIDOptions,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
-  UpdateDIDInterface,
+  UpdateDIDOptions,
   WitnessParameterResolution,
 } from '../interfaces.js';
 import { createSCID, deriveHash } from '../utils/crypto.js';
@@ -31,7 +31,7 @@ const resolveNextDidContext = ({
   parsedLastEntryDid,
   portable,
 }: {
-  options: UpdateDIDInterface;
+  options: UpdateDIDOptions;
   lastEntryDid: string;
   parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
   portable: boolean;
@@ -61,7 +61,7 @@ const resolveNextDidContext = ({
   };
 };
 
-const signControllerEntry = async (entry: DIDLogEntry, created: string, signer: CreateDIDInterface['signer']) => {
+const signControllerEntry = async (entry: DIDLogEntry, created: string, signer: CreateDIDOptions['signer']) => {
   const proofTemplate = createDataIntegrityProofTemplate({
     verificationMethod: signer.getVerificationMethodId(),
     created,
@@ -75,7 +75,7 @@ const validateProposedEntry = async (
   entry: DIDLogEntry,
   updateKeys: string[],
   witness: WitnessParameterResolution | undefined,
-  verifier: CreateDIDInterface['verifier']
+  verifier: CreateDIDOptions['verifier']
 ) => {
   const verified = await documentStateIsValid(entry, updateKeys, witness, true, verifier);
 
@@ -96,10 +96,10 @@ const finalizeNonGenesisEntry = async ({
   logEntry: DIDLogEntry;
   versionNumber: number;
   created: string;
-  signer: CreateDIDInterface['signer'];
+  signer: CreateDIDOptions['signer'];
   updateKeys: string[];
   witness: WitnessParameterResolution | undefined;
-  verifier: CreateDIDInterface['verifier'];
+  verifier: CreateDIDOptions['verifier'];
 }): Promise<DIDLogEntry> => {
   const logEntryHash = await deriveHash(logEntry);
   const entry = { ...logEntry, versionId: `${versionNumber}-${logEntryHash}` };
@@ -126,7 +126,7 @@ export async function prepareGenesisEntry({
   did,
   createdDate,
 }: {
-  options: CreateDIDInterface;
+  options: CreateDIDOptions;
   did: string;
   createdDate: string;
 }): Promise<PreparedEntry> {
@@ -201,7 +201,7 @@ export async function prepareUpdateEntry({
   versionNumber,
   createdDate,
 }: {
-  options: UpdateDIDInterface;
+  options: UpdateDIDOptions;
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
   log: DIDLog;
@@ -365,7 +365,7 @@ export async function prepareDeactivationEntry({
   versionNumber,
   createdDate,
 }: {
-  options: DeactivateDIDInterface & { updateKeys?: string[] };
+  options: DeactivateDIDOptions & { updateKeys?: string[] };
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
   log: DIDLog;

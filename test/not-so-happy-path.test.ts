@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { resolveLog } from '../src/core/resolution.js';
-import type { CreateDIDInterface, CreateDIDResult, DIDLog } from '../src/interfaces.js';
+import type { CreateDIDOptions, CreateDIDResult, DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats.js';
 import {
@@ -512,7 +512,7 @@ describe('Not So Happy Path Tests', () => {
         updateKeys: [authKey.publicKeyMultibase!],
         didDocument: createTestDIDDocument(authKey),
         verifier: testImplementation,
-      } as unknown as CreateDIDInterface)
+      } as unknown as CreateDIDOptions)
     ).rejects.toThrow('Address must be provided');
   });
 
@@ -523,7 +523,7 @@ describe('Not So Happy Path Tests', () => {
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verifier: testImplementation,
-      } as unknown as CreateDIDInterface)
+      } as unknown as CreateDIDOptions)
     ).rejects.toThrow('didDocument is required to create a DID');
   });
 

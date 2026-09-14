@@ -165,7 +165,7 @@ export interface UpdateDIDResult {
   webDoc?: DIDDocument;
 }
 
-export interface CreateDIDInterface {
+export interface CreateDIDOptions {
   address?: string;
   signer: Signer;
   updateKeys: string[];
@@ -183,13 +183,7 @@ export interface CreateDIDInterface {
   verifier?: Verifier;
 }
 
-export interface SignDIDDocInterface {
-  document: unknown;
-  proof: DataIntegrityProofTemplate;
-  verificationMethod: VerificationMethod;
-}
-
-export interface UpdateDIDInterface {
+export interface UpdateDIDOptions {
   log: DIDLog;
   signer: Signer;
   /**
@@ -218,7 +212,7 @@ export interface UpdateDIDInterface {
   paths?: string[];
 }
 
-export interface DeactivateDIDInterface {
+export interface DeactivateDIDOptions {
   log: DIDLog;
   signer: Signer;
   verifier?: Verifier;

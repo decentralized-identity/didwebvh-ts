@@ -5,14 +5,14 @@ import { resolveLog, resolveLogWithWitnessResults } from './core/resolution.js';
 import { computeWitnessRequirementChecks } from './core/witness-requirements.js';
 import { generateParallelDidWeb } from './did-document.js';
 import type {
-  CreateDIDInterface,
+  CreateDIDOptions,
   CreateDIDResult,
-  DeactivateDIDInterface,
+  DeactivateDIDOptions,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
   ResolutionOptions,
-  UpdateDIDInterface,
+  UpdateDIDOptions,
   UpdateDIDResult,
   VerifyWitnessProofsOptions,
   WitnessProofFileEntry,
@@ -99,7 +99,7 @@ const mergeMetaFromEntry = ({
  * @param options DID creation options.
  * @returns The created DID, resolved document, and DID log.
  */
-export const createDID = async (options: CreateDIDInterface): Promise<CreateDIDResult> => {
+export const createDID = async (options: CreateDIDOptions): Promise<CreateDIDResult> => {
   if (!options.updateKeys) {
     throw new Error('Update keys not supplied');
   }
@@ -200,7 +200,7 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
  * @param options DID update options.
  * @returns The updated DID, resolved document, and DID log.
  */
-export const updateDID = async (options: UpdateDIDInterface): Promise<UpdateDIDResult> => {
+export const updateDID = async (options: UpdateDIDOptions): Promise<UpdateDIDResult> => {
   if (options.updateKeys !== undefined) {
     options = { ...options, updateKeys: normalizeUpdateKeys(options.updateKeys) };
   }
@@ -257,7 +257,7 @@ export const updateDID = async (options: UpdateDIDInterface): Promise<UpdateDIDR
  * @returns The deactivated DID result and updated DID log.
  */
 export const deactivateDID = async (
-  options: DeactivateDIDInterface & { updateKeys?: string[] }
+  options: DeactivateDIDOptions & { updateKeys?: string[] }
 ): Promise<{ did: string; doc: DIDDocument; meta: DIDResolutionMeta; log: DIDLog }> => {
   if (options.updateKeys !== undefined) {
     options = { ...options, updateKeys: normalizeUpdateKeys(options.updateKeys) };
