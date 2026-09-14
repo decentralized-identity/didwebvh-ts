@@ -170,7 +170,7 @@ export async function buildV05Genesis(options: {
   });
 
   const { doc } = await createDIDDoc({
-    did: `did:${METHOD}:${SCID_PLACEHOLDER}:${normalizedAddress.controller}`,
+    did: normalizedAddress.did,
     verificationMethods: options.verificationMethods,
   });
 
@@ -193,7 +193,7 @@ export async function buildV05Genesis(options: {
 
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   const scid = await createSCID(initialLogEntryHash);
-  const did = `did:${METHOD}:${scid}:${normalizedAddress.controller}`;
+  const did = `did:${METHOD}:${scid}:${normalizedAddress.locationKey}`;
   const prelimEntry = replaceCreateDidPlaceholders(initialLogEntry, scid, did);
   const logEntryHash2 = await deriveHash(prelimEntry);
   prelimEntry.versionId = `1-${logEntryHash2}`;

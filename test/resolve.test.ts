@@ -115,6 +115,7 @@ describe('Direct utility guards and parsers', () => {
       didDomainComponent: 'example.com%3A8443',
       paths: ['tenant', 'issuer'],
       locationKey: 'example.com%3A8443:tenant:issuer',
+      did: 'did:webvh:scid123:example.com%3A8443:tenant:issuer',
     });
   });
 
