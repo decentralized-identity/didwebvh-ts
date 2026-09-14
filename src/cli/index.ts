@@ -4,13 +4,13 @@ import fs from 'node:fs';
 import { dirname } from 'node:path';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import type {
+  DIDDocument,
   DIDLog,
   ResolutionOptions,
   Service,
   Signer,
   SigningInput,
   SigningOutput,
-  VerificationMethod,
   Verifier,
   WitnessProofFileEntry,
 } from '../index.js';
@@ -28,6 +28,7 @@ import { canonicalizeStrict } from '../utils/canonicalize.js';
 import { createHash } from '../utils/crypto.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats.js';
 import { parseDidKeyDid } from '../utils/verification-methods.js';
+import { deepClone } from '../utils.js';
 import {
   type CliSigningKey,
   getVerificationMethodsFromEnv,
@@ -229,6 +230,8 @@ export async function handleCreate(args: string[]) {
   const witnessThreshold = options['witness-threshold']
     ? parseInt(options['witness-threshold'] as string, 10)
     : (witnesses?.length ?? 0);
+  const services = options.service ? parseServices(options.service as string[]) : undefined;
+  const alsoKnownAs = options['also-known-as'] as string[] | undefined;
 
   if (!addressInput) {
     throw new CliError('Address is required for create command (use --address)');
@@ -241,24 +244,38 @@ export async function handleCreate(args: string[]) {
     }
     const crypto = createCustomCrypto(authKey);
 
-    // Strip secret key from verification method for DID document (security)
-    const publicAuthKey: VerificationMethod & { purpose?: VerificationMethodType } = {
-      id: `{DID}#${authKey.publicKeyMultibase.slice(-8)}`,
-      type: authKey.type,
-      controller: '{DID}',
-      publicKeyMultibase: authKey.publicKeyMultibase,
-      purpose: authKey.purpose,
+    const publicKeyMultibase = requirePublicKeyMultibase(authKey);
+    const keyId = `{DID}#${publicKeyMultibase.slice(-8)}`;
+
+    const didDocument: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      verificationMethod: [
+        {
+          id: keyId,
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase,
+        },
+      ],
+      authentication: [keyId],
+      assertionMethod: [keyId],
     };
 
-    // Use new address parameter for strict parsing and encoding
-    const publicKeyMultibase = requirePublicKeyMultibase(authKey);
+    if (services) {
+      didDocument.service = services;
+    }
+    if (alsoKnownAs) {
+      didDocument.alsoKnownAs = alsoKnownAs;
+    }
+
     const { did, doc, meta, log } = await createDID({
       address: addressInput,
       paths: explicitPaths,
       signer: crypto,
       verifier: crypto,
       updateKeys: [publicKeyMultibase],
-      verificationMethods: [publicAuthKey],
+      didDocument,
       portable,
       witness: witnesses?.length
         ? {
@@ -459,33 +476,40 @@ export async function handleUpdate(args: string[]) {
 
     const vmPublicKeyMultibase = requirePublicKeyMultibase(vm);
 
-    // Create verification methods array
-    const verificationMethods: Array<VerificationMethod & { purpose?: VerificationMethodType }> = [];
+    const currentDoc = updateResolution.didDocument;
+    if (!currentDoc) {
+      throw new Error('Resolved DID document is missing');
+    }
+    const nextDoc: DIDDocument = deepClone(currentDoc);
 
-    // If we're adding VMs, create a VM for each type
     if (addVm && addVm.length > 0) {
       const vmId = `${did}#${vmPublicKeyMultibase.slice(-8)}`;
-
-      // Add a verification method for each type
-      for (const vmType of addVm) {
-        const newVM: VerificationMethod & { purpose: VerificationMethodType } = {
+      const existingVms = Array.isArray(nextDoc.verificationMethod) ? [...nextDoc.verificationMethod] : [];
+      if (!existingVms.some((existing) => existing.id === vmId)) {
+        existingVms.push({
           id: vmId,
           type: 'Multikey',
           controller: did,
           publicKeyMultibase: vmPublicKeyMultibase,
-          purpose: vmType as VerificationMethodType,
-        };
-        verificationMethods.push(newVM);
+        });
       }
-    } else {
-      // For non-VM updates (services, alsoKnownAs), still need a VM with purpose
-      verificationMethods.push({
-        id: `${did}#${vmPublicKeyMultibase.slice(-8)}`,
-        type: 'Multikey',
-        controller: did,
-        publicKeyMultibase: vmPublicKeyMultibase,
-        purpose: 'assertionMethod',
-      });
+      nextDoc.verificationMethod = existingVms;
+
+      for (const vmType of addVm) {
+        const rel = vmType as keyof DIDDocument;
+        const currentRelList = Array.isArray(nextDoc[rel]) ? [...(nextDoc[rel] as string[])] : [];
+        if (!currentRelList.includes(vmId)) {
+          currentRelList.push(vmId);
+        }
+        (nextDoc as Record<string, unknown>)[rel] = currentRelList;
+      }
+    }
+
+    if (services !== undefined) {
+      nextDoc.service = services;
+    }
+    if (alsoKnownAs !== undefined) {
+      nextDoc.alsoKnownAs = alsoKnownAs;
     }
 
     const crypto = createCustomCrypto(vm);
@@ -494,7 +518,7 @@ export async function handleUpdate(args: string[]) {
       signer: crypto,
       verifier: crypto,
       updateKeys: [vmPublicKeyMultibase],
-      verificationMethods,
+      didDocument: nextDoc,
       witness: witnesses?.length
         ? {
             witnesses: witnesses.map((witness) => ({ id: witness })),
@@ -502,8 +526,6 @@ export async function handleUpdate(args: string[]) {
           }
         : undefined,
       watchers: watchers ?? undefined,
-      services,
-      alsoKnownAs,
       witnessProofs,
     });
 
