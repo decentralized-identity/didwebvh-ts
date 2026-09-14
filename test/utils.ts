@@ -1,11 +1,18 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { METHOD, METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V0_5, SCID_PLACEHOLDER } from '../src/constants.js';
+import {
+  DID_PLACEHOLDER,
+  METHOD,
+  METHOD_PARAMETER_KEYS,
+  METHOD_PROTOCOL_V0_5,
+  SCID_PLACEHOLDER,
+} from '../src/constants.js';
 import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography.js';
-import { createDIDDoc, replaceCreateDidPlaceholders } from '../src/did-document.js';
+import { replaceCreateDidPlaceholders } from '../src/did-document.js';
 import type {
-  DataIntegrityProofPurpose,
+  DIDDocument,
   DIDLog,
   DIDLogEntry,
+  Service,
   Signer,
   SignerOptions,
   SigningInput,
@@ -17,22 +24,60 @@ import type {
 import { createSCID, deriveHash } from '../src/utils/crypto.js';
 import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats.js';
-import { deepClone, normalizeDidAddress } from '../src/utils.js';
+import { deepClone, normalizeDidAddress, replaceValueInObject } from '../src/utils.js';
 
 export type TestVerificationMethod = VerificationMethod & {
   secretKeyMultibase: string;
-  purpose: DataIntegrityProofPurpose;
 };
+
+export function createTestDIDDocument(
+  authKey: TestVerificationMethod | string,
+  options: {
+    keyId?: string;
+    relationships?: Array<
+      'authentication' | 'assertionMethod' | 'keyAgreement' | 'capabilityInvocation' | 'capabilityDelegation'
+    >;
+    controller?: string;
+    services?: Service[];
+    alsoKnownAs?: string[];
+  } = {}
+): DIDDocument {
+  const publicKeyMultibase = typeof authKey === 'string' ? authKey : authKey.publicKeyMultibase!;
+  const keyId = options.keyId ?? `{DID}#${publicKeyMultibase.slice(-8)}`;
+  const relationships = options.relationships ?? ['authentication', 'assertionMethod'];
+  const doc: DIDDocument = {
+    '@context': ['https://www.w3.org/ns/did/v1'],
+    id: '{DID}',
+    verificationMethod: [
+      {
+        id: keyId,
+        type: 'Multikey',
+        controller: '{DID}',
+        publicKeyMultibase,
+      },
+    ],
+  };
+  if (options.controller) {
+    doc.controller = options.controller;
+  }
+  for (const rel of relationships) {
+    doc[rel] = [keyId];
+  }
+  if (options.services) {
+    doc.service = options.services;
+  }
+  if (options.alsoKnownAs) {
+    doc.alsoKnownAs = options.alsoKnownAs;
+  }
+  return doc;
+}
 
 export const createFutureDIDLog = async (authKey: TestVerificationMethod, minutesAhead: number): Promise<DIDLog> => {
   const futureCreated = new Date(Date.now() + minutesAhead * 60 * 1000).toISOString();
   const signer = createTestSigner(authKey);
-  const controller = `did:${METHOD}:${SCID_PLACEHOLDER}:example.com`;
-
-  const { doc } = await createDIDDoc({
-    did: controller,
-    verificationMethods: asPublicVerificationMethods(authKey),
-  });
+  const rawDoc = createTestDIDDocument(authKey);
+  const genesisDid = `did:${METHOD}:${SCID_PLACEHOLDER}:example.com`;
+  const doc = replaceValueInObject(deepClone(rawDoc), DID_PLACEHOLDER, genesisDid) as DIDDocument;
 
   const initialLogEntry: DIDLog[0] = {
     versionId: SCID_PLACEHOLDER,
@@ -103,10 +148,7 @@ export class TestCryptoImplementation extends AbstractCrypto implements Verifier
 }
 
 // Helper to generate verification method for tests
-export async function generateTestVerificationMethod(
-  purpose: DataIntegrityProofPurpose = 'authentication',
-  id?: string
-): Promise<TestVerificationMethod> {
+export async function generateTestVerificationMethod(id?: string): Promise<TestVerificationMethod> {
   const keyPair = ed25519.keygen();
   // seed||publicKey (64 bytes) matches the legacy @stablelib/ed25519 secret layout.
   const secretKey = multibaseEncode(
@@ -120,7 +162,6 @@ export async function generateTestVerificationMethod(
     controller: '{DID}',
     publicKeyMultibase: publicKey,
     secretKeyMultibase: secretKey,
-    purpose,
   };
 }
 
@@ -135,16 +176,13 @@ export function createTestVerifier(verificationMethod: TestVerificationMethod): 
 }
 
 // Helper to produce DID document-safe verification methods by stripping secret key material
-export function asPublicVerificationMethods(
-  ...verificationMethods: TestVerificationMethod[]
-): Array<VerificationMethod & { purpose: DataIntegrityProofPurpose }> {
+export function asPublicVerificationMethods(...verificationMethods: TestVerificationMethod[]): VerificationMethod[] {
   return verificationMethods.map((verificationMethod) => {
     return {
       id: verificationMethod.id,
       type: verificationMethod.type,
       controller: verificationMethod.controller,
       publicKeyMultibase: verificationMethod.publicKeyMultibase,
-      purpose: verificationMethod.purpose,
     };
   });
 }
@@ -154,7 +192,8 @@ export async function buildV05Genesis(options: {
   address: string;
   signer: Signer;
   updateKeys: string[];
-  verificationMethods: VerificationMethod[];
+  didDocument?: DIDDocument;
+  verificationMethods?: VerificationMethod[];
   nextKeyHashes?: string[] | null;
   portable?: boolean;
   witness?: WitnessParameter | null;
@@ -169,10 +208,24 @@ export async function buildV05Genesis(options: {
     context: 'buildV05Genesis',
   });
 
-  const { doc } = await createDIDDoc({
-    did: normalizedAddress.did,
-    verificationMethods: options.verificationMethods,
-  });
+  const rawDoc: DIDDocument =
+    options.didDocument ??
+    (options.verificationMethods && options.verificationMethods.length > 0
+      ? {
+          '@context': ['https://www.w3.org/ns/did/v1'],
+          id: normalizedAddress.did,
+          controller: normalizedAddress.did,
+          verificationMethod: options.verificationMethods.map((vm) => ({
+            ...vm,
+            id: vm.id.replaceAll('{DID}', normalizedAddress.did),
+            controller: (vm.controller ?? normalizedAddress.did).replaceAll('{DID}', normalizedAddress.did),
+          })),
+          authentication: options.verificationMethods.map((vm) => vm.id.replaceAll('{DID}', normalizedAddress.did)),
+          assertionMethod: options.verificationMethods.map((vm) => vm.id.replaceAll('{DID}', normalizedAddress.did)),
+        }
+      : createTestDIDDocument(options.updateKeys[0]));
+
+  const doc = replaceValueInObject(deepClone(rawDoc), DID_PLACEHOLDER, normalizedAddress.did) as DIDDocument;
 
   const initialLogEntry: DIDLogEntry = {
     versionId: SCID_PLACEHOLDER,
@@ -221,6 +274,7 @@ export async function appendV05LogEntry(options: {
   updateKeys?: string[];
   nextKeyHashes?: string[] | null;
   method?: string;
+  didDocument?: DIDDocument;
   verificationMethods?: VerificationMethod[];
   versionTime?: string;
   verifier: Verifier;
@@ -228,16 +282,27 @@ export async function appendV05LogEntry(options: {
   const previousEntry = options.log[options.log.length - 1];
   const versionNumber = options.log.length + 1;
   const nextVersionTime = createNextVersionTime(previousEntry.versionTime, options.versionTime, createDate);
+  const did = previousEntry.state.id!;
+  const scid = did.split(':')[2];
 
-  // Build the new state doc (reuse previous state if no new verification methods provided)
-  const newState = options.verificationMethods
-    ? (
-        await createDIDDoc({
-          did: previousEntry.state.id!,
-          verificationMethods: options.verificationMethods,
-        })
-      ).doc
-    : deepClone(previousEntry.state);
+  // Build the new state doc (reuse previous state if no new document provided)
+  let newState: DIDDocument;
+  if (options.didDocument) {
+    newState = replaceCreateDidPlaceholders(deepClone(options.didDocument), scid, did);
+  } else if (options.verificationMethods && options.verificationMethods.length > 0) {
+    newState = {
+      ...deepClone(previousEntry.state),
+      verificationMethod: options.verificationMethods.map((vm) => ({
+        ...vm,
+        id: vm.id.replaceAll('{DID}', did),
+        controller: (vm.controller ?? did).replaceAll('{DID}', did),
+      })),
+      authentication: options.verificationMethods.map((vm) => vm.id.replaceAll('{DID}', did)),
+      assertionMethod: options.verificationMethods.map((vm) => vm.id.replaceAll('{DID}', did)),
+    };
+  } else {
+    newState = deepClone(previousEntry.state);
+  }
 
   // Build parameters object with only explicitly provided keys
   // Note: SCID is NEVER included in non-genesis entries
