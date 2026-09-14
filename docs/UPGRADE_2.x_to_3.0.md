@@ -7,7 +7,7 @@ This guide covers breaking changes in the 3.0.0 release and provides step-by-ste
 The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specification and hardens security postures:
 
 1. **Resolution result shape** — now returns W3C standard format
-2. **Verification method `purpose`** — requires explicit assignment
+2. **Explicit DID document authoring** — callers provide complete W3C `didDocument` state
 3. **Proof helper exports** — stricter public API
   - Root parser exports `parseDidKeyDid` and `parseDidKeyVerificationMethod` removed
 4. **Witness proof callback contract** — signer supplies only signature data
@@ -177,10 +177,10 @@ const { did, doc } = await createDID({
 
 ### Common Patterns
 
-- **Authentication key**: `purpose: 'authentication'`
-- **Assertion key**: `purpose: 'assertionMethod'`
-- **Key agreement**: `purpose: 'keyAgreement'`
-- **Multiple purposes**: `purpose: ['authentication', 'assertionMethod']`
+- **Authentication relationship**: reference the verification method from `authentication`
+- **Assertion relationship**: reference the verification method from `assertionMethod`
+- **Key agreement relationship**: reference the verification method from `keyAgreement`
+- **Multiple relationships**: include the same verification method ID in multiple arrays
 
 ---
 
