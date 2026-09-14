@@ -315,20 +315,22 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions): Promise<DIDResolutionResult>`
   Resolves directly from an in-memory DID log, returning the same standard shape.
 
-- `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
+- `createDID(options: CreateDIDOptions): Promise<CreateDIDResult>`
   Creates a new DID. Always produces a v1.0 log.
-  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`) or legacy `domain`.
+  Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
+  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`).
   Resolver URL mapping always uses `https://`, including for `localhost` and identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
-- `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
+- `updateDID(options: UpdateDIDOptions): Promise<UpdateDIDResult>`
   Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
+  Accepts an optional replacement `didDocument: DIDDocument`. If omitted, the authenticated previous document state is retained.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
 
-- `deactivateDID(options: DeactivateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
+- `deactivateDID(options: DeactivateDIDOptions): Promise<{did: string, doc: DIDDocument, meta: DIDResolutionMeta, log: DIDLog}>`
   Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
 
-- `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc`
+- `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocument): DIDDocument`
   Generates the parallel `did:web` document defined by did:webvh v1.0 §3.7.10.
 
 ### Witness Functions
