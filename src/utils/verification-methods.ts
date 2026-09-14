@@ -1,10 +1,7 @@
 import type { DIDDocument, VerificationMethod } from 'did-resolver';
-import type { VerificationRelationship } from '../constants.js';
 import { DID_KEY_PREFIX, VERIFICATION_RELATIONSHIPS } from '../constants.js';
 import type { ParsedDidKeyVerificationMethod } from '../interfaces.js';
 import { multibaseDecode } from './multiformats.js';
-
-type NormalizedVerificationMethods = Required<Pick<DIDDocument, 'verificationMethod' | VerificationRelationship>>;
 
 export function assertNoPrivateVerificationMaterial(didDocument: DIDDocument): void {
   const visit = (value: unknown, path: string): void => {
@@ -68,81 +65,6 @@ export function assertValidAuthoredVerificationMethods(didDocument: DIDDocument)
       });
     }
   }
-}
-
-export function sanitizeVerificationMethods(
-  verificationMethods?: VerificationMethod[]
-): VerificationMethod[] | undefined {
-  return verificationMethods?.map((vm, index) => {
-    if ('secretKeyMultibase' in vm && vm.secretKeyMultibase !== undefined) {
-      throw new Error(
-        `verificationMethods[${index}] contains secretKeyMultibase; private key material must not be included in DID documents`
-      );
-    }
-
-    return vm;
-  });
-}
-
-/**
- * @deprecated Legacy helper for synthesizing VM IDs with random suffixes. Pass explicit IDs in 'didDocument' instead. Will be removed in next PR.
- */
-export function createVMID(vm: VerificationMethod, did: string | null): string {
-  const randomSuffix = (() => {
-    const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    const charactersLength = characters.length;
-    for (let i = 0; i < 8; i++) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    }
-    return result;
-  })();
-
-  return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || randomSuffix}`;
-}
-
-/**
- * @deprecated Legacy helper for normalizing VM 'purpose' into verification relationships. Supply explicit relationships in 'didDocument' instead. Will be removed in next PR.
- */
-export function normalizeVMs(
-  verificationMethod: VerificationMethod[] | undefined,
-  did: string
-): NormalizedVerificationMethods {
-  const all: NormalizedVerificationMethods = {
-    verificationMethod: [],
-    authentication: [],
-    assertionMethod: [],
-    keyAgreement: [],
-    capabilityDelegation: [],
-    capabilityInvocation: [],
-  };
-
-  if (!verificationMethod || verificationMethod.length === 0) {
-    return all;
-  }
-
-  const vms: VerificationMethod[] = verificationMethod.map((vm) => {
-    const normalized = {
-      ...vm,
-      id: (vm.id ?? createVMID(vm, did)).replaceAll('{DID}', did),
-      controller: (vm.controller ?? did).replaceAll('{DID}', did),
-    };
-    return normalized;
-  });
-  all.verificationMethod = vms;
-
-  for (const vm of vms) {
-    const relationship = 'purpose' in vm ? vm.purpose : undefined;
-    if (!relationship) {
-      continue;
-    }
-
-    if (VERIFICATION_RELATIONSHIPS.includes(relationship as VerificationRelationship)) {
-      all[relationship as VerificationRelationship].push(vm.id);
-    }
-  }
-
-  return all;
 }
 
 export function findVerificationMethod(doc: DIDDocument, vmId: string): VerificationMethod | null {

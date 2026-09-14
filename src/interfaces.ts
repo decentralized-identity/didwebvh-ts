@@ -1,4 +1,4 @@
-import type { DIDDocument, Service, VerificationMethod } from 'did-resolver';
+import type { DIDDocument, VerificationMethod } from 'did-resolver';
 
 export type { DIDDocument, Service, ServiceEndpoint, VerificationMethod } from 'did-resolver';
 
@@ -172,24 +172,8 @@ export interface CreateDIDInterface {
   /**
    * Complete initial DID document.
    */
-  didDocument?: DIDDocument;
-  /**
-   * @deprecated Pass explicit verification methods in 'didDocument' instead. Will be removed in next PR.
-   */
-  verificationMethods?: Array<VerificationMethod & { purpose?: DataIntegrityProofPurpose }>;
-  /**
-   * @deprecated Include services in 'didDocument.service' instead. Will be removed in next PR.
-   */
-  services?: Service[];
+  didDocument: DIDDocument;
   paths?: string[];
-  /**
-   * @deprecated Include '@context' in 'didDocument' instead. Will be removed in next PR.
-   */
-  context?: string | string[] | object | object[];
-  /**
-   * @deprecated Include 'alsoKnownAs' in 'didDocument' instead. Will be removed in next PR.
-   */
-  alsoKnownAs?: string[];
   alsoKnownAsWeb?: boolean;
   portable?: boolean;
   nextKeyHashes?: string[];
@@ -197,18 +181,6 @@ export interface CreateDIDInterface {
   watchers?: string[] | null;
   created?: string;
   verifier?: Verifier;
-  /**
-   * @deprecated Declare verification relationships in 'didDocument' instead. Will be removed in next PR.
-   */
-  authentication?: string[];
-  /**
-   * @deprecated Declare verification relationships in 'didDocument' instead. Will be removed in next PR.
-   */
-  assertionMethod?: string[];
-  /**
-   * @deprecated Declare verification relationships in 'didDocument' instead. Will be removed in next PR.
-   */
-  keyAgreement?: string[];
 }
 
 export interface SignDIDDocInterface {
@@ -236,41 +208,13 @@ export interface UpdateDIDInterface {
    */
   updated?: string;
   updateKeys?: string[];
-  /**
-   * @deprecated Pass the complete updated DID document via 'didDocument' instead. Will be removed in next PR.
-   */
-  verificationMethods?: Array<VerificationMethod & { purpose?: DataIntegrityProofPurpose }>;
-  /**
-   * @deprecated Pass the complete updated DID document via 'didDocument' instead. Will be removed in next PR.
-   */
-  context?: string | string[] | object | object[];
-  /**
-   * @deprecated Include 'alsoKnownAs' in 'didDocument' instead. Will be removed in next PR.
-   */
-  alsoKnownAs?: string[];
   portable?: boolean;
   nextKeyHashes?: string[];
   witness?: WitnessParameter | null;
   watchers?: string[] | null;
   verifier?: Verifier;
-  /**
-   * @deprecated Declare verification relationships in 'didDocument' instead. Will be removed in next PR.
-   */
-  authentication?: string[];
-  /**
-   * @deprecated Declare verification relationships in 'didDocument' instead. Will be removed in next PR.
-   */
-  assertionMethod?: string[];
-  /**
-   * @deprecated Declare verification relationships in 'didDocument' instead. Will be removed in next PR.
-   */
-  keyAgreement?: string[];
   witnessProofs?: WitnessProofFileEntry[];
   address?: string;
-  /**
-   * @deprecated Include services in 'didDocument.service' instead. Will be removed in next PR.
-   */
-  services?: Service[];
   paths?: string[];
 }
 
