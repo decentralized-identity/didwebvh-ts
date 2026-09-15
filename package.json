@@ -43,7 +43,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
     "@stablelib/ed25519": "^2.1.0",
-    "@types/node": "^24.13.4",
+    "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^5.0.0",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.13",
