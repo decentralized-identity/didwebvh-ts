@@ -387,17 +387,17 @@ against caller-supplied proofs.
 
 ### Cryptography Functions
 
-- `createDocumentSigner(options: SignerOptions): Signer`
-  Creates a signer for signing DID documents.
+- `createDocumentSigner<TDocument>(signer: Signer<TDocument>, verificationMethodId: string)`
+  Creates a function that signs DID documents with the supplied signer and verification method.
 
-- `prepareDataForSigning(data: any): Uint8Array`
-  Prepares data for signing.
+- `prepareDataForSigning(document: unknown, proof: DataIntegrityProofTemplate): Promise<Uint8Array>`
+  Canonicalizes and hashes a document and proof template into the bytes passed to a signer.
 
-- `createProof(options: SigningInput): Promise<SigningOutput>`
-  Creates a proof for a DID document.
+- `createDataIntegrityProofTemplate(options): DataIntegrityProofTemplate`
+  Creates an `eddsa-jcs-2022` Data Integrity proof template.
 
-- `createSigner(options: SignerOptions): Signer`
-  Creates a signer for signing data.
+- `signDataIntegrityProof<TDocument>(document: TDocument, proofTemplate: DataIntegrityProofTemplate, signer: Signer<TDocument>): Promise<DataIntegrityProof>`
+  Signs a document and returns the completed Data Integrity proof.
 
 - `AbstractCrypto`
   An abstract class for implementing custom signers.
