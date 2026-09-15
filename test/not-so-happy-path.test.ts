@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { resolveLog } from '../src/core/resolution.js';
-import type { CreateDIDInterface, CreateDIDResult, DIDLog } from '../src/interfaces.js';
+import type { CreateDIDOptions, CreateDIDResult, DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats.js';
 import {
   appendV05LogEntry,
-  asPublicVerificationMethods,
   createFutureDIDLog,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -26,7 +26,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
   });
@@ -92,7 +92,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -100,7 +100,7 @@ describe('Not So Happy Path Tests', () => {
       log: log1,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -121,7 +121,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
     currentLog = log0;
@@ -131,7 +131,6 @@ describe('Not So Happy Path Tests', () => {
         log: currentLog,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
         verifier: testImplementation,
       });
       currentLog = nextLog;
@@ -155,7 +154,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
     currentLog = log0;
@@ -165,7 +164,6 @@ describe('Not So Happy Path Tests', () => {
         log: currentLog,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
         verifier: testImplementation,
       });
       currentLog = nextLog;
@@ -184,7 +182,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -192,7 +190,6 @@ describe('Not So Happy Path Tests', () => {
       log: log1,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -200,7 +197,6 @@ describe('Not So Happy Path Tests', () => {
       log: log2,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -226,7 +222,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -234,7 +230,6 @@ describe('Not So Happy Path Tests', () => {
       log: log1,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -242,7 +237,6 @@ describe('Not So Happy Path Tests', () => {
       log: log2,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -265,7 +259,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -273,7 +267,6 @@ describe('Not So Happy Path Tests', () => {
       log: log1,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -281,7 +274,6 @@ describe('Not So Happy Path Tests', () => {
       log: log2,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
 
@@ -320,7 +312,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -340,7 +332,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -358,7 +350,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -376,7 +368,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -394,7 +386,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -453,7 +445,7 @@ describe('Not So Happy Path Tests', () => {
       signer: createTestSigner(authKey),
       method: 'did:webvh:1.0',
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -507,7 +499,7 @@ describe('Not So Happy Path Tests', () => {
         address: 'example.com',
         signer: createTestSigner(authKey),
         updateKeys: undefined as unknown as string[],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         verifier: testImplementation,
       })
     ).rejects.toThrow('Update keys not supplied');
@@ -518,21 +510,21 @@ describe('Not So Happy Path Tests', () => {
       createDID({
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         verifier: testImplementation,
-      } as unknown as CreateDIDInterface)
+      } as unknown as CreateDIDOptions)
     ).rejects.toThrow('Address must be provided');
   });
 
-  test('createDID rejects when verificationMethods is absent and no didDocument', async () => {
+  test('createDID rejects when didDocument is not supplied', async () => {
     await expect(
       createDID({
         address: 'example.com',
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
         verifier: testImplementation,
-      } as unknown as CreateDIDInterface)
-    ).rejects.toThrow('verificationMethods must be provided when didDocument is not supplied');
+      } as unknown as CreateDIDOptions)
+    ).rejects.toThrow('didDocument is required to create a DID');
   });
 
   test('Rejects log entry with out-of-order version number', async () => {
@@ -540,7 +532,6 @@ describe('Not So Happy Path Tests', () => {
       log: initialDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
@@ -558,7 +549,6 @@ describe('Not So Happy Path Tests', () => {
       log: initialDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
@@ -575,7 +565,6 @@ describe('Not So Happy Path Tests', () => {
       log: initialDID.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
       verifier: testImplementation,
     });
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(updateResult.log));
@@ -612,7 +601,6 @@ describe('Not So Happy Path Tests', () => {
         log: deactivatedLog,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
         verifier: testImplementation,
       })
     ).rejects.toThrow('Cannot update deactivated DID');
@@ -623,7 +611,7 @@ describe('Not So Happy Path Tests', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
     const { log: deactivatedLog } = await deactivateDID({
@@ -656,7 +644,7 @@ describe('Internal resolution invariants', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 
@@ -674,7 +662,7 @@ describe('Internal resolution invariants', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       verifier: testImplementation,
     });
 

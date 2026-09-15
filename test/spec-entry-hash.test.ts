@@ -3,7 +3,7 @@ import type { DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { deriveHash } from '../src/utils/crypto.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -38,7 +38,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       created: '2024-01-01T00:00:00Z',
       verifier,
     });
@@ -49,7 +49,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
         log,
         signer: createTestSigner(authKey),
         updateKeys: [authKey.publicKeyMultibase!],
-        verificationMethods: asPublicVerificationMethods(authKey),
+        didDocument: createTestDIDDocument(authKey),
         updated,
         verifier,
       });
@@ -117,7 +117,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
       address: 'example.com',
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       created: '2024-04-01T00:00:00Z',
       verifier,
     });
@@ -127,7 +127,7 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
       log: created.log,
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
-      verificationMethods: asPublicVerificationMethods(authKey),
+      didDocument: createTestDIDDocument(authKey),
       updated: '2024-05-01T00:00:00Z',
       verifier,
     });

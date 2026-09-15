@@ -7,41 +7,32 @@ import {
   multibaseEncode,
   prepareDataForSigning,
 } from 'didwebvh-ts';
-import type { Signer, SigningInput, SigningOutput, VerificationMethod, Verifier } from 'didwebvh-ts/types';
-import { base58btc } from 'multiformats/bases/base58';
+import type { DIDDocument, Signer, SigningInput, SigningOutput, Verifier } from 'didwebvh-ts/types';
 
-type SigningKey = VerificationMethod & {
+interface KeyPair {
+  publicKeyMultibase: string;
   secretKeyMultibase: string;
-};
-
-type VerificationMethodInput = VerificationMethod & {
-  purpose: 'assertionMethod';
-};
-
-type Ed25519KeyMaterial = {
-  signingKey: SigningKey;
-  verificationMethod: VerificationMethodInput;
-};
+}
 
 class ExampleCrypto extends AbstractCrypto implements Verifier, Signer {
-  constructor(
-    public readonly verificationMethod: {
-      id: string;
-      controller: string;
-      type: string;
-      publicKeyMultibase: string;
-      secretKeyMultibase?: string;
-    }
-  ) {
-    super({ verificationMethod });
+  private keyPair: KeyPair;
+
+  constructor(keyPair: KeyPair) {
+    const didKey = `did:key:${keyPair.publicKeyMultibase}`;
+    super({
+      verificationMethod: {
+        id: `${didKey}#${keyPair.publicKeyMultibase}`,
+        type: 'Multikey',
+        controller: didKey,
+        publicKeyMultibase: keyPair.publicKeyMultibase,
+      },
+    });
+    this.keyPair = keyPair;
   }
 
   async sign(input: SigningInput): Promise<SigningOutput> {
     try {
-      if (!this.verificationMethod.secretKeyMultibase) {
-        throw new Error('Secret key not found');
-      }
-      const { bytes: secretKey } = multibaseDecode(this.verificationMethod.secretKeyMultibase);
+      const { bytes: secretKey } = multibaseDecode(this.keyPair.secretKeyMultibase);
       // Legacy stablelib secrets are seed||publicKey (64 bytes); noble signs with the 32-byte seed.
       const seed = secretKey.slice(2).slice(0, 32);
       const proof = ed25519.sign(await prepareDataForSigning(input.document, input.proof), seed);
@@ -62,54 +53,43 @@ class ExampleCrypto extends AbstractCrypto implements Verifier, Signer {
       return false;
     }
   }
-
-  getVerificationMethodId(): string {
-    return this.verificationMethod.id;
-  }
 }
 
-export async function generateEd25519KeyMaterial(): Promise<Ed25519KeyMaterial> {
+async function generateEd25519KeyPair(): Promise<KeyPair> {
   const { secretKey, publicKey } = ed25519.keygen();
-  const publicKeyMultibase = base58btc.encode(new Uint8Array([0xed, 0x01, ...publicKey]));
-  const didKey = `did:key:${publicKeyMultibase}`;
-
   return {
-    signingKey: {
-      id: `${didKey}#${publicKeyMultibase}`,
-      type: 'Multikey',
-      controller: didKey,
-      publicKeyMultibase,
-      secretKeyMultibase: base58btc.encode(new Uint8Array([0x80, 0x26, ...secretKey, ...publicKey])),
-    },
-    verificationMethod: {
-      id: `{DID}#${publicKeyMultibase.slice(-8)}`,
-      type: 'Multikey',
-      controller: '{DID}',
-      publicKeyMultibase,
-      purpose: 'assertionMethod',
-    },
+    publicKeyMultibase: multibaseEncode(new Uint8Array([0xed, 0x01, ...publicKey]), MultibaseEncoding.BASE58_BTC),
+    secretKeyMultibase: multibaseEncode(
+      new Uint8Array([0x80, 0x26, ...secretKey, ...publicKey]),
+      MultibaseEncoding.BASE58_BTC
+    ),
   };
 }
 
-export const createExampleCrypto = async (vm: SigningKey) => {
-  return new ExampleCrypto({
-    id: `did:key:${vm.publicKeyMultibase}#${vm.publicKeyMultibase}`,
-    controller: `did:key:${vm.publicKeyMultibase}`,
-    type: 'Multikey',
-    publicKeyMultibase: vm.publicKeyMultibase,
-    secretKeyMultibase: vm.secretKeyMultibase,
-  });
-};
+const keyPair = await generateEd25519KeyPair();
+const crypto = new ExampleCrypto(keyPair);
 
-const { signingKey, verificationMethod } = await generateEd25519KeyMaterial();
-const crypto = await createExampleCrypto(signingKey);
+const didDocument: DIDDocument = {
+  '@context': ['https://www.w3.org/ns/did/v1'],
+  id: '{DID}',
+  verificationMethod: [
+    {
+      id: '{DID}#key-1',
+      type: 'Multikey',
+      controller: '{DID}',
+      publicKeyMultibase: keyPair.publicKeyMultibase,
+    },
+  ],
+  authentication: ['{DID}#key-1'],
+  assertionMethod: ['{DID}#key-1'],
+};
 
 const did = await createDID({
   address: 'example.com',
   signer: crypto,
   verifier: crypto,
-  updateKeys: [`did:key:${signingKey.publicKeyMultibase}#${signingKey.publicKeyMultibase}`],
-  verificationMethods: [verificationMethod],
+  updateKeys: [keyPair.publicKeyMultibase],
+  didDocument,
 });
 
 console.log(did);

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { createDID } from '../src/method.js';
 import {
-  asPublicVerificationMethods,
+  createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -14,7 +14,7 @@ async function createFromInput(value: string) {
   const baseOptions = {
     signer: createTestSigner(authKey),
     updateKeys: [authKey.publicKeyMultibase!],
-    verificationMethods: asPublicVerificationMethods(authKey),
+    didDocument: createTestDIDDocument(authKey),
     verifier,
   };
 

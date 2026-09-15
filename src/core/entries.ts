@@ -2,26 +2,20 @@ import type { DIDDocument } from 'did-resolver';
 import { documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
 import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER, VERIFICATION_RELATIONSHIPS } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
-import {
-  createDIDDoc,
-  enrichAlsoKnownAs,
-  replaceCreateDidPlaceholders,
-  validateCreateDidDocument,
-} from '../did-document.js';
+import { enrichAlsoKnownAs, replaceCreateDidPlaceholders, validateCreateDidDocument } from '../did-document.js';
 import type {
-  CreateDIDInterface,
-  DeactivateDIDInterface,
+  CreateDIDOptions,
+  DeactivateDIDOptions,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
-  UpdateDIDInterface,
+  UpdateDIDOptions,
   WitnessParameterResolution,
 } from '../interfaces.js';
 import { createSCID, deriveHash } from '../utils/crypto.js';
 import {
   assertNoPrivateVerificationMaterial,
   assertValidAuthoredVerificationMethods,
-  sanitizeVerificationMethods,
 } from '../utils/verification-methods.js';
 import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier, replaceValueInObject } from '../utils.js';
 import { validateWitnessParameter } from '../witness.js';
@@ -37,7 +31,7 @@ const resolveNextDidContext = ({
   parsedLastEntryDid,
   portable,
 }: {
-  options: UpdateDIDInterface;
+  options: UpdateDIDOptions;
   lastEntryDid: string;
   parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
   portable: boolean;
@@ -67,7 +61,7 @@ const resolveNextDidContext = ({
   };
 };
 
-const signControllerEntry = async (entry: DIDLogEntry, created: string, signer: CreateDIDInterface['signer']) => {
+const signControllerEntry = async (entry: DIDLogEntry, created: string, signer: CreateDIDOptions['signer']) => {
   const proofTemplate = createDataIntegrityProofTemplate({
     verificationMethod: signer.getVerificationMethodId(),
     created,
@@ -81,7 +75,7 @@ const validateProposedEntry = async (
   entry: DIDLogEntry,
   updateKeys: string[],
   witness: WitnessParameterResolution | undefined,
-  verifier: CreateDIDInterface['verifier']
+  verifier: CreateDIDOptions['verifier']
 ) => {
   const verified = await documentStateIsValid(entry, updateKeys, witness, true, verifier);
 
@@ -102,10 +96,10 @@ const finalizeNonGenesisEntry = async ({
   logEntry: DIDLogEntry;
   versionNumber: number;
   created: string;
-  signer: CreateDIDInterface['signer'];
+  signer: CreateDIDOptions['signer'];
   updateKeys: string[];
   witness: WitnessParameterResolution | undefined;
-  verifier: CreateDIDInterface['verifier'];
+  verifier: CreateDIDOptions['verifier'];
 }): Promise<DIDLogEntry> => {
   const logEntryHash = await deriveHash(logEntry);
   const entry = { ...logEntry, versionId: `${versionNumber}-${logEntryHash}` };
@@ -132,30 +126,18 @@ export async function prepareGenesisEntry({
   did,
   createdDate,
 }: {
-  options: CreateDIDInterface;
+  options: CreateDIDOptions;
   did: string;
   createdDate: string;
 }): Promise<PreparedEntry> {
-  const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
-
-  let doc: DIDDocument;
-  if (options.didDocument) {
-    validateCreateDidDocument(options.didDocument);
-    assertNoPrivateVerificationMaterial(options.didDocument);
-    assertValidAuthoredVerificationMethods(options.didDocument);
-    doc = replaceValueInObject(deepClone(options.didDocument), DID_PLACEHOLDER, did) as DIDDocument;
-  } else {
-    if (!safeVerificationMethods || safeVerificationMethods.length === 0) {
-      throw new Error('verificationMethods must be provided when didDocument is not supplied');
-    }
-
-    const didDocResult = await createDIDDoc({
-      ...options,
-      did,
-      verificationMethods: safeVerificationMethods,
-    });
-    doc = didDocResult.doc;
+  if (!options.didDocument) {
+    throw new Error('didDocument is required to create a DID');
   }
+
+  validateCreateDidDocument(options.didDocument);
+  assertNoPrivateVerificationMaterial(options.didDocument);
+  assertValidAuthoredVerificationMethods(options.didDocument);
+  let doc = replaceValueInObject(deepClone(options.didDocument), DID_PLACEHOLDER, did) as DIDDocument;
 
   doc = enrichAlsoKnownAs(doc, did, {
     alsoKnownAsWeb: options.alsoKnownAsWeb,
@@ -219,7 +201,7 @@ export async function prepareUpdateEntry({
   versionNumber,
   createdDate,
 }: {
-  options: UpdateDIDInterface;
+  options: UpdateDIDOptions;
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
   log: DIDLog;
@@ -271,8 +253,6 @@ export async function prepareUpdateEntry({
     await newKeysAreInNextKeys(currentUpdateKeys ?? [], lastMeta.nextKeyHashes ?? []);
   }
 
-  const safeVerificationMethods = sanitizeVerificationMethods(options.verificationMethods);
-
   const { did: nextDid } = resolveNextDidContext({
     options,
     lastEntryDid,
@@ -284,55 +264,10 @@ export async function prepareUpdateEntry({
   if (options.didDocument) {
     assertNoPrivateVerificationMaterial(options.didDocument);
     assertValidAuthoredVerificationMethods(options.didDocument);
-    doc = deepClone(options.didDocument);
+    doc = replaceCreateDidPlaceholders(deepClone(options.didDocument), parsedLastEntryDid.scid, nextDid);
 
     if (doc.id && nextDid === lastEntryDid && doc.id !== lastEntryDid) {
       throw new Error(`Updated DID document id must match expected DID '${lastEntryDid}', got '${doc.id}'`);
-    }
-  } else if (
-    safeVerificationMethods !== undefined ||
-    options.services !== undefined ||
-    options.authentication !== undefined ||
-    options.assertionMethod !== undefined ||
-    options.keyAgreement !== undefined ||
-    options.alsoKnownAs !== undefined ||
-    options.context !== undefined
-  ) {
-    const { doc: normalizedUpdateDoc } = await createDIDDoc({
-      ...options,
-      did: nextDid,
-      context: options.context || lastEntry.state['@context'],
-      verificationMethods: safeVerificationMethods ?? [],
-    });
-
-    doc = deepClone(lastEntry.state);
-    doc['@context'] = normalizedUpdateDoc['@context'];
-    doc.id = normalizedUpdateDoc.id;
-    doc.controller = normalizedUpdateDoc.controller;
-
-    if (safeVerificationMethods !== undefined) {
-      doc.verificationMethod = normalizedUpdateDoc.verificationMethod;
-      doc.authentication = normalizedUpdateDoc.authentication;
-      doc.assertionMethod = normalizedUpdateDoc.assertionMethod;
-      doc.keyAgreement = normalizedUpdateDoc.keyAgreement;
-      doc.capabilityDelegation = normalizedUpdateDoc.capabilityDelegation;
-      doc.capabilityInvocation = normalizedUpdateDoc.capabilityInvocation;
-    }
-
-    if (options.services !== undefined) {
-      doc.service = options.services;
-    }
-    if (options.authentication !== undefined) {
-      doc.authentication = options.authentication;
-    }
-    if (options.assertionMethod !== undefined) {
-      doc.assertionMethod = options.assertionMethod;
-    }
-    if (options.keyAgreement !== undefined) {
-      doc.keyAgreement = options.keyAgreement;
-    }
-    if (options.alsoKnownAs !== undefined) {
-      doc.alsoKnownAs = options.alsoKnownAs;
     }
   } else {
     doc = deepClone(lastEntry.state);
@@ -430,7 +365,7 @@ export async function prepareDeactivationEntry({
   versionNumber,
   createdDate,
 }: {
-  options: DeactivateDIDInterface & { updateKeys?: string[] };
+  options: DeactivateDIDOptions & { updateKeys?: string[] };
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
   log: DIDLog;

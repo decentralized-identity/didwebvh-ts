@@ -4,7 +4,7 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { deriveNextKeyHash } from '../src/utils/crypto.js';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats.js';
 import { defaultVerifier } from '../src/verifier.js';
-import { asPublicVerificationMethods, createTestSigner, generateTestVerificationMethod } from './utils.js';
+import { createTestDIDDocument, createTestSigner, generateTestVerificationMethod } from './utils.js';
 
 const forms = ['multikey', 'did:key', 'verificationMethod'] as const;
 type KeyForm = (typeof forms)[number];
@@ -26,7 +26,7 @@ describe('updateKeys input normalization', () => {
     const options = Object.freeze({
       address: 'example.com',
       verifier: defaultVerifier,
-      verificationMethods: asPublicVerificationMethods(key),
+      didDocument: createTestDIDDocument(key),
       signer,
       updateKeys,
     });
@@ -48,7 +48,7 @@ describe('updateKeys input normalization', () => {
         address: 'example.com',
         verifier: defaultVerifier,
         signer: createTestSigner(key),
-        verificationMethods: asPublicVerificationMethods(key),
+        didDocument: createTestDIDDocument(key),
         updateKeys: [key.publicKeyMultibase!],
         nextKeyHashes: [await deriveNextKeyHash(nextKey.publicKeyMultibase!)],
       });
@@ -74,7 +74,7 @@ describe('updateKeys input normalization', () => {
       address: 'example.com',
       verifier: defaultVerifier,
       signer: createTestSigner(keys[0]),
-      verificationMethods: asPublicVerificationMethods(keys[0]),
+      didDocument: createTestDIDDocument(keys[0]),
       updateKeys: keys.map((key, index) => encodeKey(key.publicKeyMultibase!, forms[index])),
     });
     expect(result.meta.updateKeys).toEqual(keys.map((key) => key.publicKeyMultibase));
@@ -88,7 +88,7 @@ describe('updateKeys input normalization', () => {
       const { log } = await createDID({
         address: 'example.com',
         verifier: defaultVerifier,
-        verificationMethods: asPublicVerificationMethods(key),
+        didDocument: createTestDIDDocument(key),
         signer,
         updateKeys: [multikey],
       });
@@ -114,7 +114,14 @@ describe('updateKeys input normalization', () => {
 
       for (const invalid of invalidKeys) {
         await expect(
-          operation({ address: 'example.com', verifier: defaultVerifier, log, signer, updateKeys: [multikey, invalid] })
+          operation({
+            address: 'example.com',
+            verifier: defaultVerifier,
+            log,
+            signer,
+            didDocument: createTestDIDDocument(key),
+            updateKeys: [multikey, invalid],
+          })
         ).rejects.toThrow(/updateKeys\[1\]/);
       }
       expect(sign).not.toHaveBeenCalled();
@@ -127,7 +134,7 @@ describe('updateKeys input normalization', () => {
       address: 'example.com',
       verifier: defaultVerifier,
       signer: createTestSigner(key),
-      verificationMethods: asPublicVerificationMethods(key),
+      didDocument: createTestDIDDocument(key),
       updateKeys: [key.publicKeyMultibase!],
     });
     for (const form of ['did:key', 'verificationMethod'] as const) {

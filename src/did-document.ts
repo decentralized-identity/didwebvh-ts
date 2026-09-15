@@ -1,27 +1,13 @@
-import type { DIDDocument, Service, VerificationMethod } from 'did-resolver';
+import type { DIDDocument, Service } from 'did-resolver';
 import {
-  BASE_CONTEXT,
   CONTEXT_LINKED_VP,
   DID_PLACEHOLDER,
   SCID_PLACEHOLDER,
   SERVICE_TYPE_LINKED_VP,
   SERVICE_TYPE_RELATIVE_REF,
   ServiceFragment,
-  VERIFICATION_RELATIONSHIPS,
 } from './constants.js';
-import { normalizeVMs } from './utils/verification-methods.js';
 import { deepClone, getBaseUrl, replaceValueInObject } from './utils.js';
-
-type CreateDIDDocOptions = {
-  did: string;
-  verificationMethods?: VerificationMethod[];
-  context?: string | string[] | object | object[];
-  authentication?: string[];
-  assertionMethod?: string[];
-  keyAgreement?: string[];
-  alsoKnownAs?: string[];
-  services?: DIDDocument['service'];
-};
 
 type ServiceIdStyle = 'absolute' | 'fragment';
 
@@ -66,47 +52,6 @@ export function enrichAlsoKnownAs(doc: DIDDocument, did: string, opts: { alsoKno
     alsoKnownAs: aliases,
   };
 }
-
-/**
- * @deprecated Legacy partial document assembly helper. Pass complete 'didDocument' directly to createDID / updateDID instead. Will be removed in next PR.
- */
-export const createDIDDoc = async (options: CreateDIDDocOptions): Promise<{ doc: DIDDocument }> => {
-  const { did } = options;
-  const all = normalizeVMs(options.verificationMethods, did);
-  const derivedProperties = ['verificationMethod', ...VERIFICATION_RELATIONSHIPS] as const;
-  const directProperties = ['authentication', 'assertionMethod', 'keyAgreement', 'alsoKnownAs'] as const;
-  const assignIfPresent = <K extends keyof DIDDocument>(property: K, value: DIDDocument[K] | undefined) => {
-    if (Array.isArray(value) && value.length === 0) {
-      return;
-    }
-
-    if (value) {
-      doc[property] = value;
-    }
-  };
-
-  const doc: DIDDocument = {
-    '@context': options.context || BASE_CONTEXT,
-    id: did,
-    controller: did,
-  };
-
-  if (all && typeof all === 'object') {
-    for (const property of derivedProperties) {
-      assignIfPresent(property, all[property]);
-    }
-  }
-
-  for (const property of directProperties) {
-    assignIfPresent(property, options[property]);
-  }
-
-  if (options.services) {
-    doc.service = options.services;
-  }
-
-  return { doc };
-};
 
 export function replaceCreateDidPlaceholders<T>(input: T, scid: string, did: string): T {
   const withScid = replaceValueInObject(input, '{SCID}', scid);

@@ -6,8 +6,8 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 
 | Change | Category | Impact | Migration |
 | -------- | ---------- | -------- | ----------- |
+| DID Document Authoring (`didDocument`) | API / Behavior | `createDID` / `updateDID` | [UPGRADE_2.x_to_3.0.md §2](./UPGRADE_2.x_to_3.0.md#2-did-document-authoring-and-removal-of-verificationmethods) |
 | Resolution result shape | API | All resolution calls | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
-| Verification method `purpose` | Behavior | DID creation/update | [UPGRADE_2.x_to_3.0.md §2](./UPGRADE_2.x_to_3.0.md#2-verification-method-purpose-field) |
 | `createProof` export removed | API | Proof creation | [UPGRADE_2.x_to_3.0.md §3](./UPGRADE_2.x_to_3.0.md#3-proof-helper-exports) |
 | did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.0.md §3.2](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports) |
 | Witness callback contract | Behavior | Signer callbacks | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-proof-callback-contract) |
@@ -45,12 +45,12 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 
 ### Behavior Changes (Semantics/Defaults)
 
-#### 3. Verification Method `purpose` Field
+#### 3. Standard DID Document Authoring (`didDocument` required on `createDID`)
 
-- **Changed**: VMs without `purpose` no longer implicitly enter `authentication`
-- **Now**: `purpose` must be explicitly set
-- **Reason**: Removes ambiguity; makes intent explicit
-- **Upgrade**: Add `purpose: 'authentication'` to auth keys → [Full guide](./UPGRADE_2.x_to_3.0.md#2-verification-method-purpose-field)
+- **Changed**: `createDID` now requires a full, standard W3C `didDocument: DIDDocument` with `{DID}` or `{SCID}` placeholders.
+- **Removed**: Legacy partial creation fields (`verificationMethods`, `authentication`, `assertionMethod`, `keyAgreement`, `capabilityInvocation`, `capabilityDelegation`, `services`, `alsoKnownAs`) and the proprietary `purpose` field on `VerificationMethod`.
+- **Reason**: Full W3C DID Core alignment, controller sovereignty over fragment IDs (`#key-1`), multi-relationship support, and removal of opinionated synthesis heuristics.
+- **Upgrade**: Provide complete `didDocument` structure to `createDID` → [Full guide](./UPGRADE_2.x_to_3.0.md#2-did-document-authoring-and-removal-of-verificationmethods)
 
 #### 4. Witness Proof Callback Contract
 

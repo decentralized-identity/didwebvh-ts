@@ -116,9 +116,7 @@ function parseExplicitPaths(pathsOption: string | string[] | undefined): string[
   return paths.length > 0 ? paths : undefined;
 }
 
-async function generateVerificationMethod(
-  purpose: VerificationRelationship = 'authentication'
-): Promise<CliVerificationMethod> {
+async function generateVerificationMethod(): Promise<CliSigningKey> {
   const keyPair = ed25519.keygen();
   const publicKeyBytes = new Uint8Array([0xed, 0x01, ...keyPair.publicKey]);
   // Store seed||publicKey (64 bytes) to stay format-compatible with keys
@@ -132,7 +130,6 @@ async function generateVerificationMethod(
     controller: didKey,
     publicKeyMultibase,
     secretKeyMultibase: multibaseEncode(secretKeyBytes, MultibaseEncoding.BASE58_BTC),
-    purpose,
   };
 }
 class CustomCryptoImplementation implements Signer, Verifier {
@@ -639,10 +636,6 @@ async function handleGenerateWitnessProof(args: string[]) {
   }
 }
 
-type CliVerificationMethod = CliSigningKey & {
-  purpose: VerificationRelationship;
-};
-
 function parseOptions(args: string[]): Record<string, string | string[] | undefined> {
   const options: Record<string, string | string[] | undefined> = {};
   for (let i = 0; i < args.length; i++) {
@@ -723,7 +716,7 @@ export async function main(): Promise<number> {
         await handleGenerateWitnessProof(args);
         return 0;
       case 'generate-vm': {
-        const vm = await generateVerificationMethod('authentication');
+        const vm = await generateVerificationMethod();
         const publicKeyMultibase = vm.publicKeyMultibase;
         const did = `did:key:${publicKeyMultibase}`;
         console.log(

@@ -315,20 +315,22 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions): Promise<DIDResolutionResult>`
   Resolves directly from an in-memory DID log, returning the same standard shape.
 
-- `createDID(options: CreateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
+- `createDID(options: CreateDIDOptions): Promise<CreateDIDResult>`
   Creates a new DID. Always produces a v1.0 log.
-  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`) or legacy `domain`.
+  Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
+  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`).
   Resolver URL mapping always uses `https://`, including for `localhost` and identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
-- `updateDID(options: UpdateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog, webDoc?: DIDDoc}>`
+- `updateDID(options: UpdateDIDOptions): Promise<UpdateDIDResult>`
   Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
+  Accepts an optional replacement `didDocument: DIDDocument`. If omitted, the authenticated previous document state is retained.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
 
-- `deactivateDID(options: DeactivateDIDInterface): Promise<{did: string, doc: any, meta: DIDResolutionMeta, log: DIDLog}>`
+- `deactivateDID(options: DeactivateDIDOptions): Promise<{did: string, doc: DIDDocument, meta: DIDResolutionMeta, log: DIDLog}>`
   Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
 
-- `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDoc): DIDDoc`
+- `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocument): DIDDocument`
   Generates the parallel `did:web` document defined by did:webvh v1.0 §3.7.10.
 
 ### Witness Functions
@@ -385,17 +387,17 @@ against caller-supplied proofs.
 
 ### Cryptography Functions
 
-- `createDocumentSigner(options: SignerOptions): Signer`
-  Creates a signer for signing DID documents.
+- `createDocumentSigner<TDocument>(signer: Signer<TDocument>, verificationMethodId: string)`
+  Creates a function that signs DID documents with the supplied signer and verification method.
 
-- `prepareDataForSigning(data: any): Uint8Array`
-  Prepares data for signing.
+- `prepareDataForSigning(document: unknown, proof: DataIntegrityProofTemplate): Promise<Uint8Array>`
+  Canonicalizes and hashes a document and proof template into the bytes passed to a signer.
 
-- `createProof(options: SigningInput): Promise<SigningOutput>`
-  Creates a proof for a DID document.
+- `createDataIntegrityProofTemplate(options): DataIntegrityProofTemplate`
+  Creates an `eddsa-jcs-2022` Data Integrity proof template.
 
-- `createSigner(options: SignerOptions): Signer`
-  Creates a signer for signing data.
+- `signDataIntegrityProof<TDocument>(document: TDocument, proofTemplate: DataIntegrityProofTemplate, signer: Signer<TDocument>): Promise<DataIntegrityProof>`
+  Signs a document and returns the completed Data Integrity proof.
 
 - `AbstractCrypto`
   An abstract class for implementing custom signers.

@@ -7,7 +7,7 @@ This guide covers breaking changes in the 3.0.0 release and provides step-by-ste
 The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specification and hardens security postures:
 
 1. **Resolution result shape** — now returns W3C standard format
-2. **Verification method `purpose`** — requires explicit assignment
+2. **Explicit DID document authoring** — callers provide complete W3C `didDocument` state
 3. **Proof helper exports** — stricter public API
   - Root parser exports `parseDidKeyDid` and `parseDidKeyVerificationMethod` removed
 4. **Witness proof callback contract** — signer supplies only signature data
@@ -112,82 +112,75 @@ See [W3C DID Resolution](https://w3c-ccg.github.io/did-resolution/) specificatio
 
 ---
 
-## 2. Verification Method `purpose` Field
+## 2. DID Document Authoring and Removal of `verificationMethods`
 
 ### What Changed
 
-In 2.x, verification methods without an explicit `purpose` field implicitly entered the `authentication` relationship. In 3.0.0, the `purpose` field must be explicitly set.
+In 2.x, `createDID` accepted partial parameters such as `verificationMethods`, `authentication`, `assertionMethod`, `services`, and `alsoKnownAs`, synthesizing the final DID document with auto-generated fragments and heuristic relationship mapping (including a proprietary `purpose` field).
+
+In 3.0.0, `createDID` requires a full, standard W3C `didDocument: DIDDocument`. The caller explicitly authors the document structure using `{DID}` (or `{SCID}`) placeholders for identifiers, allowing full control over key fragments (`#key-1`), verification relationships, services, and extensions.
 
 **Old (2.x)**:
 
 ```typescript
 const vm = {
   id: '#key-0',
-  type: 'Ed25519VerificationKey2020',
+  type: 'Multikey',
   publicKeyMultibase: '...',
-  // Implicitly used for authentication
+  purpose: 'authentication',
 };
 
 const { did, doc } = await createDID({
   address: 'example.com',
   signer,
-  verificationMethods: [vm], // ← automatically enters authentication
+  verifier,
+  updateKeys: [updateKey],
+  verificationMethods: [vm], // ← partial options synthesized into doc
 });
 ```
 
 **New (3.0.0)**:
 
 ```typescript
-const vm = {
-  id: '#key-0',
-  type: 'Ed25519VerificationKey2020',
-  publicKeyMultibase: '...',
-  purpose: 'authentication', // ← must be explicit
+const didDocument: DIDDocument = {
+  '@context': ['https://www.w3.org/ns/did/v1'],
+  id: '{DID}',
+  verificationMethod: [
+    {
+      id: '{DID}#key-0', // or relative '#key-0'
+      type: 'Multikey',
+      controller: '{DID}',
+      publicKeyMultibase: '...',
+    },
+  ],
+  authentication: ['{DID}#key-0'],
+  assertionMethod: ['{DID}#key-0'],
 };
 
 const { did, doc } = await createDID({
   address: 'example.com',
   signer,
-  verificationMethods: [vm], // ← only uses purpose if set
+  verifier,
+  updateKeys: [updateKey],
+  didDocument, // ← W3C DID document
 });
 ```
 
 ### Migration Steps
 
-1. **Review all verification methods** in your `createDID` / `updateDID` calls
-2. **Add `purpose: 'authentication'`** to any VM used for signing:
-
-   ```typescript
-   const vm = {
-     id: '#key-0',
-     type: 'Ed25519VerificationKey2020',
-     publicKeyMultibase: publicKeyMultibase,
-     purpose: 'authentication', // ADD THIS
-   };
-   ```
-
-3. **If you rely on auto-population**, add it explicitly:
-
-   ```typescript
-   // Old assumption: no purpose → authentication
-   // New requirement: explicit purpose assignment
-   
-   updateKeys.forEach(key => {
-     verificationMethods.push({
-       id: `#${key.id}`,
-       type: key.type,
-       publicKeyMultibase: key.publicKeyMultibase,
-       purpose: 'authentication', // ← required
+1. **Construct a complete `didDocument`** object matching standard W3C `DIDDocument` structure.
+2. **Use `{DID}` or `{SCID}` placeholders** in `id`, `controller`, verification methods, and services as needed.
+3. **Explicitly assign verification relationships** (`authentication`, `assertionMethod`, `keyAgreement`, etc.) by referencing the verification method IDs.
+4. **Pass `didDocument` to `createDID`**. For `updateDID`, supply `didDocument` if modifying document state, or omit it to retain the authenticated previous state.
      });
    });
-   ```
 
 ### Common Patterns
 
-- **Authentication key**: `purpose: 'authentication'`
-- **Assertion key**: `purpose: 'assertionMethod'`
-- **Key agreement**: `purpose: 'keyAgreement'`
-- **Multiple purposes**: `purpose: ['authentication', 'assertionMethod']`
+- **Authentication relationship**: reference the verification method from `authentication`
+- **Assertion relationship**: reference the verification method from `assertionMethod`
+- **Key agreement relationship**: reference the verification method from `keyAgreement`
+- **Multiple relationships**: include the same verification method ID in multiple arrays
 
 ---
 
