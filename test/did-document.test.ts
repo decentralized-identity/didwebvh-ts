@@ -659,3 +659,280 @@ describe('did-document helper branches', () => {
     expect(doc).not.toHaveProperty('capabilityInvocation');
   });
 });
+
+describe('complete didDocument contract and update semantics', () => {
+  test('creates DID with multi-relationship verification method and relative IDs', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const signer = createTestSigner(authKey);
+    const verifier = createTestVerifier(authKey);
+
+    const didDocument: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      verificationMethod: [
+        {
+          id: '#key-1',
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey.publicKeyMultibase,
+        },
+      ],
+      authentication: ['#key-1'],
+      assertionMethod: ['#key-1'],
+      keyAgreement: ['#key-1'],
+    };
+
+    const { did, doc } = await createDID({
+      address: 'example.com',
+      signer,
+      verifier,
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument,
+    });
+
+    expect(doc.id).toBe(did);
+    expect(doc.verificationMethod?.[0].id).toBe('#key-1');
+    expect(doc.verificationMethod?.[0].controller).toBe(did);
+    expect(doc.authentication).toEqual(['#key-1']);
+    expect(doc.assertionMethod).toEqual(['#key-1']);
+    expect(doc.keyAgreement).toEqual(['#key-1']);
+    expect(doc.controller).toBeUndefined(); // Top-level controller was omitted and remains omitted
+  });
+
+  test('preserves explicit caller-authored top-level controller when different from subject DID', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const signer = createTestSigner(authKey);
+    const verifier = createTestVerifier(authKey);
+
+    const didDocument: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      controller: 'did:example:external-controller',
+      verificationMethod: [
+        {
+          id: '#key-1',
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey.publicKeyMultibase,
+        },
+      ],
+      authentication: ['#key-1'],
+    };
+
+    const { doc } = await createDID({
+      address: 'example.com',
+      signer,
+      verifier,
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument,
+    });
+
+    expect(doc.controller).toBe('did:example:external-controller');
+  });
+
+  test('rejects verification method missing explicit controller', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const signer = createTestSigner(authKey);
+    const verifier = createTestVerifier(authKey);
+
+    const didDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      verificationMethod: [
+        {
+          id: '#key-1',
+          type: 'Multikey',
+          publicKeyMultibase: authKey.publicKeyMultibase,
+        },
+      ],
+      authentication: ['#key-1'],
+    } as unknown as DIDDocument;
+
+    await expect(
+      createDID({
+        address: 'example.com',
+        signer,
+        verifier,
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument,
+      })
+    ).rejects.toThrow(/must have an explicit string 'controller'/);
+  });
+
+  test('update with complete didDocument completely replaces state (omitted service is deleted)', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const signer = createTestSigner(authKey);
+    const verifier = createTestVerifier(authKey);
+
+    const initialDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      verificationMethod: [
+        {
+          id: '#key-1',
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey.publicKeyMultibase,
+        },
+      ],
+      authentication: ['#key-1'],
+      service: [
+        {
+          id: '#service-1',
+          type: 'LinkedDomains',
+          serviceEndpoint: 'https://example.com',
+        },
+      ],
+    };
+
+    const created = await createDID({
+      address: 'example.com',
+      signer,
+      verifier,
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: initialDoc,
+    });
+
+    expect(created.doc.service).toHaveLength(1);
+
+    // Update with a document that omits service
+    const nextDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: created.did,
+      verificationMethod: [
+        {
+          id: '#key-1',
+          type: 'Multikey',
+          controller: created.did,
+          publicKeyMultibase: authKey.publicKeyMultibase,
+        },
+      ],
+      authentication: ['#key-1'],
+    };
+
+    const updated = await updateDID({
+      log: created.log,
+      signer,
+      verifier,
+      didDocument: nextDoc,
+    });
+
+    expect(updated.doc.service).toBeUndefined();
+    expect(updated.doc.authentication).toEqual(['#key-1']);
+  });
+
+  test('update without didDocument preserves prior state while updating parameters', async () => {
+    const authKey1 = await generateTestVerificationMethod();
+    const authKey2 = await generateTestVerificationMethod();
+    const signer1 = createTestSigner(authKey1);
+    const verifier1 = createTestVerifier(authKey1);
+
+    const initialDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      verificationMethod: [
+        {
+          id: '#key-1',
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey1.publicKeyMultibase,
+        },
+      ],
+      authentication: ['#key-1'],
+      service: [
+        {
+          id: '#service-1',
+          type: 'LinkedDomains',
+          serviceEndpoint: 'https://example.com',
+        },
+      ],
+    };
+
+    const created = await createDID({
+      address: 'example.com',
+      signer: signer1,
+      verifier: verifier1,
+      updateKeys: [authKey1.publicKeyMultibase!],
+      didDocument: initialDoc,
+    });
+
+    // Update keys only without passing didDocument
+    const updated = await updateDID({
+      log: created.log,
+      signer: signer1,
+      verifier: verifier1,
+      updateKeys: [authKey2.publicKeyMultibase!],
+    });
+
+    expect(updated.meta.updateKeys).toEqual([authKey2.publicKeyMultibase!]);
+    expect(updated.doc.service).toEqual(created.doc.service);
+    expect(updated.doc.authentication).toEqual(['#key-1']);
+    expect(updated.doc.verificationMethod).toEqual(created.doc.verificationMethod);
+  });
+
+  test('portable move rewrites self-referential controller and VM controller to new DID and keeps external controllers', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const signer = createTestSigner(authKey);
+    const verifier = createTestVerifier(authKey);
+
+    const initialDoc: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      controller: '{DID}',
+      verificationMethod: [
+        {
+          id: '{DID}#key-1',
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey.publicKeyMultibase,
+        },
+        {
+          id: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK#z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+          type: 'Multikey',
+          controller: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+          publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        },
+      ],
+      authentication: ['{DID}#key-1'],
+    };
+
+    const created = await createDID({
+      address: 'example.com',
+      signer,
+      verifier,
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: initialDoc,
+      portable: true,
+    });
+
+    const oldDid = created.did;
+
+    // Move to new address
+    const updated = await updateDID({
+      log: created.log,
+      signer,
+      verifier,
+      address: 'new-domain.com',
+    });
+
+    const newDid = updated.did;
+    expect(newDid).toContain('new-domain.com');
+    expect(updated.doc.id).toBe(newDid);
+
+    // Self-referential top-level controller is rewritten to newDid
+    expect(updated.doc.controller).toBe(newDid);
+
+    // Self-referential VM controller and ID are rewritten to newDid
+    expect(updated.doc.verificationMethod?.[0].id).toBe(`${newDid}#key-1`);
+    expect(updated.doc.verificationMethod?.[0].controller).toBe(newDid);
+    expect(updated.doc.authentication).toEqual([`${newDid}#key-1`]);
+
+    // External VM controller and ID remain untouched
+    expect(updated.doc.verificationMethod?.[1].controller).toBe(
+      'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK'
+    );
+
+    // Predecessor is retained in alsoKnownAs
+    expect(updated.doc.alsoKnownAs).toContain(oldDid);
+  });
+});

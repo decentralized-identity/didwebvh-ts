@@ -32,6 +32,44 @@ export function assertNoPrivateVerificationMaterial(didDocument: DIDDocument): v
   visit(didDocument, 'didDocument');
 }
 
+export function assertValidAuthoredVerificationMethods(didDocument: DIDDocument): void {
+  const checkVm = (vm: unknown, location: string) => {
+    if (typeof vm === 'object' && vm !== null) {
+      const candidate = vm as Record<string, unknown>;
+      if (
+        'id' in candidate ||
+        'type' in candidate ||
+        'publicKeyMultibase' in candidate ||
+        location.startsWith('verificationMethod')
+      ) {
+        if (typeof candidate.id !== 'string' || candidate.id.trim() === '') {
+          throw new Error(`Verification method at ${location} must have a non-empty string 'id'`);
+        }
+        if (typeof candidate.controller !== 'string' || candidate.controller.trim() === '') {
+          throw new Error(`Verification method at ${location} must have an explicit string 'controller'`);
+        }
+      }
+    }
+  };
+
+  if (Array.isArray(didDocument.verificationMethod)) {
+    didDocument.verificationMethod.forEach((vm, index) => {
+      checkVm(vm, `verificationMethod[${index}]`);
+    });
+  }
+
+  for (const rel of VERIFICATION_RELATIONSHIPS) {
+    const relArray = didDocument[rel as keyof DIDDocument];
+    if (Array.isArray(relArray)) {
+      relArray.forEach((item, index) => {
+        if (typeof item === 'object' && item !== null) {
+          checkVm(item, `${rel}[${index}]`);
+        }
+      });
+    }
+  }
+}
+
 export function sanitizeVerificationMethods(
   verificationMethods?: VerificationMethod[]
 ): VerificationMethod[] | undefined {
@@ -46,6 +84,9 @@ export function sanitizeVerificationMethods(
   });
 }
 
+/**
+ * @deprecated Legacy helper for synthesizing VM IDs with random suffixes. Pass explicit IDs in 'didDocument' instead. Will be removed in next PR.
+ */
 export function createVMID(vm: VerificationMethod, did: string | null): string {
   const randomSuffix = (() => {
     const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -60,6 +101,9 @@ export function createVMID(vm: VerificationMethod, did: string | null): string {
   return `${did ?? ''}#${vm.publicKeyMultibase?.slice(-8) || randomSuffix}`;
 }
 
+/**
+ * @deprecated Legacy helper for normalizing VM 'purpose' into verification relationships. Supply explicit relationships in 'didDocument' instead. Will be removed in next PR.
+ */
 export function normalizeVMs(
   verificationMethod: VerificationMethod[] | undefined,
   did: string

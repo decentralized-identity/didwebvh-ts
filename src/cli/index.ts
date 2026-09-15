@@ -4,13 +4,13 @@ import fs from 'node:fs';
 import { dirname } from 'node:path';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import type {
+  DIDDocument,
   DIDLog,
   ResolutionOptions,
   Service,
   Signer,
   SigningInput,
   SigningOutput,
-  VerificationMethod,
   Verifier,
   WitnessProofFileEntry,
 } from '../index.js';
@@ -28,6 +28,8 @@ import { canonicalizeStrict } from '../utils/canonicalize.js';
 import { createHash } from '../utils/crypto.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats.js';
 import { parseDidKeyDid } from '../utils/verification-methods.js';
+import { deepClone } from '../utils.js';
+import { addVerificationMethodToDocument, type VerificationRelationship } from './did-document.js';
 import {
   type CliSigningKey,
   getVerificationMethodsFromEnv,
@@ -115,12 +117,7 @@ function parseExplicitPaths(pathsOption: string | string[] | undefined): string[
 }
 
 async function generateVerificationMethod(
-  purpose:
-    | 'authentication'
-    | 'assertionMethod'
-    | 'keyAgreement'
-    | 'capabilityInvocation'
-    | 'capabilityDelegation' = 'authentication'
+  purpose: VerificationRelationship = 'authentication'
 ): Promise<CliVerificationMethod> {
   const keyPair = ed25519.keygen();
   const publicKeyBytes = new Uint8Array([0xed, 0x01, ...keyPair.publicKey]);
@@ -229,6 +226,8 @@ export async function handleCreate(args: string[]) {
   const witnessThreshold = options['witness-threshold']
     ? parseInt(options['witness-threshold'] as string, 10)
     : (witnesses?.length ?? 0);
+  const services = options.service ? parseServices(options.service as string[]) : undefined;
+  const alsoKnownAs = options['also-known-as'] as string[] | undefined;
 
   if (!addressInput) {
     throw new CliError('Address is required for create command (use --address)');
@@ -241,24 +240,37 @@ export async function handleCreate(args: string[]) {
     }
     const crypto = createCustomCrypto(authKey);
 
-    // Strip secret key from verification method for DID document (security)
-    const publicAuthKey: VerificationMethod & { purpose?: VerificationMethodType } = {
-      id: `{DID}#${authKey.publicKeyMultibase.slice(-8)}`,
-      type: authKey.type,
-      controller: '{DID}',
-      publicKeyMultibase: authKey.publicKeyMultibase,
-      purpose: authKey.purpose,
-    };
-
-    // Use new address parameter for strict parsing and encoding
     const publicKeyMultibase = requirePublicKeyMultibase(authKey);
+    const keyId = `{DID}#${publicKeyMultibase.slice(-8)}`;
+    const didDocument: DIDDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+    };
+    addVerificationMethodToDocument(
+      didDocument,
+      {
+        id: keyId,
+        type: 'Multikey',
+        controller: '{DID}',
+        publicKeyMultibase,
+      },
+      ['authentication', 'assertionMethod']
+    );
+
+    if (services) {
+      didDocument.service = services;
+    }
+    if (alsoKnownAs) {
+      didDocument.alsoKnownAs = alsoKnownAs;
+    }
+
     const { did, doc, meta, log } = await createDID({
       address: addressInput,
       paths: explicitPaths,
       signer: crypto,
       verifier: crypto,
       updateKeys: [publicKeyMultibase],
-      verificationMethods: [publicAuthKey],
+      didDocument,
       portable,
       witness: witnesses?.length
         ? {
@@ -399,7 +411,7 @@ export async function handleUpdate(args: string[]) {
     ? parseInt(options['witness-threshold'] as string, 10)
     : undefined;
   const services = options.service ? parseServices(options.service as string[]) : undefined;
-  const addVm = options['add-vm'] as string[] | undefined;
+  const addVm = options['add-vm'] as VerificationRelationship[] | undefined;
   const alsoKnownAs = options['also-known-as'] as string[] | undefined;
   const updateKey = options['update-key'] as string | undefined;
   const watchers = options.watcher as string[] | undefined;
@@ -459,33 +471,31 @@ export async function handleUpdate(args: string[]) {
 
     const vmPublicKeyMultibase = requirePublicKeyMultibase(vm);
 
-    // Create verification methods array
-    const verificationMethods: Array<VerificationMethod & { purpose?: VerificationMethodType }> = [];
+    const currentDoc = updateResolution.didDocument;
+    if (!currentDoc) {
+      throw new Error('Resolved DID document is missing');
+    }
+    const nextDoc: DIDDocument = deepClone(currentDoc);
 
-    // If we're adding VMs, create a VM for each type
     if (addVm && addVm.length > 0) {
       const vmId = `${did}#${vmPublicKeyMultibase.slice(-8)}`;
-
-      // Add a verification method for each type
-      for (const vmType of addVm) {
-        const newVM: VerificationMethod & { purpose: VerificationMethodType } = {
+      addVerificationMethodToDocument(
+        nextDoc,
+        {
           id: vmId,
           type: 'Multikey',
           controller: did,
           publicKeyMultibase: vmPublicKeyMultibase,
-          purpose: vmType as VerificationMethodType,
-        };
-        verificationMethods.push(newVM);
-      }
-    } else {
-      // For non-VM updates (services, alsoKnownAs), still need a VM with purpose
-      verificationMethods.push({
-        id: `${did}#${vmPublicKeyMultibase.slice(-8)}`,
-        type: 'Multikey',
-        controller: did,
-        publicKeyMultibase: vmPublicKeyMultibase,
-        purpose: 'assertionMethod',
-      });
+        },
+        addVm
+      );
+    }
+
+    if (services !== undefined) {
+      nextDoc.service = services;
+    }
+    if (alsoKnownAs !== undefined) {
+      nextDoc.alsoKnownAs = alsoKnownAs;
     }
 
     const crypto = createCustomCrypto(vm);
@@ -494,7 +504,7 @@ export async function handleUpdate(args: string[]) {
       signer: crypto,
       verifier: crypto,
       updateKeys: [vmPublicKeyMultibase],
-      verificationMethods,
+      didDocument: nextDoc,
       witness: witnesses?.length
         ? {
             witnesses: witnesses.map((witness) => ({ id: witness })),
@@ -502,8 +512,6 @@ export async function handleUpdate(args: string[]) {
           }
         : undefined,
       watchers: watchers ?? undefined,
-      services,
-      alsoKnownAs,
       witnessProofs,
     });
 
@@ -631,15 +639,8 @@ async function handleGenerateWitnessProof(args: string[]) {
   }
 }
 
-type VerificationMethodType =
-  | 'authentication'
-  | 'assertionMethod'
-  | 'keyAgreement'
-  | 'capabilityInvocation'
-  | 'capabilityDelegation';
-
 type CliVerificationMethod = CliSigningKey & {
-  purpose: VerificationMethodType;
+  purpose: VerificationRelationship;
 };
 
 function parseOptions(args: string[]): Record<string, string | string[] | undefined> {
@@ -664,7 +665,7 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
           options[key] = options[key] || [];
           const value = args[++i];
           if (isValidVerificationMethodType(value)) {
-            (options[key] as VerificationMethodType[]).push(value);
+            (options[key] as VerificationRelationship[]).push(value);
           } else {
             throw new CliError(`Invalid verification method type: ${value}`);
           }
@@ -680,7 +681,7 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
 }
 
 // Add this function to validate VerificationMethodType
-function isValidVerificationMethodType(type: string): type is VerificationMethodType {
+function isValidVerificationMethodType(type: string): type is VerificationRelationship {
   return ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'].includes(
     type
   );

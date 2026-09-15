@@ -16,6 +16,7 @@ export interface ParsedDidWebvhIdentifier {
   didDomainComponent: string;
   paths?: string[];
   locationKey: string;
+  did: string;
 }
 
 // Version parsing/validation utilities
@@ -165,7 +166,7 @@ export function normalizeDidAddress({
   paths?: string[];
   fallbackPaths?: string[];
   context: string;
-}): ParsedDidWebvhIdentifier & { controller: string } {
+}): ParsedDidWebvhIdentifier {
   const parsed = parseCanonicalAddress(address);
   const addressPaths = parsed.paths || [];
   const resolvedPaths =
@@ -183,12 +184,14 @@ export function normalizeDidAddress({
     ? `${parsed.didDomainComponent}:${resolvedPaths.join(':')}`
     : parsed.didDomainComponent;
 
+  const did = `did:${METHOD}:${scid}:${locationKey}`;
+
   return {
     scid,
     didDomainComponent: parsed.didDomainComponent,
     paths: resolvedPaths.length > 0 ? resolvedPaths : undefined,
     locationKey,
-    controller: `did:${METHOD}:${scid}:${locationKey}`,
+    did,
   };
 }
 
@@ -322,6 +325,7 @@ export function parseDidWebvhIdentifier(did: string, context: string): ParsedDid
     didDomainComponent: normalizedAddress.didDomainComponent,
     paths: normalizedAddress.paths,
     locationKey: normalizedAddress.locationKey,
+    did: normalizedAddress.did,
   };
 }
 
