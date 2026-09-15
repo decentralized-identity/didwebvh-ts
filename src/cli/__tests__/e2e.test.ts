@@ -57,9 +57,20 @@ function createTempVerificationMethod(vm: CliSigningKey): string {
 
 describe('Controller CLI End-to-End Tests', () => {
   test('Create DID using CLI', async () => {
-    const proc = runCli(['create', '--address', 'example.com', '--output', join(TEST_DIR, 'did.jsonl'), '--portable']);
+    const logFile = join(TEST_DIR, 'did.jsonl');
+    const proc = runCli(['create', '--address', 'example.com', '--output', logFile, '--portable']);
     expect(proc.exitCode).toBe(0);
     expect(proc.stdout).toContain('Created DID');
+
+    const log = await readLogFromDisk(logFile);
+    expect(log[0].state.service).toBeUndefined();
+
+    const resolved = await resolveDIDFromLog(log, { verifier });
+    const did = resolved.didDocument?.id;
+    const serviceIds = (resolved.didDocument?.service ?? []).map((service) => service.id);
+
+    expect(serviceIds).toContain(`${did}#files`);
+    expect(serviceIds).toContain(`${did}#whois`);
   });
 
   test('Update DID using CLI', async () => {

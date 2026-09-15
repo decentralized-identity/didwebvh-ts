@@ -29,6 +29,7 @@ import { createHash } from '../utils/crypto.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats.js';
 import { parseDidKeyDid } from '../utils/verification-methods.js';
 import { deepClone } from '../utils.js';
+import { addVerificationMethodToDocument, type VerificationRelationship } from './did-document.js';
 import {
   type CliSigningKey,
   getVerificationMethodsFromEnv,
@@ -238,21 +239,20 @@ export async function handleCreate(args: string[]) {
 
     const publicKeyMultibase = requirePublicKeyMultibase(authKey);
     const keyId = `{DID}#${publicKeyMultibase.slice(-8)}`;
-
     const didDocument: DIDDocument = {
       '@context': ['https://www.w3.org/ns/did/v1'],
       id: '{DID}',
-      verificationMethod: [
-        {
-          id: keyId,
-          type: 'Multikey',
-          controller: '{DID}',
-          publicKeyMultibase,
-        },
-      ],
-      authentication: [keyId],
-      assertionMethod: [keyId],
     };
+    addVerificationMethodToDocument(
+      didDocument,
+      {
+        id: keyId,
+        type: 'Multikey',
+        controller: '{DID}',
+        publicKeyMultibase,
+      },
+      ['authentication', 'assertionMethod']
+    );
 
     if (services) {
       didDocument.service = services;
@@ -408,7 +408,7 @@ export async function handleUpdate(args: string[]) {
     ? parseInt(options['witness-threshold'] as string, 10)
     : undefined;
   const services = options.service ? parseServices(options.service as string[]) : undefined;
-  const addVm = options['add-vm'] as string[] | undefined;
+  const addVm = options['add-vm'] as VerificationRelationship[] | undefined;
   const alsoKnownAs = options['also-known-as'] as string[] | undefined;
   const updateKey = options['update-key'] as string | undefined;
   const watchers = options.watcher as string[] | undefined;
@@ -476,25 +476,16 @@ export async function handleUpdate(args: string[]) {
 
     if (addVm && addVm.length > 0) {
       const vmId = `${did}#${vmPublicKeyMultibase.slice(-8)}`;
-      const existingVms = Array.isArray(nextDoc.verificationMethod) ? [...nextDoc.verificationMethod] : [];
-      if (!existingVms.some((existing) => existing.id === vmId)) {
-        existingVms.push({
+      addVerificationMethodToDocument(
+        nextDoc,
+        {
           id: vmId,
           type: 'Multikey',
           controller: did,
           publicKeyMultibase: vmPublicKeyMultibase,
-        });
-      }
-      nextDoc.verificationMethod = existingVms;
-
-      for (const vmType of addVm) {
-        const rel = vmType as keyof DIDDocument;
-        const currentRelList = Array.isArray(nextDoc[rel]) ? [...(nextDoc[rel] as string[])] : [];
-        if (!currentRelList.includes(vmId)) {
-          currentRelList.push(vmId);
-        }
-        (nextDoc as Record<string, unknown>)[rel] = currentRelList;
-      }
+        },
+        addVm
+      );
     }
 
     if (services !== undefined) {
@@ -645,13 +636,6 @@ async function handleGenerateWitnessProof(args: string[]) {
   }
 }
 
-type VerificationMethodType =
-  | 'authentication'
-  | 'assertionMethod'
-  | 'keyAgreement'
-  | 'capabilityInvocation'
-  | 'capabilityDelegation';
-
 function parseOptions(args: string[]): Record<string, string | string[] | undefined> {
   const options: Record<string, string | string[] | undefined> = {};
   for (let i = 0; i < args.length; i++) {
@@ -674,7 +658,7 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
           options[key] = options[key] || [];
           const value = args[++i];
           if (isValidVerificationMethodType(value)) {
-            (options[key] as VerificationMethodType[]).push(value);
+            (options[key] as VerificationRelationship[]).push(value);
           } else {
             throw new CliError(`Invalid verification method type: ${value}`);
           }
@@ -690,7 +674,7 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
 }
 
 // Add this function to validate VerificationMethodType
-function isValidVerificationMethodType(type: string): type is VerificationMethodType {
+function isValidVerificationMethodType(type: string): type is VerificationRelationship {
   return ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'].includes(
     type
   );
