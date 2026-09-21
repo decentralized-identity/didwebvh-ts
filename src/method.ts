@@ -3,6 +3,7 @@ import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
 import { resolveLog, resolveLogWithWitnessResults } from './core/resolution.js';
 import { computeWitnessRequirementChecks } from './core/witness-requirements.js';
+import { createDataIntegrityProofTemplate, signDataIntegrityProof } from './cryptography.js';
 import { generateParallelDidWeb } from './did-document.js';
 import type {
   CreateDIDOptions,
@@ -17,6 +18,7 @@ import type {
   VerifyWitnessProofsOptions,
   WitnessProofFileEntry,
   WitnessRequirement,
+  WitnessSigningOptions,
   WitnessVerificationResult,
 } from './interfaces.js';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result.js';
@@ -26,7 +28,7 @@ import {
   MAX_FUTURE_SKEW_MS,
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime.js';
-import { normalizeUpdateKeys } from './utils/verification-methods.js';
+import { normalizeUpdateKeys, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
 import {
   deepClone,
   fetchLogFromIdentifier,
@@ -299,6 +301,90 @@ export const deactivateDID = async (
     meta,
     log: [...log, entry],
   };
+};
+
+const validateWitnessCandidate = async ({
+  candidateLog,
+  trustedTipVersionId,
+  verifier,
+  witnessProofs,
+}: {
+  candidateLog: DIDLog;
+  trustedTipVersionId: string;
+  verifier: NonNullable<ResolutionOptions['verifier']>;
+  witnessProofs?: WitnessProofFileEntry[];
+}): Promise<WitnessRequirement | undefined> => {
+  const prefix = candidateLog.slice(0, -1);
+  const prefixResult = await resolveLog(prefix, { verifier, witnessProofs });
+  if (prefixResult.meta.versionId !== trustedTipVersionId) {
+    throw new Error('Candidate log does not extend the trusted log tip');
+  }
+
+  const { witnessChecks } = await resolveLogWithWitnessResults(candidateLog, {
+    verifier,
+    witnessProofs,
+  });
+  const candidateRequirement = witnessChecks.find((check) => check.targetVersionId === candidateLog.at(-1)?.versionId);
+
+  if (!candidateRequirement) {
+    return undefined;
+  }
+
+  return {
+    versionId: candidateRequirement.targetVersionId,
+    versionNumber: candidateRequirement.targetVersionNumber,
+    threshold: normalizeWitnessThreshold(candidateRequirement.witness.threshold),
+    witnesses: deepClone(candidateRequirement.witness.witnesses ?? []),
+  };
+};
+
+/**
+ * Validates a controller-proposed candidate log and signs its final entry as a witness.
+ *
+ * @param options Trusted log, candidate log, witness signer, and optional historical proofs.
+ * @returns A witness proof file entry containing one proof for the candidate entry.
+ */
+export const signWitnessProofEntry = async (options: WitnessSigningOptions): Promise<WitnessProofFileEntry> => {
+  if (options.trustedLog.length === 0) {
+    throw new Error('trustedLog must contain at least one entry');
+  }
+  if (options.candidateLog.length !== options.trustedLog.length + 1) {
+    throw new Error('candidateLog must contain exactly one entry more than trustedLog');
+  }
+  if (!options.witnessSigner) {
+    throw new Error('witnessSigner is required');
+  }
+
+  const verifier = options.verifier ?? defaultVerifier;
+  const candidateEntry = options.candidateLog[options.candidateLog.length - 1];
+  const trustedTip = options.trustedLog[options.trustedLog.length - 1];
+  const requirement = await validateWitnessCandidate({
+    candidateLog: options.candidateLog,
+    trustedTipVersionId: trustedTip.versionId,
+    verifier,
+    witnessProofs: options.witnessProofs,
+  });
+  if (!requirement?.witnesses?.length) {
+    throw new Error('Candidate entry is not governed by an active witness requirement');
+  }
+
+  const signerVerificationMethod = options.witnessSigner.getVerificationMethodId();
+  const signerDid = parseDidKeyVerificationMethod(signerVerificationMethod).did;
+  const isMember = requirement.witnesses.some((witness) => parseDidKeyDid(witness.id).did === signerDid);
+  if (!isMember) {
+    throw new Error(`Witness signer is not a member of the governing witness list: ${signerDid}`);
+  }
+
+  const proofTemplate = createDataIntegrityProofTemplate({
+    verificationMethod: signerVerificationMethod,
+    proofPurpose: 'assertionMethod',
+  });
+  const proof = await signDataIntegrityProof(
+    { versionId: candidateEntry.versionId },
+    proofTemplate,
+    options.witnessSigner
+  );
+  return { versionId: candidateEntry.versionId, proof: [proof] };
 };
 
 /**
