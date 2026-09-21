@@ -6,9 +6,16 @@ import {
   METHOD_PROTOCOL_V0_5,
   SCID_PLACEHOLDER,
 } from '../src/constants.js';
-import { AbstractCrypto, prepareDataForSigning } from '../src/cryptography.js';
+import {
+  AbstractCrypto,
+  createDataIntegrityProofTemplate,
+  prepareDataForSigning,
+  signDataIntegrityProof,
+} from '../src/cryptography.js';
 import { replaceCreateDidPlaceholders } from '../src/did-document.js';
 import type {
+  DataIntegrityProof,
+  DataIntegrityProofTemplate,
   DIDDocument,
   DIDLog,
   DIDLogEntry,
@@ -168,6 +175,32 @@ export async function generateTestVerificationMethod(id?: string): Promise<TestV
 // Helper to create a signer from a verification method
 export function createTestSigner(verificationMethod: TestVerificationMethod): Signer {
   return new TestCryptoImplementation({ verificationMethod });
+}
+
+export async function createWitnessProof(
+  signer: (
+    doc: { versionId: string },
+    proofTemplate?: DataIntegrityProofTemplate
+  ) => Promise<{ proof: Partial<DataIntegrityProof> }>,
+  versionId: string,
+  verificationMethod: string,
+  created: string = new Date().toISOString()
+): Promise<DataIntegrityProof> {
+  const proofTemplate = createDataIntegrityProofTemplate({
+    verificationMethod,
+    created,
+    proofPurpose: 'assertionMethod',
+  });
+  return signDataIntegrityProof({ versionId }, proofTemplate, {
+    getVerificationMethodId: () => verificationMethod,
+    sign: async ({ document, proof }) => {
+      const signed = await signer(document, proof);
+      if (!signed.proof.proofValue) {
+        throw new Error('Witness proof is missing proofValue');
+      }
+      return { proofValue: signed.proof.proofValue };
+    },
+  });
 }
 
 // Helper to create a test verifier

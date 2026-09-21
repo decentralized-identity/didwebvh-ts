@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import type { CreateDIDResult, DataIntegrityProofTemplate, DIDLog, WitnessProofFileEntry } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
-import { createWitnessProof } from '../src/witness.js';
 import {
   createTestDIDDocument,
   createTestSigner,
+  createWitnessProof,
   generateTestVerificationMethod,
   TestCryptoImplementation,
   type TestVerificationMethod,

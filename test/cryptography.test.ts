@@ -23,7 +23,8 @@ import {
   multibaseEncode,
 } from '../src/utils/multiformats.js';
 import * as vmUtilsModule from '../src/utils/verification-methods.js';
-import { countVerifiedWitnessApprovals, createWitnessProof } from '../src/witness.js';
+import { countVerifiedWitnessApprovals } from '../src/witness.js';
+import { createWitnessProof } from './utils.js';
 
 // Mock crypto implementation for testing
 class MockCryptoImplementation extends AbstractCrypto implements Verifier {

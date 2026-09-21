@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
-import { getWitnessRequirements, verifyWitnessProofs } from '../src/index.js';
+import { getWitnessRequirements, signWitnessProofEntry, verifyWitnessProofs } from '../src/index.js';
 import type {
   CreateDIDResult,
   DataIntegrityProofTemplate,
@@ -12,17 +12,13 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { deriveHash } from '../src/utils/crypto.js';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats.js';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils/verification-methods.js';
-import {
-  countWitnessApprovals,
-  createWitnessProof,
-  signWitnessProofEntries,
-  signWitnessProofEntry,
-} from '../src/witness.js';
+import { countWitnessApprovals } from '../src/witness.js';
 import {
   buildV05Genesis,
   createTestDIDDocument,
   createTestSigner,
   createTestVerifier,
+  createWitnessProof,
   generateTestVerificationMethod,
   TestCryptoImplementation,
   type TestVerificationMethod,
@@ -768,6 +764,113 @@ describe('Witness Implementation Tests', async () => {
     });
   });
 
+  describe('signWitnessProofEntry', () => {
+    const createWitnessedCandidate = async (controller: TestVerificationMethod, witness: TestVerificationMethod) => {
+      const verifier = createTestVerifier(controller);
+      const trusted = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(controller),
+        updateKeys: [controller.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(controller),
+        witness: { threshold: 1, witnesses: [{ id: `did:key:${witness.publicKeyMultibase}` }] },
+        verifier,
+      });
+      const witnessProofs = [
+        {
+          versionId: trusted.log[0].versionId,
+          proof: [
+            await createWitnessProof(
+              createWitnessSigner(witness),
+              trusted.log[0].versionId,
+              witnessVerificationMethod(witness)
+            ),
+          ],
+        },
+      ];
+      const candidate = await updateDID({
+        log: trusted.log,
+        signer: createTestSigner(controller),
+        verifier,
+        witnessProofs,
+      });
+
+      return { candidate, trusted, verifier, witnessProofs };
+    };
+
+    test('validates a candidate continuation before signing', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier, witnessProofs } = await createWitnessedCandidate(controller, witness);
+
+      const witnessProof = await signWitnessProofEntry({
+        trustedLog: trusted.log,
+        candidateLog: candidate.log,
+        witnessSigner: createTestSigner(witness),
+        witnessProofs,
+        verifier,
+      });
+
+      expect(witnessProof.versionId).toBe(candidate.log[1].versionId);
+      expect(witnessProof.proof).toHaveLength(1);
+      await expect(verifyWitnessProofs(candidate.log, [witnessProof], { verifier })).resolves.toMatchObject({
+        verified: true,
+      });
+    });
+
+    test('rejects a signer outside the governing witness list', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const unauthorized = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier, witnessProofs } = await createWitnessedCandidate(controller, witness);
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: trusted.log,
+          candidateLog: candidate.log,
+          witnessSigner: createTestSigner(unauthorized),
+          witnessProofs,
+          verifier,
+        })
+      ).rejects.toThrow('not a member');
+    });
+
+    test('rejects a malformed signer verification method', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier, witnessProofs } = await createWitnessedCandidate(controller, witness);
+      const validSigner = createTestSigner(witness);
+      const malformedSigner: Signer = {
+        sign: (input) => validSigner.sign(input),
+        getVerificationMethodId: () => 'not-a-did-key',
+      };
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: trusted.log,
+          candidateLog: candidate.log,
+          witnessSigner: malformedSigner,
+          witnessProofs,
+          verifier,
+        })
+      ).rejects.toThrow('Malformed did:key verificationMethod');
+    });
+
+    test('rejects a missing witness signer', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier, witnessProofs } = await createWitnessedCandidate(controller, witness);
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: trusted.log,
+          candidateLog: candidate.log,
+          witnessProofs,
+          verifier,
+        } as Parameters<typeof signWitnessProofEntry>[0])
+      ).rejects.toThrow('witnessSigner is required');
+    });
+  });
+
   describe('verifyWitnessProofs', () => {
     test('Returns verified: true and satisfied requirements when threshold is met', async () => {
       const witness1SignerFn = createWitnessSigner(witness1);
@@ -1447,69 +1550,6 @@ describe('Witness Implementation Tests', async () => {
       fragment: multibase,
       keyMultibase: multibase,
     });
-  });
-
-  test('signWitnessProofEntry signs for every configured witness', async () => {
-    const versionId = initialDID.log[0].versionId;
-    const created = '2026-05-22T12:00:00Z';
-    const result = await signWitnessProofEntry({
-      versionId,
-      witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }, { id: `did:key:${witness2.publicKeyMultibase}` }],
-      witnessSignersByDid: {
-        [`did:key:${witness1.publicKeyMultibase}`]: createTestSigner(witness1),
-        [`did:key:${witness2.publicKeyMultibase}`]: createTestSigner(witness2),
-      },
-      created,
-    });
-
-    expect(result.versionId).toBe(versionId);
-    expect(result.proof).toHaveLength(2);
-    expect(result.proof[0].created).toBe(created);
-    expect(result.proof[1].created).toBe(created);
-    expect(result.proof.map((proof) => proof.proofPurpose)).toEqual(['assertionMethod', 'assertionMethod']);
-  });
-
-  test('signWitnessProofEntry rejects missing signer', async () => {
-    await expect(
-      signWitnessProofEntry({
-        versionId: initialDID.log[0].versionId,
-        witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }, { id: `did:key:${witness2.publicKeyMultibase}` }],
-        witnessSignersByDid: {
-          [`did:key:${witness1.publicKeyMultibase}`]: createTestSigner(witness1),
-        },
-      })
-    ).rejects.toThrow(`Missing witness signer for did:key:${witness2.publicKeyMultibase}`);
-  });
-
-  test('signWitnessProofEntry rejects malformed signer verificationMethod', async () => {
-    await expect(
-      signWitnessProofEntry({
-        versionId: initialDID.log[0].versionId,
-        witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }],
-        witnessSignersByDid: {
-          [`did:key:${witness1.publicKeyMultibase}`]: {
-            sign: async () => ({ proofValue: 'zbad' }),
-            getVerificationMethodId: () => '#relative',
-          },
-        },
-      })
-    ).rejects.toThrow('did:key verificationMethod must be an absolute DID URL');
-  });
-
-  test('signWitnessProofEntries signs multiple versionIds', async () => {
-    const results = await signWitnessProofEntries(
-      [initialDID.log[0].versionId, '2-test-version'],
-      [{ id: `did:key:${witness1.publicKeyMultibase}` }],
-      {
-        [`did:key:${witness1.publicKeyMultibase}`]: createTestSigner(witness1),
-      },
-      '2026-05-22T12:00:00Z'
-    );
-
-    expect(results).toHaveLength(2);
-    expect(results.map((result) => result.versionId)).toEqual([initialDID.log[0].versionId, '2-test-version']);
-    expect(results[0].proof).toHaveLength(1);
-    expect(results[1].proof).toHaveLength(1);
   });
 
   test('countWitnessApprovals uses exact did:key DID matching', async () => {
