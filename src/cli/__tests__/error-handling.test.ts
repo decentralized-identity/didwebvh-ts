@@ -68,29 +68,78 @@ describe('CLI error handling', () => {
     }
   });
 
-  test('generate-witness-proof wraps a malformed witness DID as a CliError', async () => {
-    const originalArgv = process.argv;
-    process.argv = [
-      ...originalArgv.slice(0, 2),
-      'generate-witness-proof',
-      '--version-id',
-      '1-abc123',
-      '--witness-did',
-      'not-a-did-key',
-      '--witness-secret',
-      'z1Asecret',
-      '--output',
-      join(TEST_DIR, 'unused-witness-output.json'),
-    ];
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  describe('generate-witness-proof argument validation', () => {
+    const runGenerateWitnessProof = async (args: string[]) => {
+      const originalArgv = process.argv;
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      process.argv = [...originalArgv.slice(0, 2), 'generate-witness-proof', ...args];
 
-    try {
-      await expect(main()).resolves.toBe(1);
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Error generating witness proof'));
-    } finally {
-      process.argv = originalArgv;
-      errorSpy.mockRestore();
-    }
+      try {
+        await expect(main()).resolves.toBe(1);
+        return [...errorSpy.mock.calls];
+      } finally {
+        process.argv = originalArgv;
+        errorSpy.mockRestore();
+      }
+    };
+
+    test('rejects when trusted or candidate logs are missing', async () => {
+      const errorSpy = await runGenerateWitnessProof([
+        '--witness-did',
+        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        '--witness-secret',
+        'z1A',
+        '--output',
+        join(TEST_DIR, 'missing-logs-witness-output.json'),
+      ]);
+
+      expect(errorSpy).toContainEqual(['--trusted-log and --candidate-log are required']);
+    });
+
+    test('rejects when output is missing', async () => {
+      const errorSpy = await runGenerateWitnessProof([
+        '--trusted-log',
+        join(TEST_DIR, 'trusted.jsonl'),
+        '--candidate-log',
+        join(TEST_DIR, 'candidate.jsonl'),
+        '--witness-did',
+        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        '--witness-secret',
+        'z1A',
+      ]);
+
+      expect(errorSpy).toContainEqual(['Output file is required']);
+    });
+
+    test('rejects when witness signer arguments are missing', async () => {
+      const errorSpy = await runGenerateWitnessProof([
+        '--trusted-log',
+        join(TEST_DIR, 'trusted.jsonl'),
+        '--candidate-log',
+        join(TEST_DIR, 'candidate.jsonl'),
+        '--output',
+        join(TEST_DIR, 'missing-signer-witness-output.json'),
+      ]);
+
+      expect(errorSpy).toContainEqual(['--witness-did and --witness-secret are required']);
+    });
+
+    test('wraps a malformed witness DID as a CliError', async () => {
+      const errorSpy = await runGenerateWitnessProof([
+        '--trusted-log',
+        join(TEST_DIR, 'trusted.jsonl'),
+        '--candidate-log',
+        join(TEST_DIR, 'candidate.jsonl'),
+        '--witness-did',
+        'not-a-did-key',
+        '--witness-secret',
+        'z1A',
+        '--output',
+        join(TEST_DIR, 'malformed-witness-output.json'),
+      ]);
+
+      expect(errorSpy.some(([message]) => String(message).includes('Error generating witness proof'))).toBe(true);
+    });
   });
 
   test('handleCreate propagates a failure writing the verification method to .env as a CliError', async () => {
@@ -233,84 +282,6 @@ describe('CLI error handling', () => {
         name: 'CliError',
         message: expect.stringContaining('Error deactivating DID:'),
       });
-    });
-  });
-
-  describe('generate-witness-proof argument validation', () => {
-    test('rejects when no --version-id is provided', async () => {
-      const originalArgv = process.argv;
-      process.argv = [
-        ...originalArgv.slice(0, 2),
-        'generate-witness-proof',
-        '--witness-did',
-        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-        '--witness-secret',
-        'z1A',
-        '--output',
-        join(TEST_DIR, 'witness.json'),
-      ];
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      try {
-        const exitCode = await main();
-        expect(exitCode).toBe(1);
-        expect(errorSpy).toHaveBeenCalledWith('At least one --version-id is required');
-      } finally {
-        process.argv = originalArgv;
-        errorSpy.mockRestore();
-      }
-    });
-
-    test('rejects when --output is missing', async () => {
-      const originalArgv = process.argv;
-      process.argv = [
-        ...originalArgv.slice(0, 2),
-        'generate-witness-proof',
-        '--version-id',
-        '1-abc',
-        '--witness-did',
-        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-        '--witness-secret',
-        'z1A',
-      ];
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      try {
-        const exitCode = await main();
-        expect(exitCode).toBe(1);
-        expect(errorSpy).toHaveBeenCalledWith('Output file is required');
-      } finally {
-        process.argv = originalArgv;
-        errorSpy.mockRestore();
-      }
-    });
-
-    test('rejects when witness DIDs and secrets counts do not match', async () => {
-      const originalArgv = process.argv;
-      process.argv = [
-        ...originalArgv.slice(0, 2),
-        'generate-witness-proof',
-        '--version-id',
-        '1-abc',
-        '--witness-did',
-        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-        '--witness-did',
-        'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-        '--witness-secret',
-        'z1A',
-        '--output',
-        join(TEST_DIR, 'witness.json'),
-      ];
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      try {
-        const exitCode = await main();
-        expect(exitCode).toBe(1);
-        expect(errorSpy).toHaveBeenCalledWith('Must provide matching number of witness DIDs and secrets');
-      } finally {
-        process.argv = originalArgv;
-        errorSpy.mockRestore();
-      }
     });
   });
 

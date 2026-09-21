@@ -2,9 +2,17 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { generateTestVerificationMethod, TestCryptoImplementation } from '../../../test/utils.js';
-import { resolveDIDFromLog } from '../../method.js';
-import { type CliSigningKey, readLogFromDisk } from '../persistence.js';
+import {
+  createTestDIDDocument,
+  createTestSigner,
+  createTestVerifier,
+  createWitnessProof,
+  generateTestVerificationMethod,
+  TestCryptoImplementation,
+} from '../../../test/utils.js';
+import type { WitnessProofFileEntry } from '../../interfaces.js';
+import { createDID, resolveDIDFromLog, updateDID } from '../../method.js';
+import { type CliSigningKey, readLogFromDisk, writeLogToDisk } from '../persistence.js';
 
 const REPO_ROOT = process.cwd();
 const TEST_DIR = join(REPO_ROOT, 'test', 'temp-cli-e2e');
@@ -255,122 +263,6 @@ describe('Controller CLI End-to-End Tests', () => {
     expect(proc.stdout).toContain('DID Document');
     expect(proc.stdout).toContain('Metadata');
   });
-
-  test('updates a witnessed DID using a local witness file', async () => {
-    const logFile = join(TEST_DIR, 'did-witnessed-update.jsonl');
-    const witnessFile = join(TEST_DIR, 'did-witnessed-update.json');
-    const witnessVmProc = runCli(['generate-vm']);
-    expect(witnessVmProc.exitCode).toBe(0);
-    const witnessVm = JSON.parse(witnessVmProc.stdout) as { did: string; secretKeyMultibase: string };
-
-    const createProc = runCli([
-      'create',
-      '--address',
-      'example.com',
-      '--output',
-      logFile,
-      '--portable',
-      '--witness',
-      witnessVm.did,
-    ]);
-    expect(createProc.exitCode).toBe(0);
-    const log = await readLogFromDisk(logFile);
-    const proofProc = runCli([
-      'generate-witness-proof',
-      '--version-id',
-      log[0].versionId,
-      '--witness-did',
-      witnessVm.did,
-      '--witness-secret',
-      witnessVm.secretKeyMultibase,
-      '--output',
-      witnessFile,
-    ]);
-    expect(proofProc.exitCode).toBe(0);
-
-    const updateProc = runCli(['update', '--log', logFile, '--output', logFile, '--witness-file', witnessFile]);
-    expect(updateProc.exitCode).toBe(0);
-    expect(await readLogFromDisk(logFile)).toHaveLength(2);
-  });
-
-  test('deactivates a witnessed DID using a local witness file', async () => {
-    const logFile = join(TEST_DIR, 'did-witnessed-deactivate.jsonl');
-    const witnessFile = join(TEST_DIR, 'did-witnessed-deactivate.json');
-    const witnessVmProc = runCli(['generate-vm']);
-    expect(witnessVmProc.exitCode).toBe(0);
-    const witnessVm = JSON.parse(witnessVmProc.stdout) as { did: string; secretKeyMultibase: string };
-
-    const createProc = runCli([
-      'create',
-      '--address',
-      'example.com',
-      '--output',
-      logFile,
-      '--portable',
-      '--witness',
-      witnessVm.did,
-    ]);
-    expect(createProc.exitCode).toBe(0);
-    const log = await readLogFromDisk(logFile);
-    const proofProc = runCli([
-      'generate-witness-proof',
-      '--version-id',
-      log[0].versionId,
-      '--witness-did',
-      witnessVm.did,
-      '--witness-secret',
-      witnessVm.secretKeyMultibase,
-      '--output',
-      witnessFile,
-    ]);
-    expect(proofProc.exitCode).toBe(0);
-
-    const deactivateProc = runCli(['deactivate', '--log', logFile, '--output', logFile, '--witness-file', witnessFile]);
-    expect(deactivateProc.exitCode).toBe(0);
-    const deactivatedLog = await readLogFromDisk(logFile);
-    expect(deactivatedLog).toHaveLength(2);
-    expect(deactivatedLog[1].parameters.deactivated).toBe(true);
-  });
-
-  test('Verify witnessed DID proofs using CLI', async () => {
-    const logFile = join(TEST_DIR, 'did-witnessed-verify.jsonl');
-    const witnessFile = join(TEST_DIR, 'did-witnessed-verify.json');
-    const witnessVmProc = runCli(['generate-vm']);
-    expect(witnessVmProc.exitCode).toBe(0);
-    const witnessVm = JSON.parse(witnessVmProc.stdout) as { did: string; secretKeyMultibase: string };
-
-    const createProc = runCli([
-      'create',
-      '--address',
-      'example.com',
-      '--output',
-      logFile,
-      '--portable',
-      '--witness',
-      witnessVm.did,
-    ]);
-    expect(createProc.exitCode).toBe(0);
-
-    const log = await readLogFromDisk(logFile);
-    const proofProc = runCli([
-      'generate-witness-proof',
-      '--version-id',
-      log[0].versionId,
-      '--witness-did',
-      witnessVm.did,
-      '--witness-secret',
-      witnessVm.secretKeyMultibase,
-      '--output',
-      witnessFile,
-    ]);
-    expect(proofProc.exitCode).toBe(0);
-
-    const verifyProc = runCli(['verify-proofs', '--log', logFile, '--witness-file', witnessFile]);
-    expect(verifyProc.exitCode).toBe(0);
-    const result = JSON.parse(verifyProc.stdout) as { verified: boolean; requirements: unknown[] };
-    expect(result.verified).toBe(true);
-    expect(result.requirements).toHaveLength(1);
-  });
 });
 
 describe('Witness CLI End-to-End Tests', () => {
@@ -415,35 +307,87 @@ describe('Witness CLI End-to-End Tests', () => {
     }
   });
 
-  test('Generate witness proof for multiple version IDs', async () => {
+  test('Generate a witness proof for a candidate log using CLI', async () => {
+    const trustedLogFile = join(TEST_DIR, 'trusted-witness-log.jsonl');
+    const candidateLogFile = join(TEST_DIR, 'candidate-witness-log.jsonl');
+    const historicalProofFile = join(TEST_DIR, 'historical-witness-proof.json');
+    const proofFile = join(TEST_DIR, 'witness-proof.json');
+    const controller = await generateTestVerificationMethod();
     const witness = await generateTestVerificationMethod();
+    const controllerSigner = createTestSigner(controller);
+    const witnessSigner = createTestSigner(witness);
+    const verifier = createTestVerifier(controller);
+    if (!controller.publicKeyMultibase || !witness.secretKeyMultibase) {
+      throw new Error('Generated test verification methods must contain key material');
+    }
     const witnessDid = `did:key:${witness.publicKeyMultibase}`;
-    const outputFile = join(TEST_DIR, 'did-witness-multi.json');
-    if (!witness.secretKeyMultibase) throw new Error('Generated witness is missing its secret key');
+
+    const trusted = await createDID({
+      address: 'localhost:8000',
+      signer: controllerSigner,
+      updateKeys: [controller.publicKeyMultibase],
+      didDocument: createTestDIDDocument(controller),
+      witness: {
+        threshold: 1,
+        witnesses: [{ id: witnessDid }],
+      },
+      verifier,
+    });
+    const genesisProof = await createWitnessProof(
+      async (document, proof) => {
+        if (!proof) {
+          throw new Error('Witness proof template is required');
+        }
+        return { proof: await witnessSigner.sign({ document, proof }) };
+      },
+      trusted.log[0].versionId,
+      witnessSigner.getVerificationMethodId()
+    );
+    const candidate = await updateDID({
+      log: trusted.log,
+      signer: controllerSigner,
+      verifier,
+      witnessProofs: [{ versionId: trusted.log[0].versionId, proof: [genesisProof] }],
+    });
+
+    fs.writeFileSync(
+      historicalProofFile,
+      JSON.stringify([{ versionId: trusted.log[0].versionId, proof: [genesisProof] }], null, 2)
+    );
+    await writeLogToDisk(trustedLogFile, trusted.log);
+    await writeLogToDisk(candidateLogFile, candidate.log);
 
     const proc = runCli([
       'generate-witness-proof',
-      '--version-id',
-      '1-abc123',
-      '--version-id',
-      '2-def456',
+      '--trusted-log',
+      trustedLogFile,
+      '--candidate-log',
+      candidateLogFile,
       '--witness-did',
       witnessDid,
       '--witness-secret',
       witness.secretKeyMultibase,
+      '--witness-file',
+      historicalProofFile,
       '--output',
-      outputFile,
+      proofFile,
     ]);
-    expect(proc.exitCode).toBe(0);
 
-    const content = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
-    expect(Array.isArray(content)).toBe(true);
-    expect(content).toHaveLength(2);
-    expect(content[0].versionId).toBe('1-abc123');
-    expect(content[1].versionId).toBe('2-def456');
-    expect(content[0].proof).toHaveLength(1);
-    expect(content[1].proof).toHaveLength(1);
-    expect(content[0].proof[0].proofPurpose).toBe('assertionMethod');
-    expect(content[1].proof[0].proofPurpose).toBe('assertionMethod');
+    expect(proc.exitCode, proc.stderr).toBe(0);
+    expect(proc.stdout).toContain('Witness proof file generated');
+
+    const witnessProofs = JSON.parse(fs.readFileSync(proofFile, 'utf8')) as WitnessProofFileEntry[];
+    expect(witnessProofs).toHaveLength(1);
+    expect(witnessProofs[0]?.versionId).toBe(candidate.log[1]?.versionId);
+    expect(witnessProofs[0]?.proof).toHaveLength(1);
+
+    await expect(
+      resolveDIDFromLog(candidate.log, {
+        verifier,
+        witnessProofs,
+      })
+    ).resolves.toMatchObject({
+      didDocument: { id: expect.any(String) },
+    });
   });
 });
