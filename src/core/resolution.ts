@@ -30,12 +30,12 @@ import {
   countVerifiedWitnessApprovals,
   fetchWitnessProofs,
   normalizeWitnessThreshold,
-  resolveWitnessParameter,
   validateWitnessParameter,
 } from '../witness.js';
 import {
   getRequiredWitnessForEntry,
   type RequiredWitnessCheck,
+  transitionWitnessState,
   type WitnessCheckResult,
 } from './witness-requirements.js';
 
@@ -456,9 +456,7 @@ const processGenesisEntry = async ({
   resolverContext.meta.updateKeys = parameters.updateKeys as string[];
   resolverContext.meta.nextKeyHashes = parameters.nextKeyHashes || [];
   resolverContext.meta.prerotation = resolverContext.meta.nextKeyHashes.length > 0;
-  const resolvedGenesisWitness = resolveWitnessParameter(parameters);
-  // Always set witness: normalize null/undefined to {}, and preserve explicit config
-  resolverContext.meta.witness = resolvedGenesisWitness ?? {};
+  resolverContext.meta.witness = transitionWitnessState(undefined, parameters);
   resolverContext.meta.watchers = parameters.watchers ?? null;
   resolverContext.meta.ttl =
     parameters.ttl !== undefined && parameters.ttl !== null ? String(parameters.ttl) : DEFAULT_TTL_SECONDS;
@@ -581,11 +579,7 @@ const processSubsequentEntry = async ({
     resolverContext.meta.nextKeyHashes = nextKeyHashes;
     resolverContext.meta.prerotation = nextKeyHashes.length > 0;
   }
-  const normalizedWitness = resolveWitnessParameter(parameters);
-
-  if (normalizedWitness !== undefined) {
-    resolverContext.meta.witness = normalizedWitness;
-  }
+  resolverContext.meta.witness = transitionWitnessState(resolverContext.meta.witness, parameters);
   if (resolverContext.meta.witness?.witnesses?.length) {
     validateWitnessParameter(resolverContext.meta.witness);
   }
