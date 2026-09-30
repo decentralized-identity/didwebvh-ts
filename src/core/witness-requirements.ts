@@ -21,6 +21,26 @@ export interface WitnessCheckResult extends RequiredWitnessCheck {
 }
 
 /**
+ * Applies one entry's normalized witness parameter to the previously active
+ * witness configuration and returns the configuration active after that entry.
+ *
+ * The library applies the v1.0 transition model to all supported logs:
+ * omitted witness configuration inherits the previous state; explicit witness
+ * configuration replaces it; explicit `witness: {}` clears witnessing.
+ *
+ * Deprecated `witness: null` and legacy v0.5 `witnesses`/`witnessThreshold`
+ * fields are tolerated by normalizing them into the same internal witness
+ * shape before this transition is applied. There is no separate v0.5 witness
+ * transition logic.
+ */
+export const transitionWitnessState = (
+  previousWitness: WitnessParameterResolution | undefined,
+  parameters: DIDLogEntry['parameters']
+): WitnessParameterResolution => {
+  return deepClone(resolveWitnessParameter(parameters) ?? previousWitness ?? {});
+};
+
+/**
  * Derives the witness configuration that governs the transition into one log
  * entry, given the configuration active before the entry and the configuration
  * active after it. This is the single authoritative implementation of the
@@ -72,13 +92,7 @@ export const computeWitnessRequirementChecks = (log: DIDLog): RequiredWitnessChe
 
   log.forEach((entry, index) => {
     const { versionNumber } = parseAndValidateVersionId(entry.versionId, index + 1);
-    const explicitWitness = resolveWitnessParameter(entry.parameters);
-
-    // All parameters in the genesis entry take effect immediately. Subsequent
-    // entries inherit the previously active configuration unless they
-    // explicitly declare a new one (including an explicit `witness: {}`).
-    const currentWitness: WitnessParameterResolution =
-      index === 0 ? (explicitWitness ?? {}) : explicitWitness !== undefined ? explicitWitness : (previousWitness ?? {});
+    const currentWitness = transitionWitnessState(previousWitness, entry.parameters);
 
     if (currentWitness.witnesses?.length) {
       validateWitnessParameter(currentWitness);
