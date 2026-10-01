@@ -10,6 +10,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
 2. **Explicit DID document authoring** — callers provide complete W3C `didDocument` state
 3. **Proof helper exports** — stricter public API
   - Root parser exports `parseDidKeyDid` and `parseDidKeyVerificationMethod` removed
+  - `deriveNextKeyHash` remains exported for pre-rotation `nextKeyHashes`
 4. **Witness proof callback contract** — signer supplies only signature data
 5. **Witness metadata shape** — always normalized to object form
 
@@ -248,6 +249,19 @@ The old `createProof` was overly generic and made it difficult to enforce did:we
 ### What Changed
 
 The package root no longer exports `parseDidKeyDid` and `parseDidKeyVerificationMethod`.
+The `deriveNextKeyHash` helper remains exported so controllers can derive
+pre-rotation `nextKeyHashes` without reimplementing did:webvh's key-hash
+algorithm.
+
+`nextKeyHashes` remains strict: `createDID` and `updateDID` expect already-derived
+pre-rotation hashes and reject `did:key`, `did:key#fragment`, or bare multikey
+values in that field. Use `deriveNextKeyHash(updateKey)` first; the helper
+accepts a bare Ed25519 multikey, `did:key`, or `did:key` verification method and
+normalizes the input before hashing.
+
+For CLI users, `create` and `update` both accept `--next-key` for a future
+update key and derive the hash internally. `--next-key-hash` remains strict and
+expects an already-derived hash.
 
 **Old (2.x)**:
 

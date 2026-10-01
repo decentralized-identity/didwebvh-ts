@@ -2,7 +2,7 @@ import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
 import { resolveLog, resolveLogWithWitnessResults } from './core/resolution.js';
-import { computeWitnessRequirementChecks } from './core/witness-requirements.js';
+import { computeWitnessRequirementChecks, toWitnessRequirement } from './core/witness-requirements.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from './cryptography.js';
 import { generateParallelDidWeb } from './did-document.js';
 import type {
@@ -396,12 +396,7 @@ export const signWitnessProofEntry = async (options: WitnessSigningOptions): Pro
 export const getWitnessRequirements = (log: DIDLog): WitnessRequirement[] => {
   const checks = computeWitnessRequirementChecks(log);
 
-  return checks.map((check) => ({
-    versionId: check.targetVersionId,
-    versionNumber: check.targetVersionNumber,
-    threshold: normalizeWitnessThreshold(check.witness.threshold),
-    witnesses: deepClone(check.witness.witnesses ?? []),
-  }));
+  return checks.map(toWitnessRequirement);
 };
 
 /**
@@ -425,10 +420,7 @@ export const verifyWitnessProofs = async (
   });
 
   const requirements = checkOutcomes.map((check) => ({
-    versionId: check.targetVersionId,
-    versionNumber: check.targetVersionNumber,
-    threshold: normalizeWitnessThreshold(check.witness.threshold),
-    witnesses: deepClone(check.witness.witnesses ?? []),
+    ...toWitnessRequirement(check),
     approvals: check.approvals,
     satisfied: check.satisfied,
   }));

@@ -1,6 +1,17 @@
-import type { DIDLog, DIDLogEntry, WitnessParameterResolution, WitnessProofRejection } from '../interfaces.js';
+import type {
+  DIDLog,
+  DIDLogEntry,
+  WitnessParameterResolution,
+  WitnessProofRejection,
+  WitnessRequirement,
+} from '../interfaces.js';
 import { deepClone, parseAndValidateVersionId } from '../utils.js';
-import { hasActiveWitnessRequirement, resolveWitnessParameter, validateWitnessParameter } from '../witness.js';
+import {
+  hasActiveWitnessRequirement,
+  normalizeWitnessThreshold,
+  resolveWitnessParameter,
+  validateWitnessParameter,
+} from '../witness.js';
 
 export interface RequiredWitnessCheck {
   targetVersionId: string;
@@ -19,6 +30,20 @@ export interface WitnessCheckResult extends RequiredWitnessCheck {
   satisfied: boolean;
   rejectedProofs: WitnessProofRejection[];
 }
+
+/**
+ * Maps a required-witness check to the public `WitnessRequirement` shape,
+ * normalizing the threshold and defensively cloning the witness list.
+ *
+ * Shared by every call site that surfaces a `RequiredWitnessCheck` (or a
+ * `WitnessCheckResult`, which extends it) as a public `WitnessRequirement`.
+ */
+export const toWitnessRequirement = (check: RequiredWitnessCheck): WitnessRequirement => ({
+  versionId: check.targetVersionId,
+  versionNumber: check.targetVersionNumber,
+  threshold: normalizeWitnessThreshold(check.witness.threshold),
+  witnesses: deepClone(check.witness.witnesses ?? []),
+});
 
 /**
  * Applies one entry's normalized witness parameter to the previously active

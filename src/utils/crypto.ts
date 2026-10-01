@@ -1,7 +1,15 @@
 /// <reference lib="dom" />
 import { sha256 } from '@noble/hashes/sha2.js';
+import { DID_KEY_PREFIX } from '../constants.js';
 import { canonicalizeStrict } from './canonicalize.js';
-import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from './multiformats.js';
+import {
+  createMultihash,
+  encodeBase58Btc,
+  MultibaseEncoding,
+  MultihashAlgorithm,
+  multibaseDecode,
+} from './multiformats.js';
+import { parseDidKeyDid, parseDidKeyVerificationMethod } from './verification-methods.js';
 
 const encoder = new TextEncoder();
 
@@ -56,7 +64,20 @@ export async function deriveHash(input: unknown): Promise<string> {
 }
 
 export const deriveNextKeyHash = async (input: string): Promise<string> => {
-  const hash = await createHash(input);
+  if (typeof input !== 'string') {
+    throw new Error('next key must be a string');
+  }
+
+  const keyMultibase = input.startsWith(DID_KEY_PREFIX)
+    ? parseDidKeyVerificationMethod(input).keyMultibase
+    : parseDidKeyDid(`${DID_KEY_PREFIX}${input}`).keyMultibase;
+  const { bytes, encoding } = multibaseDecode(keyMultibase);
+
+  if (encoding !== MultibaseEncoding.BASE58_BTC || bytes.length !== 34 || bytes[0] !== 0xed || bytes[1] !== 0x01) {
+    throw new Error('next key must be an Ed25519 did:key or multikey with a 0xed01 header and 32-byte public key');
+  }
+
+  const hash = await createHash(keyMultibase);
   const multihash = createMultihash(new Uint8Array(hash), MultihashAlgorithm.SHA2_256);
   return encodeBase58Btc(multihash);
 };

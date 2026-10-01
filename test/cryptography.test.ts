@@ -1,5 +1,11 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
-import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../src/assertions.js';
+import {
+  assertValidNextKeyHashes,
+  documentStateIsValid,
+  hashChainIsValid,
+  newKeysAreInNextKeys,
+  scidIsFromHash,
+} from '../src/assertions.js';
 import {
   AbstractCrypto,
   createDataIntegrityProofTemplate,
@@ -20,6 +26,7 @@ import {
   encodeBase58Btc,
   MultibaseEncoding,
   MultihashAlgorithm,
+  multibaseDecode,
   multibaseEncode,
 } from '../src/utils/multiformats.js';
 import * as vmUtilsModule from '../src/utils/verification-methods.js';
@@ -412,6 +419,62 @@ describe('Assertion Guards', () => {
   test('newKeysAreInNextKeys throws when update key hash is not pre-committed', async () => {
     const unrelatedHash = await deriveNextKeyHash('z6Mkp6hULXj3f4P7vLQxqqQF6q2SCMXt9vEmx5R6M1sQ8YvY');
     await expect(newKeysAreInNextKeys([updateKey], [unrelatedHash])).rejects.toThrow('Invalid update key');
+  });
+
+  test('deriveNextKeyHash normalizes supported update key forms', async () => {
+    const bareHash = await deriveNextKeyHash(updateKey);
+    await expect(deriveNextKeyHash(`did:key:${updateKey}`)).resolves.toBe(bareHash);
+    await expect(deriveNextKeyHash(`did:key:${updateKey}#${updateKey}`)).resolves.toBe(bareHash);
+  });
+
+  test('deriveNextKeyHash accepts exactly 32 bytes of Ed25519 public key material', async () => {
+    expect(multibaseDecode(updateKey).bytes).toHaveLength(34);
+
+    const expectedHash = encodeBase58Btc(createMultihash(await createHash(updateKey), MultihashAlgorithm.SHA2_256));
+    await expect(deriveNextKeyHash(updateKey)).resolves.toBe(expectedHash);
+  });
+
+  test('deriveNextKeyHash rejects a 32-byte X25519 public key', async () => {
+    const multikey = multibaseEncode(new Uint8Array([0xec, 0x01, ...new Uint8Array(32)]), MultibaseEncoding.BASE58_BTC);
+    expect(multibaseDecode(multikey).bytes).toHaveLength(34);
+
+    await expect(deriveNextKeyHash(multikey)).rejects.toThrow('0xed01 header');
+  });
+
+  test('deriveNextKeyHash rejects missing Ed25519 public key material', async () => {
+    const multikey = multibaseEncode(new Uint8Array([0xed, 0x01]), MultibaseEncoding.BASE58_BTC);
+
+    for (const input of [multikey, `did:key:${multikey}`, `did:key:${multikey}#${multikey}`]) {
+      await expect(deriveNextKeyHash(input)).rejects.toThrow('32-byte public key');
+    }
+  });
+
+  test('deriveNextKeyHash rejects short Ed25519 public key material', async () => {
+    const multikey = multibaseEncode(new Uint8Array([0xed, 0x01, ...new Uint8Array(31)]), MultibaseEncoding.BASE58_BTC);
+
+    for (const input of [multikey, `did:key:${multikey}`, `did:key:${multikey}#${multikey}`]) {
+      await expect(deriveNextKeyHash(input)).rejects.toThrow('32-byte public key');
+    }
+  });
+
+  test('deriveNextKeyHash rejects oversized Ed25519 public key material', async () => {
+    const multikey = multibaseEncode(new Uint8Array([0xed, 0x01, ...new Uint8Array(33)]), MultibaseEncoding.BASE58_BTC);
+
+    for (const input of [multikey, `did:key:${multikey}`, `did:key:${multikey}#${multikey}`]) {
+      await expect(deriveNextKeyHash(input)).rejects.toThrow('32-byte public key');
+    }
+  });
+
+  test('assertValidNextKeyHashes rejects did:key and multikey values', async () => {
+    const nextKeyHash = await deriveNextKeyHash(updateKey);
+
+    expect(assertValidNextKeyHashes([nextKeyHash])).toEqual([nextKeyHash]);
+    expect(() => assertValidNextKeyHashes([`did:key:${updateKey}`])).toThrow(
+      'must be a derived pre-rotation key hash, not a did:key'
+    );
+    expect(() => assertValidNextKeyHashes([updateKey])).toThrow(
+      'must be a derived pre-rotation key hash, not an Ed25519 multikey'
+    );
   });
 
   test('scidIsFromHash throws for invalid SCID format', async () => {

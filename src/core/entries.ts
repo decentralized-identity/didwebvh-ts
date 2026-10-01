@@ -1,5 +1,5 @@
 import type { DIDDocument } from 'did-resolver';
-import { documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
+import { assertValidNextKeyHashes, documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
 import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER, VERIFICATION_RELATIONSHIPS } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
 import { enrichAlsoKnownAs, replaceCreateDidPlaceholders, validateCreateDidDocument } from '../did-document.js';
@@ -143,11 +143,12 @@ export async function prepareGenesisEntry({
     alsoKnownAsWeb: options.alsoKnownAsWeb,
   });
 
+  const nextKeyHashes = options.nextKeyHashes !== undefined ? assertValidNextKeyHashes(options.nextKeyHashes) : [];
   const params = {
     scid: SCID_PLACEHOLDER,
     updateKeys: options.updateKeys,
     portable: options.portable ?? false,
-    nextKeyHashes: options.nextKeyHashes ?? [],
+    nextKeyHashes,
     watchers: options.watchers ?? [],
     witness: options.witness ?? {},
     deactivated: false,
@@ -216,7 +217,10 @@ export async function prepareUpdateEntry({
   const parsedLastEntryDid = parseDidWebvhIdentifier(lastEntryDid, 'last entry state.id');
 
   const watchersValue = options.watchers !== undefined ? options.watchers : lastMeta.watchers;
-  const resolvedNextKeyHashes = options.nextKeyHashes ?? lastMeta.nextKeyHashes ?? [];
+  const resolvedNextKeyHashes =
+    options.nextKeyHashes !== undefined
+      ? assertValidNextKeyHashes(options.nextKeyHashes)
+      : (lastMeta.nextKeyHashes ?? []);
   const witnessInput = options.witness;
   const witness: Record<string, unknown> = witnessInput?.witnesses?.length
     ? {
@@ -237,7 +241,7 @@ export async function prepareUpdateEntry({
     params.updateKeys = options.updateKeys ?? lastMeta.updateKeys;
   }
   if (options.nextKeyHashes !== undefined) {
-    params.nextKeyHashes = options.nextKeyHashes;
+    params.nextKeyHashes = resolvedNextKeyHashes;
   }
   if (options.portable === false) {
     params.portable = false;

@@ -12,6 +12,7 @@ import {
 } from '../../../test/utils.js';
 import type { WitnessProofFileEntry } from '../../interfaces.js';
 import { createDID, resolveDIDFromLog, updateDID } from '../../method.js';
+import { deriveNextKeyHash } from '../../utils/crypto.js';
 import { type CliSigningKey, readLogFromDisk, writeLogToDisk } from '../persistence.js';
 
 const REPO_ROOT = process.cwd();
@@ -136,8 +137,13 @@ describe('Controller CLI End-to-End Tests', () => {
 
   test('Create DID with prerotation', async () => {
     const prerotationLogFile = join(TEST_DIR, 'did-prerotation.jsonl');
-    const nextKeyHash1 = 'nextKey1Hash';
-    const nextKeyHash2 = 'nextKey2Hash';
+    const nextKey1 = await generateTestVerificationMethod();
+    const nextKey2 = await generateTestVerificationMethod();
+    if (!nextKey1.publicKeyMultibase || !nextKey2.publicKeyMultibase) {
+      throw new Error('Generated next keys are missing publicKeyMultibase');
+    }
+    const nextKeyHash1 = await deriveNextKeyHash(nextKey1.publicKeyMultibase);
+    const nextKeyHash2 = await deriveNextKeyHash(nextKey2.publicKeyMultibase);
 
     const proc = runCli([
       'create',
@@ -146,8 +152,8 @@ describe('Controller CLI End-to-End Tests', () => {
       '--output',
       prerotationLogFile,
       '--portable',
-      '--next-key-hash',
-      nextKeyHash1,
+      '--next-key',
+      `did:key:${nextKey1.publicKeyMultibase}`,
       '--next-key-hash',
       nextKeyHash2,
     ]);
@@ -220,6 +226,47 @@ describe('Controller CLI End-to-End Tests', () => {
       expect(Array.isArray(finalEntry.state[vmType])).toBe(true);
       expect(finalEntry.state[vmType]).toContain(vmId);
     }
+  });
+
+  test('Update DID with prerotation convenience key', async () => {
+    const prerotationUpdateLogFile = join(TEST_DIR, 'did-update-prerotation.jsonl');
+    const createProc = runCli([
+      'create',
+      '--address',
+      'example.com',
+      '--output',
+      prerotationUpdateLogFile,
+      '--portable',
+    ]);
+    expect(createProc.exitCode).toBe(0);
+
+    const nextKey1 = await generateTestVerificationMethod();
+    const nextKey2 = await generateTestVerificationMethod();
+    if (!nextKey1.publicKeyMultibase || !nextKey2.publicKeyMultibase) {
+      throw new Error('Generated next keys are missing publicKeyMultibase');
+    }
+    const nextKeyHash1 = await deriveNextKeyHash(nextKey1.publicKeyMultibase);
+    const nextKeyHash2 = await deriveNextKeyHash(nextKey2.publicKeyMultibase);
+
+    const proc = runCli([
+      'update',
+      '--log',
+      prerotationUpdateLogFile,
+      '--output',
+      prerotationUpdateLogFile,
+      '--next-key',
+      `did:key:${nextKey1.publicKeyMultibase}`,
+      '--next-key-hash',
+      nextKeyHash2,
+    ]);
+    expect(proc.exitCode).toBe(0);
+
+    const updatedLog = await readLogFromDisk(prerotationUpdateLogFile);
+    const updatedEntry = updatedLog[updatedLog.length - 1];
+
+    expect(updatedEntry.parameters.nextKeyHashes).toHaveLength(2);
+    expect(updatedEntry.parameters.nextKeyHashes).toContain(nextKeyHash1);
+    expect(updatedEntry.parameters.nextKeyHashes).toContain(nextKeyHash2);
   });
 
   test('Update DID with alsoKnownAs', async () => {

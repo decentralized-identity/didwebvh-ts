@@ -25,7 +25,7 @@ import {
 } from '../index.js';
 import { concatBuffers } from '../utils/buffer.js';
 import { canonicalizeStrict } from '../utils/canonicalize.js';
-import { createHash } from '../utils/crypto.js';
+import { createHash, deriveNextKeyHash } from '../utils/crypto.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats.js';
 import { parseDidKeyDid } from '../utils/verification-methods.js';
 import { deepClone } from '../utils.js';
@@ -61,7 +61,8 @@ Options:
   --service [service]       Add a service (format: type,endpoint) (can be used multiple times)
   --add-vm [type]           Add a verification method (type can be authentication, assertionMethod, keyAgreement, capabilityInvocation, capabilityDelegation)
   --also-known-as [alias]   Add an alsoKnownAs alias (can be used multiple times)
-  --next-key-hash [hash]    Add a nextKeyHash (can be used multiple times)
+  --next-key [key]          Add a future update key and derive its nextKeyHash (can be used multiple times)
+  --next-key-hash [hash]    Add a derived nextKeyHash directly (can be used multiple times)
   --witness-file [file]     Path to witness proofs file (optional for resolve, update, deactivate)
 
   # Options for generate-witness-proof:
@@ -73,13 +74,14 @@ Options:
 
 Examples:
   pnpm cli -- create --address example.com --portable --witness did:key:z6Mk... --witness did:key:z6Mk...
-  pnpm cli -- create --address https://example.com --portable
+  pnpm cli -- create --address https://example.com --portable --next-key did:key:z6Mk...
   pnpm cli -- create --address "example.com:3000" --portable
   pnpm cli -- create --address "did:webvh:example.com:3000" --portable
   pnpm cli -- resolve --did did:webvh:123456:example.com
   pnpm cli -- resolve --log ./did.jsonl --witness-file ./did-witness.json
   pnpm cli -- verify-proofs --log ./did.jsonl --witness-file ./did-witness.json
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
+  pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --next-key did:key:z6Mk...
   pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
   pnpm cli -- generate-witness-proof --trusted-log did.jsonl --candidate-log candidate.jsonl --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
   pnpm cli -- generate-vm
@@ -197,6 +199,19 @@ function readWitnessProofsFile(path: string | undefined): WitnessProofFileEntry[
   return JSON.parse(fs.readFileSync(path, 'utf8')) as WitnessProofFileEntry[];
 }
 
+async function deriveNextKeyHashesFromOptions(
+  options: Record<string, string | string[] | undefined>
+): Promise<string[] | undefined> {
+  const nextKeys = options['next-key'] as string[] | undefined;
+  const providedNextKeyHashes = options['next-key-hash'] as string[] | undefined;
+  const nextKeyHashes = [
+    ...(providedNextKeyHashes ?? []),
+    ...(nextKeys ? await Promise.all(nextKeys.map((nextKey) => deriveNextKeyHash(nextKey))) : []),
+  ];
+
+  return nextKeyHashes.length ? nextKeyHashes : undefined;
+}
+
 async function resolveControlledDidFromEnv(did: string): Promise<DIDLog | undefined> {
   const verificationMethods = await getVerificationMethodsFromEnv();
   const controlled = verificationMethods.some((vm) => (vm.controller || vm.id?.split('#')[0]) === did);
@@ -218,7 +233,6 @@ export async function handleCreate(args: string[]) {
 
   const output = options.output as string | undefined;
   const portable = options.portable !== undefined;
-  const nextKeyHashes = options['next-key-hash'] as string[] | undefined;
   const witnesses = options.witness as string[] | undefined;
   const watchers = options.watcher as string[] | undefined;
   const witnessThreshold = options['witness-threshold']
@@ -232,6 +246,7 @@ export async function handleCreate(args: string[]) {
   }
 
   try {
+    const nextKeyHashes = await deriveNextKeyHashesFromOptions(options);
     const authKey = await generateVerificationMethod();
     if (!authKey.publicKeyMultibase) {
       throw new Error('Generated verification method is missing publicKeyMultibase');
@@ -419,6 +434,7 @@ export async function handleUpdate(args: string[]) {
   }
 
   try {
+    const nextKeyHashes = await deriveNextKeyHashesFromOptions(options);
     const log = await readLogFromDisk(logFile);
     const updateResolution = await resolveDIDFromLog(log, {
       verifier: createCustomCrypto(),
@@ -510,6 +526,7 @@ export async function handleUpdate(args: string[]) {
           }
         : undefined,
       watchers: watchers ?? undefined,
+      nextKeyHashes,
       witnessProofs,
     });
 
@@ -638,6 +655,7 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
           key === 'witness' ||
           key === 'service' ||
           key === 'also-known-as' ||
+          key === 'next-key' ||
           key === 'next-key-hash' ||
           key === 'watcher' ||
           key === 'witness-did' ||
