@@ -17,19 +17,18 @@ import type {
 import {
   createDID,
   deactivateDID,
+  deriveNextKeyHash,
+  MultibaseEncoding,
+  multibaseDecode,
+  multibaseEncode,
+  prepareDataForSigning,
   resolveDID,
   resolveDIDFromLog,
   signWitnessProofEntries,
   updateDID,
   verifyWitnessProofs,
 } from '../index.js';
-import { concatBuffers } from '../utils/buffer.js';
-import { canonicalizeStrict } from '../utils/canonicalize.js';
-import { createHash, deriveNextKeyHash } from '../utils/crypto.js';
-import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../utils/multiformats.js';
-import { parseDidKeyDid } from '../utils/verification-methods.js';
-import { deepClone } from '../utils.js';
-import { addVerificationMethodToDocument, type VerificationRelationship } from './did-document.js';
+import { addVerificationMethodToDocument, deepClone, type VerificationRelationship } from './did-document.js';
 import {
   type CliSigningKey,
   getVerificationMethodsFromEnv,
@@ -37,6 +36,7 @@ import {
   writeLogToDisk,
   writeVerificationMethodToEnv,
 } from './persistence.js';
+import { parseDidKeyDid } from './verification-methods.js';
 
 const usage = `
 Usage: pnpm cli -- [command] [options]
@@ -157,9 +157,7 @@ class CustomCryptoImplementation implements Signer, Verifier {
       throw new Error('Secret key not set on verification method');
     }
     const { document, proof } = input;
-    const dataHash = await createHash(canonicalizeStrict(document));
-    const proofHash = await createHash(canonicalizeStrict(proof));
-    const message = concatBuffers(proofHash, dataHash);
+    const message = await prepareDataForSigning(document, proof);
     const secretKeyMultibase = this.verificationMethod.secretKeyMultibase;
     if (!secretKeyMultibase) {
       throw new Error('Verification method secretKeyMultibase not set');
