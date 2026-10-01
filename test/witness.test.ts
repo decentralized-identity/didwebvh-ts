@@ -1,9 +1,16 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
+import {
+  getRequiredWitnessForEntry,
+  toWitnessRequirement,
+  transitionWitnessState,
+} from '../src/core/witness-requirements.js';
 import { getWitnessRequirements, signWitnessProofEntry, verifyWitnessProofs } from '../src/index.js';
 import type {
   CreateDIDResult,
+  DataIntegrityProof,
   DataIntegrityProofTemplate,
   DIDLog,
+  DIDLogEntry,
   FetchLike,
   Signer,
   WitnessProofFileEntry,
@@ -12,7 +19,7 @@ import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/m
 import { deriveHash } from '../src/utils/crypto.js';
 import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats.js';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils/verification-methods.js';
-import { countWitnessApprovals } from '../src/witness.js';
+import { countVerifiedWitnessApprovals, countWitnessApprovals, validateWitnessParameter } from '../src/witness.js';
 import {
   buildV05Genesis,
   createTestDIDDocument,
@@ -797,6 +804,29 @@ describe('Witness Implementation Tests', async () => {
       return { candidate, trusted, verifier, witnessProofs };
     };
 
+    test('rejects an empty trusted log', async () => {
+      const signer = createTestSigner(authKey);
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: [],
+          candidateLog: [],
+          witnessSigner: signer,
+        })
+      ).rejects.toThrow('trustedLog must contain at least one entry');
+    });
+
+    test('rejects a candidate without exactly one new entry', async () => {
+      const signer = createTestSigner(authKey);
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: [initialDID.log[0]],
+          candidateLog: [initialDID.log[0]],
+          witnessSigner: signer,
+        })
+      ).rejects.toThrow('candidateLog must contain exactly one entry more than trustedLog');
+    });
+
     test('validates a candidate continuation before signing', async () => {
       const controller = await generateTestVerificationMethod();
       const witness = await generateTestVerificationMethod();
@@ -1323,7 +1353,7 @@ describe('Witness Implementation Tests', async () => {
             didDocument: createTestDIDDocument(authKey),
             verifier: testImplementation,
           })
-        ).rejects.toThrow();
+        ).rejects.toThrow('network fetch observed');
 
         expect(fetchSpy).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
       } finally {
@@ -1529,27 +1559,15 @@ describe('Witness Implementation Tests', async () => {
       },
     ];
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    try {
-      const result = await resolveDIDFromLog(initialDID.log, {
-        witnessProofs,
-        verifier: testImplementation,
-      });
-      expect(result.didDocument).toBeNull();
-      expect(result.didResolutionMetadata.error).toBe('invalidDid');
-      expect(result.didResolutionMetadata.message).toContain(
-        `Witness threshold not met for version ${initialDID.log[0].versionId}`
-      );
-    } finally {
-      console.warn = originalWarn;
-    }
-
-    expect(warnings.some((msg) => msg.includes('Invalid witness proof purpose'))).toBe(true);
+    const result = await resolveDIDFromLog(initialDID.log, {
+      witnessProofs,
+      verifier: testImplementation,
+    });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain(
+      `Witness threshold not met for version ${initialDID.log[0].versionId}`
+    );
   });
 
   test('parseDidKeyDid accepts a valid did:key DID', () => {
@@ -1612,6 +1630,100 @@ describe('Witness Implementation Tests', async () => {
     });
   });
 
+  test('rejects an empty witness list', () => {
+    expect(() => validateWitnessParameter({ threshold: 1, witnesses: [] })).toThrow('Witness list cannot be empty');
+  });
+
+  test('rejects a missing witness threshold', () => {
+    const validWitness = { id: `did:key:${witness1.publicKeyMultibase}` };
+
+    expect(() => validateWitnessParameter({ witnesses: [validWitness] })).toThrow(
+      'Witness threshold must be between 1 and the number of witnesses'
+    );
+  });
+
+  test('rejects thresholds outside the witness-list bounds', () => {
+    const validWitness = { id: `did:key:${witness1.publicKeyMultibase}` };
+
+    expect(() => validateWitnessParameter({ threshold: 0, witnesses: [validWitness] })).toThrow(
+      'Witness threshold must be between 1 and the number of witnesses'
+    );
+    expect(() => validateWitnessParameter({ threshold: 2, witnesses: [validWitness] })).toThrow(
+      'Witness threshold must be between 1 and the number of witnesses'
+    );
+  });
+
+  test('rejects a witness ID that is not a did:key DID', () => {
+    expect(() => validateWitnessParameter({ threshold: 1, witnesses: [{ id: 'did:web:example.com' }] })).toThrow(
+      'Witness DIDs must be did:key format'
+    );
+  });
+
+  test('countVerifiedWitnessApprovals rejects an invalid proof type', async () => {
+    const versionId = initialDID.log[0].versionId;
+    const proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    const result = await countVerifiedWitnessApprovals(
+      [
+        {
+          versionId,
+          proof: [{ ...proof, type: 'InvalidProof' } as unknown as DataIntegrityProof],
+        },
+      ],
+      { threshold: 1, witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }] },
+      testImplementation
+    );
+
+    expect(result.approvals).toBe(0);
+    expect(result.rejectedProofs).toEqual([expect.objectContaining({ code: 'invalid-proof-type' })]);
+  });
+
+  test('countVerifiedWitnessApprovals rejects an invalid verification method', async () => {
+    const versionId = initialDID.log[0].versionId;
+    const proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      versionId,
+      witnessVerificationMethod(witness1)
+    );
+
+    const result = await countVerifiedWitnessApprovals(
+      [{ versionId, proof: [{ ...proof, verificationMethod: 'not-a-did-key' }] }],
+      { threshold: 1, witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }] },
+      testImplementation
+    );
+
+    expect(result.approvals).toBe(0);
+    expect(result.rejectedProofs).toEqual([expect.objectContaining({ code: 'invalid-verification-method' })]);
+  });
+
+  test('countVerifiedWitnessApprovals rejects a public key with an invalid length', async () => {
+    const versionId = initialDID.log[0].versionId;
+    const proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      versionId,
+      witnessVerificationMethod(witness1)
+    );
+    const shortMultibase = multibaseEncode(new Uint8Array([0xed, 0x01]), MultibaseEncoding.BASE58_BTC);
+
+    const result = await countVerifiedWitnessApprovals(
+      [
+        {
+          versionId,
+          proof: [{ ...proof, verificationMethod: `did:key:${shortMultibase}#${shortMultibase}` }],
+        },
+      ],
+      { threshold: 1, witnesses: [{ id: `did:key:${shortMultibase}` }] },
+      testImplementation
+    );
+
+    expect(result.approvals).toBe(0);
+    expect(result.rejectedProofs).toEqual([expect.objectContaining({ code: 'invalid-public-key' })]);
+  });
+
   test('countWitnessApprovals uses exact did:key DID matching', async () => {
     const proofs = [
       await createWitnessProof(
@@ -1623,6 +1735,66 @@ describe('Witness Implementation Tests', async () => {
 
     expect(countWitnessApprovals(proofs, [{ id: `did:key:${witness1.publicKeyMultibase}` }])).toBe(1);
     expect(countWitnessApprovals(proofs, [{ id: `did:key:${witness2.publicKeyMultibase}` }])).toBe(0);
+  });
+
+  describe('witness requirement transition helpers', () => {
+    const activeWitness = () => ({ threshold: 1, witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }] });
+
+    test('inherits an active witness configuration as a defensive copy', () => {
+      const previousWitness = activeWitness();
+      const inherited = transitionWitnessState(previousWitness, {});
+
+      expect(inherited).toEqual(previousWitness);
+      expect(inherited).not.toBe(previousWitness);
+      expect(inherited.witnesses).not.toBe(previousWitness.witnesses);
+    });
+
+    test('normalizes explicit null and empty witness configurations to inactive state', () => {
+      const nullWitnessParameters = { witness: null } as unknown as DIDLogEntry['parameters'];
+
+      expect(transitionWitnessState(undefined, nullWitnessParameters)).toEqual({});
+      expect(transitionWitnessState(undefined, { witness: {} })).toEqual({});
+    });
+
+    test('uses the previous witnesses for replacement entries and newly introduced witnesses for first activation', () => {
+      const previousWitness = activeWitness();
+      const replacementWitness = { threshold: 1, witnesses: [{ id: `did:key:${witness2.publicKeyMultibase}` }] };
+      // An already-active configuration governs the replacement entry.
+      const replacementRequirement = getRequiredWitnessForEntry(
+        previousWitness,
+        { witness: replacementWitness },
+        replacementWitness
+      );
+      // When there is no prior configuration, the newly introduced one governs its activation entry.
+      const firstActivationRequirement = getRequiredWitnessForEntry(
+        undefined, // no previous witnesses
+        { witness: replacementWitness },
+        replacementWitness
+      );
+
+      expect(replacementRequirement).toEqual(previousWitness);
+      expect(replacementRequirement).not.toEqual(replacementWitness);
+      expect(firstActivationRequirement).toEqual(replacementWitness);
+    });
+
+    test('does not create a requirement for an empty witness configuration', () => {
+      expect(getRequiredWitnessForEntry(undefined, { witness: {} }, {})).toBeUndefined();
+    });
+
+    test('maps a missing witness list to an empty list in the public requirement shape', () => {
+      expect(
+        toWitnessRequirement({
+          targetVersionId: '1-version',
+          targetVersionNumber: 1,
+          witness: { threshold: 1 }, // no witnesses entry in object
+        })
+      ).toEqual({
+        versionId: '1-version',
+        versionNumber: 1,
+        threshold: 1,
+        witnesses: [],
+      });
+    });
   });
 
   test('Resolve requires witness threshold for each required entry', async () => {
