@@ -406,7 +406,8 @@ against caller-supplied proofs.
 - `deriveNextKeyHash(input: string): Promise<string>`
   Derives the did:webvh pre-rotation hash for a future update key. Accepts a
   bare Ed25519 multikey, `did:key`, or `did:key` verification method and
-  normalizes it before hashing.
+  normalizes it before hashing. The decoded key must contain the two-byte
+  Ed25519 multicodec header and exactly 32 bytes of public key material.
 
 - `createDataIntegrityProofTemplate(options): DataIntegrityProofTemplate`
   Creates an `eddsa-jcs-2022` Data Integrity proof template.

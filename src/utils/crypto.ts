@@ -73,8 +73,8 @@ export const deriveNextKeyHash = async (input: string): Promise<string> => {
     : parseDidKeyDid(`${DID_KEY_PREFIX}${input}`).keyMultibase;
   const { bytes, encoding } = multibaseDecode(keyMultibase);
 
-  if (encoding !== MultibaseEncoding.BASE58_BTC || bytes[0] !== 0xed || bytes[1] !== 0x01) {
-    throw new Error('next key must be an Ed25519 did:key or multikey with multicodec header 0xed01');
+  if (encoding !== MultibaseEncoding.BASE58_BTC || bytes.length !== 34 || bytes[0] !== 0xed || bytes[1] !== 0x01) {
+    throw new Error('next key must be an Ed25519 did:key or multikey with a 0xed01 header and 32-byte public key');
   }
 
   const hash = await createHash(keyMultibase);
