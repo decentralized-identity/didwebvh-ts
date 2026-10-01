@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import type { CreateDIDResult, DataIntegrityProofTemplate, DIDLog, WitnessProofFileEntry } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
-import { createWitnessProof } from '../src/witness.js';
 import {
   createTestDIDDocument,
   createTestSigner,
+  createWitnessProof,
   generateTestVerificationMethod,
   TestCryptoImplementation,
   type TestVerificationMethod,
@@ -208,25 +208,13 @@ describe('did:webvh normative witness tests', async () => {
       },
     ];
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    let result: Awaited<ReturnType<typeof resolveDIDFromLog>>;
-    try {
-      result = await resolveDIDFromLog(initialDID.log, {
-        witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
-        verifier: testImplementation,
-      });
-    } finally {
-      console.warn = originalWarn;
-    }
+    const result = await resolveDIDFromLog(initialDID.log, {
+      witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
+      verifier: testImplementation,
+    });
     expect(result.didDocument).toBeNull();
     expect(result.didResolutionMetadata.error).toBeDefined();
     expect(result.didResolutionMetadata.message).toContain('Witness threshold not met');
-    expect(warnings.some((msg) => msg.includes('Invalid witness proof cryptosuite'))).toBe(true);
   });
 
   test('resolver MUST verify witness proofs before accepting DID update', async () => {

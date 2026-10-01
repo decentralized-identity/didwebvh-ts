@@ -103,15 +103,11 @@ export interface ParsedDidKeyVerificationMethod {
 }
 
 export interface WitnessSigningOptions {
-  versionId: string;
-  witnesses: WitnessEntry[];
-  witnessSignersByDid: Record<string, Signer>;
-  created?: string;
-}
-
-export interface WitnessSigningResult {
-  versionId: string;
-  proof: DataIntegrityProof[];
+  trustedLog: DIDLog;
+  candidateLog: DIDLog;
+  witnessSigner: Signer<Pick<DIDLogEntry, 'versionId'>>;
+  witnessProofs?: WitnessProofFileEntry[];
+  verifier?: Verifier;
 }
 
 export interface WitnessParameter {
@@ -255,6 +251,8 @@ export interface WitnessRequirement {
 }
 
 export interface VerifyWitnessProofsOptions {
+  log: DIDLog;
+  witnessProofs: WitnessProofFileEntry[];
   verifier?: Verifier;
 }
 

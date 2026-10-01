@@ -1,8 +1,9 @@
 import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
-import { resolveLog, resolveLogWithWitnessResults } from './core/resolution.js';
+import { resolveLog, resolveLogWithWitnessResults, resolveWitnessCandidateRequirement } from './core/resolution.js';
 import { computeWitnessRequirementChecks, toWitnessRequirement } from './core/witness-requirements.js';
+import { createDataIntegrityProofTemplate, signDataIntegrityProof } from './cryptography.js';
 import { generateParallelDidWeb } from './did-document.js';
 import type {
   CreateDIDOptions,
@@ -17,6 +18,7 @@ import type {
   VerifyWitnessProofsOptions,
   WitnessProofFileEntry,
   WitnessRequirement,
+  WitnessSigningOptions,
   WitnessVerificationResult,
 } from './interfaces.js';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result.js';
@@ -26,7 +28,7 @@ import {
   MAX_FUTURE_SKEW_MS,
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime.js';
-import { normalizeUpdateKeys } from './utils/verification-methods.js';
+import { normalizeUpdateKeys, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
 import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils.js';
 import { defaultVerifier } from './verifier.js';
 import { resolveWitnessParameter, validateWitnessParameter } from './witness.js';
@@ -296,6 +298,55 @@ export const deactivateDID = async (
 };
 
 /**
+ * Signs the final entry of a validated candidate log as an authorized witness.
+ *
+ * @param options Trusted log, candidate log, witness signer, and optional historical proofs.
+ * @returns A witness proof file entry containing exactly one proof for the candidate entry.
+ * @throws If input validation, candidate-log validation, prior witness-threshold checks, signer
+ * eligibility/verification-method validation, or proof signing fails.
+ */
+export const signWitnessProofEntry = async (options: WitnessSigningOptions): Promise<WitnessProofFileEntry> => {
+  if (options.trustedLog.length === 0) {
+    throw new Error('trustedLog must contain at least one entry');
+  }
+  if (options.candidateLog.length !== options.trustedLog.length + 1) {
+    throw new Error('candidateLog must contain exactly one entry more than trustedLog');
+  }
+  if (!options.witnessSigner) {
+    throw new Error('witnessSigner is required');
+  }
+
+  const verifier = options.verifier ?? defaultVerifier;
+  const candidateEntry = options.candidateLog[options.candidateLog.length - 1];
+  const trustedTip = options.trustedLog[options.trustedLog.length - 1];
+  const requirement = await resolveWitnessCandidateRequirement(options.candidateLog, trustedTip.versionId, {
+    verifier,
+    witnessProofs: options.witnessProofs,
+  });
+  if (!requirement?.witnesses?.length) {
+    throw new Error('Candidate entry is not governed by an active witness requirement');
+  }
+
+  const signerVerificationMethod = options.witnessSigner.getVerificationMethodId();
+  const signerDid = parseDidKeyVerificationMethod(signerVerificationMethod).did;
+  const isMember = requirement.witnesses.some((witness) => parseDidKeyDid(witness.id).did === signerDid);
+  if (!isMember) {
+    throw new Error(`Witness signer is not a member of the governing witness list: ${signerDid}`);
+  }
+
+  const proofTemplate = createDataIntegrityProofTemplate({
+    verificationMethod: signerVerificationMethod,
+    proofPurpose: 'assertionMethod',
+  });
+  const proof = await signDataIntegrityProof(
+    { versionId: candidateEntry.versionId },
+    proofTemplate,
+    options.witnessSigner
+  );
+  return { versionId: candidateEntry.versionId, proof: [proof] };
+};
+
+/**
  * Derives the witness approvals required for each entry in a DID log that requires witnessing.
  *
  * @param log The DID log to inspect.
@@ -311,19 +362,13 @@ export const getWitnessRequirements = (log: DIDLog): WitnessRequirement[] => {
  * Verifies that every witness requirement in a DID log is satisfied by the locally supplied
  * witness proofs without network fetch.
  *
- * @param log The DID log to verify.
- * @param witnessProofs The witness proofs to verify against the log, in place of a network fetch.
- * @param options Optional verifier override.
+ * @param options The DID log, witness proofs, and optional verifier.
  * @returns Per-entry witness requirements annotated with counted approvals and satisfaction.
  * @throws If the log or supplied proofs fail any non-witness-threshold verification.
  */
-export const verifyWitnessProofs = async (
-  log: DIDLog,
-  witnessProofs: WitnessProofFileEntry[],
-  options: VerifyWitnessProofsOptions = {}
-): Promise<WitnessVerificationResult> => {
-  const { witnessChecks: checkOutcomes } = await resolveLogWithWitnessResults(log, {
-    witnessProofs,
+export const verifyWitnessProofs = async (options: VerifyWitnessProofsOptions): Promise<WitnessVerificationResult> => {
+  const { witnessChecks: checkOutcomes } = await resolveLogWithWitnessResults(options.log, {
+    witnessProofs: options.witnessProofs,
     verifier: options.verifier ?? defaultVerifier,
   });
 

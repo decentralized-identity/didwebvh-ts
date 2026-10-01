@@ -30,7 +30,8 @@ import {
   multibaseEncode,
 } from '../src/utils/multiformats.js';
 import * as vmUtilsModule from '../src/utils/verification-methods.js';
-import { countVerifiedWitnessApprovals, createWitnessProof } from '../src/witness.js';
+import { countVerifiedWitnessApprovals } from '../src/witness.js';
+import { createWitnessProof } from './utils.js';
 
 // Mock crypto implementation for testing
 class MockCryptoImplementation extends AbstractCrypto implements Verifier {
@@ -219,7 +220,7 @@ describe('Injectable Cryptography Tests', () => {
     expect(result.rejectedProofs).toEqual([]);
   });
 
-  test('Count verified witness approvals logs and skips invalid proofs', async () => {
+  test('Count verified witness approvals returns rejected details for invalid proofs', async () => {
     const witnessProofs = [
       {
         versionId: 'test-version',
@@ -241,21 +242,14 @@ describe('Injectable Cryptography Tests', () => {
       ],
     };
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    try {
-      const result = await countVerifiedWitnessApprovals(witnessProofs, witness, failingMockImplementation);
-      expect(result.approvals).toBe(0);
-      expect(result.rejectedProofs).toHaveLength(1);
-    } finally {
-      console.warn = originalWarn;
-    }
-
-    expect(warnings.some((msg) => msg.includes('Invalid witness proof signature'))).toBe(true);
+    const result = await countVerifiedWitnessApprovals(witnessProofs, witness, failingMockImplementation);
+    expect(result.approvals).toBe(0);
+    expect(result.rejectedProofs).toEqual([
+      expect.objectContaining({
+        code: 'invalid-signature',
+        message: 'Invalid witness proof signature',
+      }),
+    ]);
   });
 
   test('Require verifier implementation', async () => {
