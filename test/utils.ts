@@ -147,8 +147,7 @@ export class TestCryptoImplementation extends AbstractCrypto implements Verifier
   async verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     try {
       return ed25519.verify(signature, message, publicKey, { zip215: false });
-    } catch (error) {
-      console.error('Error verifying signature:', error);
+    } catch {
       return false;
     }
   }

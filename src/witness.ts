@@ -211,10 +211,6 @@ export async function countVerifiedWitnessApprovals(
           code,
           message,
         });
-        console.warn(
-          `Ignoring invalid witness proof for version ${proofSet.versionId} ` +
-            `(verificationMethod: ${proof.verificationMethod}): ${message}`
-        );
       }
     }
   }
