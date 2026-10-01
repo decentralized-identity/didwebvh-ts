@@ -687,6 +687,33 @@ describe('complete didDocument contract and update semantics', () => {
     ).rejects.toThrow(/must have an explicit string 'controller'/);
   });
 
+  test('rejects verification method without an id', async () => {
+    const authKey = await generateTestVerificationMethod();
+    const signer = createTestSigner(authKey);
+    const verifier = createTestVerifier(authKey);
+    const didDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: '{DID}',
+      verificationMethod: [
+        {
+          type: 'Multikey',
+          controller: '{DID}',
+          publicKeyMultibase: authKey.publicKeyMultibase,
+        },
+      ],
+    } as unknown as DIDDocument;
+
+    await expect(
+      createDID({
+        address: 'example.com',
+        signer,
+        verifier,
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument,
+      })
+    ).rejects.toThrow(/must have a non-empty string 'id'/);
+  });
+
   test('update with complete didDocument completely replaces state (omitted service is deleted)', async () => {
     const authKey = await generateTestVerificationMethod();
     const signer = createTestSigner(authKey);

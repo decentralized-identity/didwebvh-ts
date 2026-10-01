@@ -20,7 +20,9 @@ import type {
   DIDResolutionMeta,
   FetchLike,
   ResolutionOptions,
+  Verifier,
   WitnessProofFileEntry,
+  WitnessRequirement,
 } from '../interfaces.js';
 import { buildProblemDetails } from '../resolver-result.js';
 import { deriveHash } from '../utils/crypto.js';
@@ -41,6 +43,7 @@ import {
 import {
   getRequiredWitnessForEntry,
   type RequiredWitnessCheck,
+  toWitnessRequirement,
   transitionWitnessState,
   type WitnessCheckResult,
 } from './witness-requirements.js';
@@ -107,6 +110,42 @@ export const resolveLog = async (
     );
   }
   return result;
+};
+
+/**
+ * Resolves a candidate log once, confirms that its prefix reaches the trusted
+ * tip, and enforces historical witness thresholds while returning the
+ * requirement governing the candidate entry.
+ */
+export const resolveWitnessCandidateRequirement = async (
+  candidateLog: DIDLog,
+  trustedTipVersionId: string,
+  options: { verifier: Verifier; witnessProofs?: WitnessProofFileEntry[] }
+): Promise<WitnessRequirement | undefined> => {
+  const { witnessChecks } = await resolveLogWithWitnessResults(candidateLog, options);
+  const candidateEntry = candidateLog.at(-1);
+  const candidateTipVersionId = candidateEntry?.versionId;
+  const candidatePrefixTipVersionId = candidateLog.at(-2)?.versionId;
+
+  if (candidatePrefixTipVersionId !== trustedTipVersionId) {
+    throw new Error('Candidate log does not extend the trusted log tip');
+  }
+
+  const failedHistoricalCheck = witnessChecks.find(
+    (check) => check.targetVersionId !== candidateTipVersionId && !check.satisfied
+  );
+  if (failedHistoricalCheck) {
+    throw new Error(
+      `Witness threshold not met for version ${failedHistoricalCheck.targetVersionId}: got ${failedHistoricalCheck.approvals}, need ${failedHistoricalCheck.witness.threshold}`
+    );
+  }
+
+  const candidateRequirement = witnessChecks.find((check) => check.targetVersionId === candidateTipVersionId);
+  if (!candidateRequirement) {
+    return undefined;
+  }
+
+  return toWitnessRequirement(candidateRequirement);
 };
 
 /**
