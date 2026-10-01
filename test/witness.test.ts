@@ -817,6 +817,66 @@ describe('Witness Implementation Tests', async () => {
       });
     });
 
+    test('rejects a candidate whose prefix tip does not match the trusted tip', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier, witnessProofs } = await createWitnessedCandidate(controller, witness);
+      const mismatchedTrustedLog = [{ ...trusted.log[0], versionId: '1-untrusted-tip' }];
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: mismatchedTrustedLog,
+          candidateLog: candidate.log,
+          witnessSigner: createTestSigner(witness),
+          witnessProofs,
+          verifier,
+        })
+      ).rejects.toThrow('Candidate log does not extend the trusted log tip');
+    });
+
+    test('rejects signing when prior witness proofs are missing', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier } = await createWitnessedCandidate(controller, witness);
+      const priorVersionId = trusted.log[trusted.log.length - 1].versionId;
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: trusted.log,
+          candidateLog: candidate.log,
+          witnessSigner: createTestSigner(witness),
+          witnessProofs: [],
+          verifier,
+        })
+      ).rejects.toThrow(`Witness threshold not met for version ${priorVersionId}: got 0, need 1`);
+    });
+
+    test('rejects a candidate tip with no active witness requirement', async () => {
+      const controller = await generateTestVerificationMethod();
+      const verifier = createTestVerifier(controller);
+      const trusted = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(controller),
+        updateKeys: [controller.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(controller),
+        verifier,
+      });
+      const candidate = await updateDID({
+        log: trusted.log,
+        signer: createTestSigner(controller),
+        verifier,
+      });
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: trusted.log,
+          candidateLog: candidate.log,
+          witnessSigner: createTestSigner(controller),
+          verifier,
+        })
+      ).rejects.toThrow('Candidate entry is not governed by an active witness requirement');
+    });
+
     test('rejects a signer outside the governing witness list', async () => {
       const controller = await generateTestVerificationMethod();
       const witness = await generateTestVerificationMethod();

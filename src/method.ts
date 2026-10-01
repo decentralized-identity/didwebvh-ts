@@ -1,7 +1,7 @@
 import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
-import { resolveLog, resolveLogWithWitnessResults } from './core/resolution.js';
+import { resolveLog, resolveLogWithWitnessResults, resolveWitnessCandidateRequirement } from './core/resolution.js';
 import { computeWitnessRequirementChecks, toWitnessRequirement } from './core/witness-requirements.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from './cryptography.js';
 import { generateParallelDidWeb } from './did-document.js';
@@ -29,15 +29,9 @@ import {
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime.js';
 import { normalizeUpdateKeys, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
-import {
-  deepClone,
-  fetchLogFromIdentifier,
-  normalizeDidAddress,
-  parseDidWebvhIdentifier,
-  requireDidDocumentId,
-} from './utils.js';
+import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils.js';
 import { defaultVerifier } from './verifier.js';
-import { normalizeWitnessThreshold, resolveWitnessParameter, validateWitnessParameter } from './witness.js';
+import { resolveWitnessParameter, validateWitnessParameter } from './witness.js';
 
 const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
   const resolvedWitness = resolveWitnessParameter(entry.parameters);
@@ -303,46 +297,17 @@ export const deactivateDID = async (
   };
 };
 
-const validateWitnessCandidate = async ({
-  candidateLog,
-  trustedTipVersionId,
-  verifier,
-  witnessProofs,
-}: {
-  candidateLog: DIDLog;
-  trustedTipVersionId: string;
-  verifier: NonNullable<ResolutionOptions['verifier']>;
-  witnessProofs?: WitnessProofFileEntry[];
-}): Promise<WitnessRequirement | undefined> => {
-  const prefix = candidateLog.slice(0, -1);
-  const prefixResult = await resolveLog(prefix, { verifier, witnessProofs });
-  if (prefixResult.meta.versionId !== trustedTipVersionId) {
-    throw new Error('Candidate log does not extend the trusted log tip');
-  }
-
-  const { witnessChecks } = await resolveLogWithWitnessResults(candidateLog, {
-    verifier,
-    witnessProofs,
-  });
-  const candidateRequirement = witnessChecks.find((check) => check.targetVersionId === candidateLog.at(-1)?.versionId);
-
-  if (!candidateRequirement) {
-    return undefined;
-  }
-
-  return {
-    versionId: candidateRequirement.targetVersionId,
-    versionNumber: candidateRequirement.targetVersionNumber,
-    threshold: normalizeWitnessThreshold(candidateRequirement.witness.threshold),
-    witnesses: deepClone(candidateRequirement.witness.witnesses ?? []),
-  };
-};
-
 /**
  * Validates a controller-proposed candidate log and signs its final entry as a witness.
+ * The candidate must add exactly one entry to a non-empty trusted log. Its
+ * prefix is checked against the trusted tip, and the log is validated for
+ * integrity, controller authorization, and prior witness requirements before
+ * signing. If `witnessProofs` is omitted, validation may fetch witness proofs.
  *
  * @param options Trusted log, candidate log, witness signer, and optional historical proofs.
- * @returns A witness proof file entry containing one proof for the candidate entry.
+ * @returns A witness proof file entry containing exactly one proof for the candidate entry.
+ * @throws If input validation, candidate-log validation, prior witness-threshold checks, signer
+ * eligibility/verification-method validation, or proof signing fails.
  */
 export const signWitnessProofEntry = async (options: WitnessSigningOptions): Promise<WitnessProofFileEntry> => {
   if (options.trustedLog.length === 0) {
@@ -358,9 +323,7 @@ export const signWitnessProofEntry = async (options: WitnessSigningOptions): Pro
   const verifier = options.verifier ?? defaultVerifier;
   const candidateEntry = options.candidateLog[options.candidateLog.length - 1];
   const trustedTip = options.trustedLog[options.trustedLog.length - 1];
-  const requirement = await validateWitnessCandidate({
-    candidateLog: options.candidateLog,
-    trustedTipVersionId: trustedTip.versionId,
+  const requirement = await resolveWitnessCandidateRequirement(options.candidateLog, trustedTip.versionId, {
     verifier,
     witnessProofs: options.witnessProofs,
   });
