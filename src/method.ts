@@ -362,19 +362,13 @@ export const getWitnessRequirements = (log: DIDLog): WitnessRequirement[] => {
  * Verifies that every witness requirement in a DID log is satisfied by the locally supplied
  * witness proofs without network fetch.
  *
- * @param log The DID log to verify.
- * @param witnessProofs The witness proofs to verify against the log, in place of a network fetch.
- * @param options Optional verifier override.
+ * @param options The DID log, witness proofs, and optional verifier.
  * @returns Per-entry witness requirements annotated with counted approvals and satisfaction.
  * @throws If the log or supplied proofs fail any non-witness-threshold verification.
  */
-export const verifyWitnessProofs = async (
-  log: DIDLog,
-  witnessProofs: WitnessProofFileEntry[],
-  options: VerifyWitnessProofsOptions = {}
-): Promise<WitnessVerificationResult> => {
-  const { witnessChecks: checkOutcomes } = await resolveLogWithWitnessResults(log, {
-    witnessProofs,
+export const verifyWitnessProofs = async (options: VerifyWitnessProofsOptions): Promise<WitnessVerificationResult> => {
+  const { witnessChecks: checkOutcomes } = await resolveLogWithWitnessResults(options.log, {
+    witnessProofs: options.witnessProofs,
     verifier: options.verifier ?? defaultVerifier,
   });
 

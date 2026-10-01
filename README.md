@@ -357,7 +357,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `getWitnessRequirements(log: DIDLog): WitnessRequirement[]`
   Derives the witness approvals required for each entry in a DID log that requires witnessing, by applying the did:webvh witness transition rules (genesis activation, inheritance, replacement, and removal). Synchronous, performs no network fetch, and requires no `Verifier`. Returns `[]` when the log has no active witness requirement.
 
-- `verifyWitnessProofs(log: DIDLog, witnessProofs: WitnessProofFileEntry[], options?: { verifier?: Verifier }): Promise<WitnessVerificationResult>`
+- `verifyWitnessProofs(options: VerifyWitnessProofsOptions): Promise<WitnessVerificationResult>`
   Verifies every witness requirement in a DID log against the supplied `witnessProofs`, without any network fetch — proofs must be provided by the caller (e.g. proofs obtained for a proposed, not-yet-published log chain tip before it and its witness proofs are published). Returns `{ verified, requirements, rejectedProofs }`, reporting unmet thresholds as data (`verified: false`) rather than throwing. `rejectedProofs` contains structured, requirement-scoped diagnostics for proofs that were discarded, including a library-defined `code` such as `unknown-witness`, `duplicate-witness`, or `invalid-signature`, the proof entry/index, and the verification method. All other verification failures (hash chain, SCID, controller proof, etc.) still throw. These diagnostic codes are an API extension and are not additional did:webvh specification error codes.
 
 ### Witness lifecycle sequence
@@ -377,7 +377,10 @@ if (requirements.length > 0) {
   // witness service or manual approval flow), not part of this library.
   const prospectiveWitnessFile = await collectProofsOutsideTheLibrary(result, requirements);
 
-  const { verified } = await verifyWitnessProofs(result.log, prospectiveWitnessFile);
+  const { verified } = await verifyWitnessProofs({
+    log: result.log,
+    witnessProofs: prospectiveWitnessFile,
+  });
   if (!verified) {
     // Keep collecting proofs; this is expected, not an error.
   }

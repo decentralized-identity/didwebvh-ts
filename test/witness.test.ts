@@ -50,7 +50,7 @@ describe('Witness Implementation Tests', async () => {
 
   const expectResolverRequirementsToMatch = async (log: DIDLog, witnessProofs: WitnessProofFileEntry[]) => {
     const expected = getWitnessRequirements(log);
-    const result = await verifyWitnessProofs(log, witnessProofs, { verifier: testImplementation });
+    const result = await verifyWitnessProofs({ log, witnessProofs, verifier: testImplementation });
 
     expect(result.verified).toBe(true);
     expect(
@@ -758,7 +758,7 @@ describe('Witness Implementation Tests', async () => {
           ]),
         },
       ];
-      const resolved = await verifyWitnessProofs(initialDID.log, witnessProofs, { verifier: testImplementation });
+      const resolved = await verifyWitnessProofs({ log: initialDID.log, witnessProofs, verifier: testImplementation });
 
       expect(resolved.verified).toBe(true);
       expect(resolved.requirements).toEqual(
@@ -842,9 +842,9 @@ describe('Witness Implementation Tests', async () => {
 
       expect(witnessProof.versionId).toBe(candidate.log[1].versionId);
       expect(witnessProof.proof).toHaveLength(1);
-      await expect(verifyWitnessProofs(candidate.log, [witnessProof], { verifier })).resolves.toMatchObject({
-        verified: true,
-      });
+      await expect(
+        verifyWitnessProofs({ log: candidate.log, witnessProofs: [witnessProof], verifier })
+      ).resolves.toMatchObject({ verified: true });
     });
 
     test('rejects a candidate whose prefix tip does not match the trusted tip', async () => {
@@ -977,7 +977,7 @@ describe('Witness Implementation Tests', async () => {
         },
       ];
 
-      const result = await verifyWitnessProofs(initialDID.log, witnessProofs, { verifier: testImplementation });
+      const result = await verifyWitnessProofs({ log: initialDID.log, witnessProofs, verifier: testImplementation });
 
       expect(result.verified).toBe(true);
       expect(result.requirements).toEqual([
@@ -1017,16 +1017,16 @@ describe('Witness Implementation Tests', async () => {
         witnessVerificationMethod(witness3)
       );
 
-      const result = await verifyWitnessProofs(
-        initialDID.log,
-        [
+      const result = await verifyWitnessProofs({
+        log: initialDID.log,
+        witnessProofs: [
           {
             versionId,
             proof: [invalidSignatureProof, validWitness1Proof, validWitness1Proof, unknownWitnessProof],
           },
         ],
-        { verifier: testImplementation }
-      );
+        verifier: testImplementation,
+      });
 
       expect(result.verified).toBe(false);
       expect(result.rejectedProofs).toEqual(
@@ -1068,7 +1068,7 @@ describe('Witness Implementation Tests', async () => {
         },
       ];
 
-      const result = await verifyWitnessProofs(initialDID.log, witnessProofs, { verifier: testImplementation });
+      const result = await verifyWitnessProofs({ log: initialDID.log, witnessProofs, verifier: testImplementation });
 
       expect(result.verified).toBe(false);
       expect(result.requirements).toEqual([
@@ -1095,7 +1095,11 @@ describe('Witness Implementation Tests', async () => {
         verifier: testImplementation,
       });
 
-      const result = await verifyWitnessProofs(noWitnessDID.log, [], { verifier: testImplementation });
+      const result = await verifyWitnessProofs({
+        log: noWitnessDID.log,
+        witnessProofs: [],
+        verifier: testImplementation,
+      });
 
       expect(result).toEqual({ verified: true, requirements: [], rejectedProofs: [] });
     });
@@ -1104,7 +1108,9 @@ describe('Witness Implementation Tests', async () => {
       const tamperedLog: DIDLog = JSON.parse(JSON.stringify(initialDID.log));
       tamperedLog[0].parameters.scid = 'tampered-scid';
 
-      await expect(verifyWitnessProofs(tamperedLog, [], { verifier: testImplementation })).rejects.toThrow();
+      await expect(
+        verifyWitnessProofs({ log: tamperedLog, witnessProofs: [], verifier: testImplementation })
+      ).rejects.toThrow();
     });
 
     test('Verifies a proposed chain-tip update using a single cumulative proof for a 3-entry log', async () => {
@@ -1179,7 +1185,9 @@ describe('Witness Implementation Tests', async () => {
         },
       ];
 
-      const result = await verifyWitnessProofs(proposedV3.log, cumulativeWitnessProofs, {
+      const result = await verifyWitnessProofs({
+        log: proposedV3.log,
+        witnessProofs: cumulativeWitnessProofs,
         verifier: testImplementation,
       });
 
@@ -1245,7 +1253,9 @@ describe('Witness Implementation Tests', async () => {
         },
       ];
 
-      const result = await verifyWitnessProofs(deactivated.log, cumulativeWitnessProofs, {
+      const result = await verifyWitnessProofs({
+        log: deactivated.log,
+        witnessProofs: cumulativeWitnessProofs,
         verifier: testImplementation,
       });
 
