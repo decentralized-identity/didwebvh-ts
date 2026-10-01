@@ -2,7 +2,13 @@ import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interf
 import { concatBuffers } from './utils/buffer.js';
 import { canonicalizeStrict } from './utils/canonicalize.js';
 import { createHash, createSCID, deriveNextKeyHash } from './utils/crypto.js';
-import { decodeBase58Btc, decodeMultihash, MultihashAlgorithm, multibaseDecode } from './utils/multiformats.js';
+import {
+  decodeBase58Btc,
+  decodeMultihash,
+  MultibaseEncoding,
+  MultihashAlgorithm,
+  multibaseDecode,
+} from './utils/multiformats.js';
 import { parseDidKeyVerificationMethod } from './utils/verification-methods.js';
 import { validateWitnessParameter } from './witness.js';
 
@@ -105,6 +111,55 @@ export const newKeysAreInNextKeys = async (updateKeys: string[], previousNextKey
   }
 
   return true;
+};
+
+export const assertValidNextKeyHashes = (nextKeyHashes: unknown, context = 'nextKeyHashes'): string[] => {
+  if (!Array.isArray(nextKeyHashes)) {
+    throw new Error(`${context} must be an array of derived pre-rotation key hashes`);
+  }
+
+  return nextKeyHashes.map((nextKeyHash, index) => {
+    const label = `${context}[${index}]`;
+    if (typeof nextKeyHash !== 'string' || nextKeyHash.length === 0) {
+      throw new Error(`${label} must be a non-empty derived pre-rotation key hash`);
+    }
+
+    if (nextKeyHash.startsWith('did:key:')) {
+      throw new Error(
+        `${label} must be a derived pre-rotation key hash, not a did:key. Use deriveNextKeyHash() first.`
+      );
+    }
+
+    try {
+      const decodedHash = decodeBase58Btc(nextKeyHash);
+      const multihash = decodeMultihash(decodedHash);
+      if (multihash.algorithm !== MultihashAlgorithm.SHA2_256 || decodedHash.length !== 34) {
+        throw new Error('expected SHA-256 multihash');
+      }
+      return nextKeyHash;
+    } catch (hashError) {
+      try {
+        const decodedKey = multibaseDecode(nextKeyHash);
+        if (
+          decodedKey.encoding === MultibaseEncoding.BASE58_BTC &&
+          decodedKey.bytes[0] === 0xed &&
+          decodedKey.bytes[1] === 0x01
+        ) {
+          throw new Error(
+            `${label} must be a derived pre-rotation key hash, not an Ed25519 multikey. ` +
+              'Use deriveNextKeyHash() first.'
+          );
+        }
+      } catch (keyError) {
+        if (keyError instanceof Error && keyError.message.includes('Use deriveNextKeyHash() first.')) {
+          throw keyError;
+        }
+      }
+
+      const message = hashError instanceof Error ? hashError.message : String(hashError);
+      throw new Error(`${label} must be a base58btc-encoded SHA-256 multihash: ${message}`);
+    }
+  });
 };
 
 /**

@@ -37,6 +37,9 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 #### 2.1 did:key Parse Helper Root Exports Removed
 
 - **Removed**: Root exports for `parseDidKeyDid` and `parseDidKeyVerificationMethod`
+- **Retained**: `deriveNextKeyHash` remains a root export for deriving pre-rotation `nextKeyHashes`
+- **Validation**: `nextKeyHashes` must contain derived hashes; pass future update keys to `deriveNextKeyHash` first
+- **CLI**: Use `--next-key` to derive a hash from a future update key, or `--next-key-hash` for an already-derived hash
 - **Scope**: Package root imports from `didwebvh-ts`
 - **Reason**: Public API surface tightening
 - **Upgrade**: Replace root imports with app-level did:key parsing or validation logic → [Full guide](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports)

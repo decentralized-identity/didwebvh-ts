@@ -1,5 +1,11 @@
 import type { DIDDocument } from 'did-resolver';
-import { documentStateIsValid, hashChainIsValid, newKeysAreInNextKeys, scidIsFromHash } from '../assertions.js';
+import {
+  assertValidNextKeyHashes,
+  documentStateIsValid,
+  hashChainIsValid,
+  newKeysAreInNextKeys,
+  scidIsFromHash,
+} from '../assertions.js';
 import {
   DEFAULT_TTL_SECONDS,
   METHOD_PARAMETER_KEYS,
@@ -454,7 +460,10 @@ const processGenesisEntry = async ({
   }
   resolverContext.meta.portable = parameters.portable ?? resolverContext.meta.portable;
   resolverContext.meta.updateKeys = parameters.updateKeys as string[];
-  resolverContext.meta.nextKeyHashes = parameters.nextKeyHashes || [];
+  resolverContext.meta.nextKeyHashes =
+    parameters.nextKeyHashes !== undefined && parameters.nextKeyHashes !== null
+      ? assertValidNextKeyHashes(parameters.nextKeyHashes)
+      : [];
   resolverContext.meta.prerotation = resolverContext.meta.nextKeyHashes.length > 0;
   resolverContext.meta.witness = transitionWitnessState(undefined, parameters);
   resolverContext.meta.watchers = parameters.watchers ?? null;
@@ -575,7 +584,10 @@ const processSubsequentEntry = async ({
   // v0.5-specific nextKeyHashes truthiness: empty array clears prerotation
   // v1.0: explicit empty array also clears prerotation
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.nextKeyHashes)) {
-    const nextKeyHashes = parameters.nextKeyHashes ?? [];
+    const nextKeyHashes =
+      parameters.nextKeyHashes !== undefined && parameters.nextKeyHashes !== null
+        ? assertValidNextKeyHashes(parameters.nextKeyHashes)
+        : [];
     resolverContext.meta.nextKeyHashes = nextKeyHashes;
     resolverContext.meta.prerotation = nextKeyHashes.length > 0;
   }

@@ -137,6 +137,16 @@ pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl
 pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
 ```
 
+For pre-rotation, pass future update keys with `--next-key` to derive
+`nextKeyHashes` automatically, or pass already-derived hashes with
+`--next-key-hash`:
+
+```bash
+pnpm cli -- create --address example.com --next-key did:key:z6Mk...
+pnpm cli -- create --address example.com --next-key-hash Qm...
+pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --next-key did:key:z6Mk...
+```
+
 Pass `--witness-file` to use a local `did-witness.json` file instead:
 
 ```bash
@@ -393,6 +403,12 @@ against caller-supplied proofs.
 - `prepareDataForSigning(document: unknown, proof: DataIntegrityProofTemplate): Promise<Uint8Array>`
   Canonicalizes and hashes a document and proof template into the bytes passed to a signer.
 
+- `deriveNextKeyHash(input: string): Promise<string>`
+  Derives the did:webvh pre-rotation hash for a future update key. Accepts a
+  bare Ed25519 multikey, `did:key`, or `did:key` verification method and
+  normalizes it before hashing. The decoded key must contain the two-byte
+  Ed25519 multicodec header and exactly 32 bytes of public key material.
+
 - `createDataIntegrityProofTemplate(options): DataIntegrityProofTemplate`
   Creates an `eddsa-jcs-2022` Data Integrity proof template.
 
@@ -401,6 +417,11 @@ against caller-supplied proofs.
 
 - `AbstractCrypto`
   An abstract class for implementing custom signers.
+
+`nextKeyHashes` options are strict: callers must provide already-derived
+pre-rotation hashes, not `did:key` or multikey values. Use `deriveNextKeyHash`
+to create those values. The CLI's `--next-key` flag uses the same helper to
+derive hashes from future update keys; `--next-key-hash` remains strict.
 
 ## License
 
