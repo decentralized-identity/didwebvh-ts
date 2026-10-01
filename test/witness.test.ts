@@ -1737,6 +1737,23 @@ describe('Witness Implementation Tests', async () => {
     expect(countWitnessApprovals(proofs, [{ id: `did:key:${witness2.publicKeyMultibase}` }])).toBe(0);
   });
 
+  test('countWitnessApprovals rejects a configured witness proof with the wrong cryptosuite', async () => {
+    const versionId = initialDID.log[0].versionId;
+    const proof = await createWitnessProof(
+      createWitnessSigner(witness1),
+      versionId,
+      witnessVerificationMethod(witness1)
+    );
+    const proofWithInvalidCryptosuite = {
+      ...proof,
+      cryptosuite: 'invalid-suite',
+    } as unknown as DataIntegrityProof;
+
+    expect(() =>
+      countWitnessApprovals([proofWithInvalidCryptosuite], [{ id: `did:key:${witness1.publicKeyMultibase}` }])
+    ).toThrow('Invalid witness proof cryptosuite');
+  });
+
   describe('witness requirement transition helpers', () => {
     const activeWitness = () => ({ threshold: 1, witnesses: [{ id: `did:key:${witness1.publicKeyMultibase}` }] });
 
