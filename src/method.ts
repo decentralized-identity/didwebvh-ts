@@ -298,11 +298,7 @@ export const deactivateDID = async (
 };
 
 /**
- * Validates a controller-proposed candidate log and signs its final entry as a witness.
- * The candidate must add exactly one entry to a non-empty trusted log. Its
- * prefix is checked against the trusted tip, and the log is validated for
- * integrity, controller authorization, and prior witness requirements before
- * signing. If `witnessProofs` is omitted, validation may fetch witness proofs.
+ * Signs the final entry of a validated candidate log as an authorized witness.
  *
  * @param options Trusted log, candidate log, witness signer, and optional historical proofs.
  * @returns A witness proof file entry containing exactly one proof for the candidate entry.
