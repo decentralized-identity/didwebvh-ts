@@ -2,7 +2,7 @@ import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
 import { resolveLog, resolveLogWithWitnessResults } from './core/resolution.js';
-import { computeWitnessRequirementChecks } from './core/witness-requirements.js';
+import { computeWitnessRequirementChecks, toWitnessRequirement } from './core/witness-requirements.js';
 import { generateParallelDidWeb } from './did-document.js';
 import type {
   CreateDIDOptions,
@@ -27,15 +27,9 @@ import {
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime.js';
 import { normalizeUpdateKeys } from './utils/verification-methods.js';
-import {
-  deepClone,
-  fetchLogFromIdentifier,
-  normalizeDidAddress,
-  parseDidWebvhIdentifier,
-  requireDidDocumentId,
-} from './utils.js';
+import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils.js';
 import { defaultVerifier } from './verifier.js';
-import { normalizeWitnessThreshold, resolveWitnessParameter, validateWitnessParameter } from './witness.js';
+import { resolveWitnessParameter, validateWitnessParameter } from './witness.js';
 
 const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
   const resolvedWitness = resolveWitnessParameter(entry.parameters);
@@ -310,12 +304,7 @@ export const deactivateDID = async (
 export const getWitnessRequirements = (log: DIDLog): WitnessRequirement[] => {
   const checks = computeWitnessRequirementChecks(log);
 
-  return checks.map((check) => ({
-    versionId: check.targetVersionId,
-    versionNumber: check.targetVersionNumber,
-    threshold: normalizeWitnessThreshold(check.witness.threshold),
-    witnesses: deepClone(check.witness.witnesses ?? []),
-  }));
+  return checks.map(toWitnessRequirement);
 };
 
 /**
@@ -339,10 +328,7 @@ export const verifyWitnessProofs = async (
   });
 
   const requirements = checkOutcomes.map((check) => ({
-    versionId: check.targetVersionId,
-    versionNumber: check.targetVersionNumber,
-    threshold: normalizeWitnessThreshold(check.witness.threshold),
-    witnesses: deepClone(check.witness.witnesses ?? []),
+    ...toWitnessRequirement(check),
     approvals: check.approvals,
     satisfied: check.satisfied,
   }));
