@@ -19,5 +19,6 @@ export { getResolver } from './resolver.js';
 export type { ResolutionOptionsError, WebvhDocumentMetadata, WebvhResolutionMetadata } from './resolver-result.js';
 export { WEBVH_ERROR_TYPES } from './resolver-result.js';
 export { deriveNextKeyHash } from './utils/crypto.js';
+export { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats.js';
 export { fetchWitnessProofs } from './utils.js';
 export { defaultVerifier } from './verifier.js';
