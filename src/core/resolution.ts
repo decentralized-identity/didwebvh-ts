@@ -201,12 +201,9 @@ export const resolveLogWithWitnessResults = async (
       throw e;
     }
 
-    const decorateError = resolvedSnapshot.meta && !hasExplicitHistoricalSelector;
-    if (decorateError) {
-      const message = e instanceof Error ? e.message : String(e);
-      resolvedSnapshot.meta.error = 'invalidDid';
-      resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
-    }
+    const message = e instanceof Error ? e.message : String(e);
+    resolvedSnapshot.meta.error = 'invalidDid';
+    resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
   }
 
   if (logTraversalSucceeded) {
@@ -324,6 +321,10 @@ const processResolvedLogEntries = async ({
 
   // Process each log entry in order and update resolution context.
   for (let entryIndex = 0; entryIndex < logEntries.length; entryIndex++) {
+    if (resolverContext.meta.deactivated) {
+      throw new Error(`Log entry '${logEntries[entryIndex].versionId}' follows a deactivation entry`);
+    }
+
     const entryContext = validateAndParseLogEntry({
       entry: logEntries[entryIndex],
       expectedVersionNumber: entryIndex + 1,
