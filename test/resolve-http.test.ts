@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { DIDLog, FetchLike } from '../src/interfaces.js';
+import type { DIDLog, FetchLike, ResolutionOptions } from '../src/interfaces.js';
 import { createDID, resolveDID, resolveDIDFromLog } from '../src/method.js';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils.js';
 import {
@@ -102,6 +102,76 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didDocument?.id).toBe(did);
     expect(result.didResolutionMetadata.error).toBeUndefined();
   });
+
+  test.each(['versionId', 'versionNumber', 'versionTime'] as const)(
+    'does not return a selected version when witness proof retrieval fails (%s)',
+    async (selectorType) => {
+      const witnessDid = `did:key:${authKey.publicKeyMultibase}`;
+      const witnessed = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier,
+      });
+      const genesisEntry = witnessed.log[0];
+      const selector: Pick<ResolutionOptions, 'versionId' | 'versionNumber' | 'versionTime'> =
+        selectorType === 'versionId'
+          ? { versionId: genesisEntry.versionId }
+          : selectorType === 'versionNumber'
+            ? { versionNumber: 1 }
+            : { versionTime: new Date(Date.parse(genesisEntry.versionTime) + 1000) };
+
+      const fetchMock = vi.fn(async (url: string) =>
+        url.endsWith('did.jsonl')
+          ? createMockResponse(toJsonl(witnessed.log))
+          : createMockResponse('', { ok: false, status: 503 })
+      ) as unknown as FetchLike;
+
+      const result = await resolveDID(witnessed.did, { ...selector, verifier, fetch: fetchMock });
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.error).toBe('internalError');
+    }
+  );
+
+  test.each(['versionId', 'versionNumber', 'versionTime'] as const)(
+    'enforces witness threshold for a selected version when the witness proof file returns 404 (%s)',
+    async (selectorType) => {
+      const witnessDid = `did:key:${authKey.publicKeyMultibase}`;
+      const witnessed = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier,
+      });
+      const genesisEntry = witnessed.log[0];
+      const selector: Pick<ResolutionOptions, 'versionId' | 'versionNumber' | 'versionTime'> =
+        selectorType === 'versionId'
+          ? { versionId: genesisEntry.versionId }
+          : selectorType === 'versionNumber'
+            ? { versionNumber: 1 }
+            : { versionTime: new Date(Date.parse(genesisEntry.versionTime) + 1000) };
+
+      const fetchMock = vi.fn(async (url: string) =>
+        url.endsWith('did.jsonl')
+          ? createMockResponse(toJsonl(witnessed.log))
+          : createMockResponse('', { ok: false, status: 404 })
+      ) as unknown as FetchLike;
+
+      const result = await resolveDID(witnessed.did, { ...selector, verifier, fetch: fetchMock });
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.message).toContain(
+        `Witness threshold not met for version ${witnessed.log[0].versionId}`
+      );
+    }
+  );
 
   test.each([
     ['localhost.example.com', [], 'https://localhost.example.com/.well-known/did.jsonl'],

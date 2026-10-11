@@ -181,15 +181,19 @@ export const resolveLogWithWitnessResults = async (
   const resolverContext = createInitialResolverContext();
   const hasExplicitHistoricalSelector =
     options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
+  let logTraversalSucceeded = false;
 
   try {
-    // Stage 2: process log entries and enforce post-loop checks.
+    // Stage 2: process log entries. Historical selectors may preserve a result
+    // when a later log entry is invalid, but witness retrieval errors must not
+    // be handled by that fallback.
     await processResolvedLogEntries({
       resolverContext,
       logEntries,
       initialMethod,
       options,
     });
+    logTraversalSucceeded = true;
   } catch (e) {
     // Stage 3: preserve a captured historical result when possible.
     const resolvedSnapshot = resolverContext.resolvedSnapshot;
@@ -203,6 +207,14 @@ export const resolveLogWithWitnessResults = async (
       resolvedSnapshot.meta.error = 'invalidDid';
       resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
     }
+  }
+
+  if (logTraversalSucceeded) {
+    await finalizeResolutionChecks({
+      resolverContext,
+      options,
+      logEntries,
+    });
   }
 
   // Stage 4: finalize fallback selection and shape the response.
@@ -306,7 +318,7 @@ const processResolvedLogEntries = async ({
   logEntries: DIDLog;
   initialMethod: string;
   options: InternalResolutionOptions;
-}): Promise<WitnessCheckResult[]> => {
+}): Promise<void> => {
   let activeMethod = initialMethod; // mutable; changes only on a single permitted upgrade
   let transitionOccurred = false;
 
@@ -403,14 +415,6 @@ const processResolvedLogEntries = async ({
       meta: { ...resolverContext.meta },
     };
   }
-
-  // Run post-iteration invariants and witness enforcement.
-  await finalizeResolutionChecks({
-    resolverContext,
-    options,
-    logEntries,
-  });
-  return resolverContext.witnessChecks ?? [];
 };
 
 const createInitialResolverContext = (): ResolverContext => {
