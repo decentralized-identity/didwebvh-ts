@@ -113,13 +113,15 @@ export const resolveLog = async (
 };
 
 /**
- * Resolves a candidate log once, confirms that its prefix reaches the trusted
- * tip, and enforces historical witness thresholds while returning the
- * requirement governing the candidate entry.
+ * Resolves a candidate log once and enforces historical witness thresholds
+ * while returning the requirement governing its final entry. For continuation
+ * signing, when a trusted tip is supplied, confirms that the candidate prefix
+ * reaches that tip. Genesis signing supplies no trusted tip and skips this
+ * continuity check.
  */
 export const resolveWitnessCandidateRequirement = async (
   candidateLog: DIDLog,
-  trustedTipVersionId: string,
+  trustedTipVersionId: string | undefined,
   options: { verifier: Verifier; witnessProofs: WitnessProofFileEntry[] }
 ): Promise<WitnessRequirement | undefined> => {
   const { witnessChecks } = await resolveLogWithWitnessResults(candidateLog, options);
@@ -127,7 +129,7 @@ export const resolveWitnessCandidateRequirement = async (
   const candidateTipVersionId = candidateEntry?.versionId;
   const candidatePrefixTipVersionId = candidateLog.at(-2)?.versionId;
 
-  if (candidatePrefixTipVersionId !== trustedTipVersionId) {
+  if (trustedTipVersionId !== undefined && candidatePrefixTipVersionId !== trustedTipVersionId) {
     throw new Error('Candidate log does not extend the trusted log tip');
   }
 

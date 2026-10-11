@@ -437,4 +437,52 @@ describe('Witness CLI End-to-End Tests', () => {
       didDocument: { id: expect.any(String) },
     });
   });
+
+  test('Generate a witness proof for a genesis candidate using CLI', async () => {
+    const trustedLogFile = join(TEST_DIR, 'empty-trusted-witness-log.jsonl');
+    const candidateLogFile = join(TEST_DIR, 'genesis-candidate-log.jsonl');
+    const historicalProofFile = join(TEST_DIR, 'empty-historical-witness-proof.json');
+    const proofFile = join(TEST_DIR, 'genesis-witness-proof.json');
+    const controller = await generateTestVerificationMethod();
+    const witness = await generateTestVerificationMethod();
+    if (!controller.publicKeyMultibase || !witness.secretKeyMultibase) {
+      throw new Error('Generated test verification methods must contain key material');
+    }
+
+    const witnessDid = `did:key:${witness.publicKeyMultibase}`;
+    const genesis = await createDID({
+      address: 'localhost:8000',
+      signer: createTestSigner(controller),
+      updateKeys: [controller.publicKeyMultibase],
+      didDocument: createTestDIDDocument(controller),
+      witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+      verifier: createTestVerifier(controller),
+    });
+
+    fs.writeFileSync(trustedLogFile, '');
+    fs.writeFileSync(historicalProofFile, '[]');
+    await writeLogToDisk(candidateLogFile, genesis.log);
+
+    const proc = runCli([
+      'generate-witness-proof',
+      '--trusted-log',
+      trustedLogFile,
+      '--candidate-log',
+      candidateLogFile,
+      '--witness-did',
+      witnessDid,
+      '--witness-secret',
+      witness.secretKeyMultibase,
+      '--witness-file',
+      historicalProofFile,
+      '--output',
+      proofFile,
+    ]);
+
+    expect(proc.exitCode, proc.stderr).toBe(0);
+    const witnessProofs = JSON.parse(fs.readFileSync(proofFile, 'utf8')) as WitnessProofFileEntry[];
+    expect(witnessProofs).toHaveLength(1);
+    expect(witnessProofs[0]?.versionId).toBe(genesis.log[0]?.versionId);
+    expect(witnessProofs[0]?.proof).toHaveLength(1);
+  });
 });

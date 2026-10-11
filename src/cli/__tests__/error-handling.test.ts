@@ -125,6 +125,8 @@ describe('CLI error handling', () => {
     });
 
     test('wraps a malformed witness DID as a CliError', async () => {
+      const witnessFile = join(TEST_DIR, 'malformed-witness-proofs.json');
+      fs.writeFileSync(witnessFile, '[]');
       const errorSpy = await runGenerateWitnessProof([
         '--trusted-log',
         join(TEST_DIR, 'trusted.jsonl'),
@@ -134,6 +136,8 @@ describe('CLI error handling', () => {
         'not-a-did-key',
         '--witness-secret',
         'z1A',
+        '--witness-file',
+        witnessFile,
         '--output',
         join(TEST_DIR, 'malformed-witness-output.json'),
       ]);

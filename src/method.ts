@@ -300,7 +300,7 @@ export const deactivateDID = async (
 /**
  * Signs the final entry of a validated candidate log as an authorized witness.
  *
- * @param options Trusted log, candidate log, witness signer, and historical proofs.
+ * @param options Trusted log (empty for genesis signing), candidate log, witness signer, and historical proofs.
  * @returns A witness proof file entry containing exactly one proof for the candidate entry.
  * @throws If input validation, candidate-log validation, prior witness-threshold checks, signer
  * eligibility/verification-method validation, or proof signing fails.
@@ -309,10 +309,11 @@ export const signWitnessProofEntry = async (options: WitnessSigningOptions): Pro
   if (!Array.isArray(options.witnessProofs)) {
     throw new Error('witnessProofs is required; pass [] for an empty witness list');
   }
-  if (options.trustedLog.length === 0) {
-    throw new Error('trustedLog must contain at least one entry');
+  const isGenesisSigning = options.trustedLog.length === 0;
+  if (isGenesisSigning && options.candidateLog.length !== 1) {
+    throw new Error('Genesis candidateLog must contain exactly one genesis entry');
   }
-  if (options.candidateLog.length !== options.trustedLog.length + 1) {
+  if (!isGenesisSigning && options.candidateLog.length !== options.trustedLog.length + 1) {
     throw new Error('candidateLog must contain exactly one entry more than trustedLog');
   }
   if (!options.witnessSigner) {
@@ -321,8 +322,8 @@ export const signWitnessProofEntry = async (options: WitnessSigningOptions): Pro
 
   const verifier = options.verifier ?? defaultVerifier;
   const candidateEntry = options.candidateLog[options.candidateLog.length - 1];
-  const trustedTip = options.trustedLog[options.trustedLog.length - 1];
-  const requirement = await resolveWitnessCandidateRequirement(options.candidateLog, trustedTip.versionId, {
+  const trustedTip = options.trustedLog.at(-1);
+  const requirement = await resolveWitnessCandidateRequirement(options.candidateLog, trustedTip?.versionId, {
     verifier,
     witnessProofs: options.witnessProofs,
   });

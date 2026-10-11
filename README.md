@@ -358,7 +358,8 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
   (`{ versionId, proof[] }`) for a single target version. The function never
   fetches proofs itself: `witnessProofs` must be supplied explicitly. Pass `[]`
   to provide an empty witness list; signing fails if required historical
-  witness thresholds are unmet.
+  witness thresholds are unmet. To sign a genesis entry, provide an empty
+  `trustedLog` and a `candidateLog` containing only the genesis entry.
 
 - `signWitnessProofEntries(versionIds: string[], witnesses: WitnessEntry[], witnessSignersByDid: Record<string, WitnessSigner>, created?: string): Promise<WitnessSigningResult[]>`
   Signs did-witness proof entries for multiple target versions.

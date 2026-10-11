@@ -804,17 +804,17 @@ describe('Witness Implementation Tests', async () => {
       return { candidate, trusted, verifier, witnessProofs };
     };
 
-    test('rejects an empty trusted log', async () => {
+    test('rejects empty trusted logs unless the candidate contains exactly one genesis entry', async () => {
       const signer = createTestSigner(authKey);
 
       await expect(
         signWitnessProofEntry({
           trustedLog: [],
-          candidateLog: [],
+          candidateLog: [initialDID.log[0], initialDID.log[0]],
           witnessSigner: signer,
           witnessProofs: [],
         })
-      ).rejects.toThrow('trustedLog must contain at least one entry');
+      ).rejects.toThrow('Genesis candidateLog must contain exactly one genesis entry');
     });
 
     test('rejects a candidate without exactly one new entry', async () => {
@@ -847,6 +847,83 @@ describe('Witness Implementation Tests', async () => {
       await expect(verifyWitnessProofs(candidate.log, [witnessProof], { verifier })).resolves.toMatchObject({
         verified: true,
       });
+    });
+
+    test('signs a genesis entry without enforcing its threshold', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { trusted, verifier } = await createWitnessedCandidate(controller, witness);
+
+      const witnessProof = await signWitnessProofEntry({
+        trustedLog: [],
+        candidateLog: [trusted.log[0]],
+        witnessSigner: createTestSigner(witness),
+        witnessProofs: [],
+        verifier,
+      });
+
+      expect(witnessProof.versionId).toBe(trusted.log[0].versionId);
+      expect(witnessProof.proof).toHaveLength(1);
+    });
+
+    test('rejects a non-genesis entry supplied as the sole candidate entry when trustedLog is empty', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, verifier } = await createWitnessedCandidate(controller, witness);
+      const standaloneSubsequentEntry = {
+        ...candidate.log[1],
+        parameters: {
+          ...candidate.log[1].parameters,
+          method: candidate.log[0].parameters.method,
+        },
+      };
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: [],
+          candidateLog: [standaloneSubsequentEntry],
+          witnessSigner: createTestSigner(witness),
+          witnessProofs: [],
+          verifier,
+        })
+      ).rejects.toThrow("version '2' in log doesn't match expected '1'.");
+    });
+
+    test('enforces witness membership for genesis signing', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const unauthorized = await generateTestVerificationMethod();
+      const { trusted, verifier } = await createWitnessedCandidate(controller, witness);
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: [],
+          candidateLog: [trusted.log[0]],
+          witnessSigner: createTestSigner(unauthorized),
+          witnessProofs: [],
+          verifier,
+        })
+      ).rejects.toThrow('not a member');
+    });
+
+    test('rejects a malformed genesis candidate', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { trusted, verifier } = await createWitnessedCandidate(controller, witness);
+      const malformedGenesis = {
+        ...trusted.log[0],
+        state: { ...trusted.log[0].state, id: 'not-a-did' },
+      };
+
+      await expect(
+        signWitnessProofEntry({
+          trustedLog: [],
+          candidateLog: [malformedGenesis],
+          witnessSigner: createTestSigner(witness),
+          witnessProofs: [],
+          verifier,
+        })
+      ).rejects.toThrow();
     });
 
     test('does not fetch remote proofs when a witness proof list is provided', async () => {

@@ -34,6 +34,7 @@ import {
   type CliSigningKey,
   getVerificationMethodsFromEnv,
   readLogFromDisk,
+  readLogFromString,
   writeLogToDisk,
   writeVerificationMethodToEnv,
 } from './persistence.js';
@@ -66,7 +67,7 @@ Options:
   --witness-file [file]     Path to witness proofs file (optional for resolve, update, deactivate)
 
   # Options for generate-witness-proof:
-  --trusted-log [file]      Witness-owned published DID log
+  --trusted-log [file]      Witness-owned published DID log (empty for genesis signing)
   --candidate-log [file]    Candidate log containing one new entry
   --witness-file [file]     Historical witness proofs (required; use [] for an empty witness list)
   --witness-did [did]       Signing witness DID (did:key)
@@ -637,8 +638,9 @@ async function handleGenerateWitnessProof(args: string[]) {
       publicKeyMultibase,
       secretKeyMultibase: witnessSecret,
     };
+    const trustedLogText = fs.readFileSync(trustedLogPath, 'utf8').trim();
     const result = await signWitnessProofEntry({
-      trustedLog: await readLogFromDisk(trustedLogPath),
+      trustedLog: trustedLogText ? readLogFromString(trustedLogText) : [],
       candidateLog: await readLogFromDisk(candidateLogPath),
       witnessSigner: createCustomCrypto(vm),
       witnessProofs,
