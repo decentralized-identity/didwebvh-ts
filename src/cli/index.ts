@@ -68,7 +68,7 @@ Options:
   # Options for generate-witness-proof:
   --trusted-log [file]      Witness-owned published DID log
   --candidate-log [file]    Candidate log containing one new entry
-  --witness-file [file]     Historical witness proofs (optional)
+  --witness-file [file]     Historical witness proofs (required; use [] for an empty witness list)
   --witness-did [did]       Signing witness DID (did:key)
   --witness-secret [secret] Signing witness secret key multibase
 
@@ -609,6 +609,7 @@ async function handleGenerateWitnessProof(args: string[]) {
   const witnessSecret = Array.isArray(options['witness-secret'])
     ? options['witness-secret'][0]
     : options['witness-secret'];
+  const witnessFilePath = options['witness-file'] as string | undefined;
   const output = options.output as string;
 
   if (!trustedLogPath || !candidateLogPath) {
@@ -620,8 +621,14 @@ async function handleGenerateWitnessProof(args: string[]) {
   if (!witnessDid || !witnessSecret) {
     throw new CliError('--witness-did and --witness-secret are required');
   }
-
+  if (!witnessFilePath) {
+    throw new CliError('--witness-file is required; use a JSON array (possibly []) for the witness list');
+  }
   try {
+    const witnessProofs = readWitnessProofsFile(witnessFilePath);
+    if (!witnessProofs) {
+      throw new CliError('--witness-file could not be read');
+    }
     const { did: normalizedDid, keyMultibase: publicKeyMultibase } = parseDidKeyDid(witnessDid);
     const vm: CliSigningKey = {
       id: `${normalizedDid}#${publicKeyMultibase}`,
@@ -634,7 +641,7 @@ async function handleGenerateWitnessProof(args: string[]) {
       trustedLog: await readLogFromDisk(trustedLogPath),
       candidateLog: await readLogFromDisk(candidateLogPath),
       witnessSigner: createCustomCrypto(vm),
-      witnessProofs: readWitnessProofsFile(options['witness-file'] as string | undefined),
+      witnessProofs,
     });
 
     fs.writeFileSync(output, JSON.stringify([result], null, 2));

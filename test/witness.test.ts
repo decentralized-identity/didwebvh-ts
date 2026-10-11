@@ -812,6 +812,7 @@ describe('Witness Implementation Tests', async () => {
           trustedLog: [],
           candidateLog: [],
           witnessSigner: signer,
+          witnessProofs: [],
         })
       ).rejects.toThrow('trustedLog must contain at least one entry');
     });
@@ -823,6 +824,7 @@ describe('Witness Implementation Tests', async () => {
           trustedLog: [initialDID.log[0]],
           candidateLog: [initialDID.log[0]],
           witnessSigner: signer,
+          witnessProofs: [],
         })
       ).rejects.toThrow('candidateLog must contain exactly one entry more than trustedLog');
     });
@@ -845,6 +847,28 @@ describe('Witness Implementation Tests', async () => {
       await expect(verifyWitnessProofs(candidate.log, [witnessProof], { verifier })).resolves.toMatchObject({
         verified: true,
       });
+    });
+
+    test('does not fetch remote proofs when a witness proof list is provided', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier, witnessProofs } = await createWitnessedCandidate(controller, witness);
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected network fetch'));
+
+      try {
+        await expect(
+          signWitnessProofEntry({
+            trustedLog: trusted.log,
+            candidateLog: candidate.log,
+            witnessSigner: createTestSigner(witness),
+            witnessProofs,
+            verifier,
+          })
+        ).resolves.toMatchObject({ versionId: candidate.log[1].versionId });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
     });
 
     test('rejects a candidate whose prefix tip does not match the trusted tip', async () => {
@@ -902,6 +926,7 @@ describe('Witness Implementation Tests', async () => {
           trustedLog: trusted.log,
           candidateLog: candidate.log,
           witnessSigner: createTestSigner(controller),
+          witnessProofs: [],
           verifier,
         })
       ).rejects.toThrow('Candidate entry is not governed by an active witness requirement');
@@ -958,6 +983,27 @@ describe('Witness Implementation Tests', async () => {
           verifier,
         } as Parameters<typeof signWitnessProofEntry>[0])
       ).rejects.toThrow('witnessSigner is required');
+    });
+
+    test('requires an explicit witness proof list and does not fetch remote proofs', async () => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      const { candidate, trusted, verifier } = await createWitnessedCandidate(controller, witness);
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected network fetch'));
+
+      try {
+        await expect(
+          signWitnessProofEntry({
+            trustedLog: trusted.log,
+            candidateLog: candidate.log,
+            witnessSigner: createTestSigner(witness),
+            verifier,
+          } as unknown as Parameters<typeof signWitnessProofEntry>[0])
+        ).rejects.toThrow('witnessProofs is required; pass [] for an empty witness list');
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
     });
   });
 

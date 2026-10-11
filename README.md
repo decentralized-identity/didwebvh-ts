@@ -345,11 +345,20 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 
 ### Witness Functions
 
+- `fetchWitnessProofs(did: string, fetchFn?: FetchLike): Promise<WitnessProofFileEntry[]>`
+  Fetches the DID's published `did-witness.json` file. Returns `[]` when the
+  file is not found (HTTP 404); other HTTP errors are thrown.
+
 - `createWitnessProof(signer, versionId, verificationMethod, created?): Promise<DataIntegrityProof>`
   Creates and signs one witness proof for a specific `versionId`.
 
 - `signWitnessProofEntry(options: WitnessSigningOptions): Promise<WitnessSigningResult>`
-  Signs one did-witness proof entry (`{ versionId, proof[] }`) for a single target version.
+  Verifies the trusted/candidate log continuation and supplied historical
+  witness proofs, then signs one did-witness proof entry
+  (`{ versionId, proof[] }`) for a single target version. The function never
+  fetches proofs itself: `witnessProofs` must be supplied explicitly. Pass `[]`
+  to provide an empty witness list; signing fails if required historical
+  witness thresholds are unmet.
 
 - `signWitnessProofEntries(versionIds: string[], witnesses: WitnessEntry[], witnessSignersByDid: Record<string, WitnessSigner>, created?: string): Promise<WitnessSigningResult[]>`
   Signs did-witness proof entries for multiple target versions.

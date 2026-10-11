@@ -300,12 +300,15 @@ export const deactivateDID = async (
 /**
  * Signs the final entry of a validated candidate log as an authorized witness.
  *
- * @param options Trusted log, candidate log, witness signer, and optional historical proofs.
+ * @param options Trusted log, candidate log, witness signer, and historical proofs.
  * @returns A witness proof file entry containing exactly one proof for the candidate entry.
  * @throws If input validation, candidate-log validation, prior witness-threshold checks, signer
  * eligibility/verification-method validation, or proof signing fails.
  */
 export const signWitnessProofEntry = async (options: WitnessSigningOptions): Promise<WitnessProofFileEntry> => {
+  if (!Array.isArray(options.witnessProofs)) {
+    throw new Error('witnessProofs is required; pass [] for an empty witness list');
+  }
   if (options.trustedLog.length === 0) {
     throw new Error('trustedLog must contain at least one entry');
   }

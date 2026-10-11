@@ -106,7 +106,7 @@ export interface WitnessSigningOptions {
   trustedLog: DIDLog;
   candidateLog: DIDLog;
   witnessSigner: Signer<Pick<DIDLogEntry, 'versionId'>>;
-  witnessProofs?: WitnessProofFileEntry[];
+  witnessProofs: WitnessProofFileEntry[];
   verifier?: Verifier;
 }
 

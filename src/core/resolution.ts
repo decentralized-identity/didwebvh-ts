@@ -120,7 +120,7 @@ export const resolveLog = async (
 export const resolveWitnessCandidateRequirement = async (
   candidateLog: DIDLog,
   trustedTipVersionId: string,
-  options: { verifier: Verifier; witnessProofs?: WitnessProofFileEntry[] }
+  options: { verifier: Verifier; witnessProofs: WitnessProofFileEntry[] }
 ): Promise<WitnessRequirement | undefined> => {
   const { witnessChecks } = await resolveLogWithWitnessResults(candidateLog, options);
   const candidateEntry = candidateLog.at(-1);
