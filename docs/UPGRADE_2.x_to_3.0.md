@@ -8,10 +8,12 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
 
 1. **Resolution result shape** — now returns W3C standard format
 2. **Explicit DID document authoring** — callers provide complete W3C `didDocument` state
-3. **Proof helper exports** — stricter public API
+3. **Proof and signing API** — signing is performed through operation-specific APIs
+  - `prepareDataForSigning` supports custom `Signer` implementations
+  - Witness signing uses `signWitnessProofEntry`, which validates the candidate log before signing
   - Root parser exports `parseDidKeyDid` and `parseDidKeyVerificationMethod` removed
   - `deriveNextKeyHash` remains exported for pre-rotation `nextKeyHashes`
-4. **Witness proof callback contract** — signer supplies only signature data
+4. **Witness signer contract** — signer supplies only signature data through `Signer`
 5. **Witness metadata shape** — always normalized to object form
 
 ---
@@ -185,11 +187,29 @@ const { did, doc } = await createDID({
 
 ---
 
-## 3. Proof Helper Exports
+## 3. Public Proof and Signing APIs
 
 ### What Changed
 
-The `createProof` export has been removed. Witness proofs are now created exclusively via `createWitnessProof`.
+Use the public operation APIs for DID:webvh signing:
+
+- `createDID`, `updateDID`, and `deactivateDID` create and sign controller-authored DID log entries.
+- `signWitnessProofEntry` validates a candidate continuation and supplied historical witness proofs, checks signer membership, and signs one witness proof for the candidate entry.
+- `verifyWitnessProofs` validates witness proof files against a DID log.
+- `getWitnessRequirements` reports the witness approvals required for each DID-log entry.
+
+`prepareDataForSigning`, the `DataIntegrityProofTemplate` type, and the
+multibase helpers `MultibaseEncoding`, `multibaseEncode`, and `multibaseDecode`
+support the cryptographic portion of a custom `Signer`. A custom signer
+implements `sign` and `getVerificationMethodId`; it does not need to implement
+proof construction, signature verification, or DID log/witness validation.
+Use `prepareDataForSigning` to obtain canonicalized signing bytes and the
+multibase helpers to encode signature values or decode key material. The
+supported multibase encodings are base64url without padding and base58btc.
+Implement the `Signer` interface directly when only custom signing is needed;
+`AbstractCrypto` is for implementations that also provide signature
+verification. A custom `Verifier` is only needed to override the library's
+default signature verifier.
 
 **Old (2.x)**:
 
@@ -207,13 +227,14 @@ const proof = await createProof({
 **New (3.0.0)**:
 
 ```typescript
-import { createWitnessProof } from 'didwebvh-ts';
+import { signWitnessProofEntry } from 'didwebvh-ts';
 
-const proof = await createWitnessProof(
-  signerCallback,
-  versionId,
-  verificationMethod
-);
+const witnessProofEntry = await signWitnessProofEntry({
+  trustedLog,
+  candidateLog, // trustedLog plus exactly one candidate entry
+  witnessSigner,
+  witnessProofs, // explicitly supplied proofs for earlier entries; [] if none
+});
 ```
 
 ### Migration Steps
@@ -224,25 +245,32 @@ const proof = await createWitnessProof(
    grep -r "createProof" src/
    ```
 
-2. **Replace with `createWitnessProof`**:
+2. **If the proof is a did:webvh witness proof, replace it with `signWitnessProofEntry`**:
 
    ```typescript
-   // Old
-   const proof = await createProof(options);
-   
-   // New
-   const proof = await createWitnessProof(
-     signerCallback,
-     versionId,
-     verificationMethod
-   );
+   const witnessProofEntry = await signWitnessProofEntry({
+     trustedLog,
+     candidateLog,
+     witnessSigner,
+     witnessProofs: priorWitnessProofs,
+   });
    ```
 
-   **See Section 4** for details on how the `signerCallback` contract has changed.
+   For genesis witnessing, pass `trustedLog: []` and a `candidateLog`
+   containing exactly the genesis entry. For a later version, `candidateLog`
+   must contain exactly one entry more than `trustedLog`. Supply all required
+   historical proofs explicitly; pass `[]` only when the historical proof list
+   is intentionally empty. The function returns a `WitnessProofFileEntry` for
+   one witness; the DID controller combines multiple witnesses' proofs for the same version in the witness proof file.
+
+3. **For other proof types**, use an application-owned Data Integrity
+   implementation suited to that proof's data model.
 
 ### Why This Changed
 
-The old `createProof` was overly generic and made it difficult to enforce did:webvh witness proof requirements (strict `verificationMethod` format, `proofPurpose: assertionMethod`, hardcoded `cryptosuite`, etc.). The new `createWitnessProof` is purpose-built for witness proofs with a strict callback contract that prevents misconfiguration.
+Public signing methods couple signing to DID:webvh operation validation,
+including log continuity, key authorization, deactivation state, and witness
+requirements.
 
 ### 3.2 did:key Parse Helper Root Exports
 
@@ -293,112 +321,61 @@ import { parseDidKeyDid, parseDidKeyVerificationMethod } from 'didwebvh-ts';
 
 ---
 
-## 4. Witness Proof Callback Contract
+## 4. Witness Signer Contract
 
 ### What Changed
 
-Signer callbacks passed to `createWitnessProof` now have a strict contract: they supply **only** the signature material (`proofValue`). The library controls all proof structure fields:
+`signWitnessProofEntry` accepts a `Signer<Pick<DIDLogEntry, 'versionId'>>`
+object, not a free-standing proof callback. The signer signs the candidate
+entry's `versionId` and returns only `{ proofValue }`; the library constructs
+the Data Integrity proof and controls its proof metadata.
 
 | Field | Controlled By | Value |
 | ------- | --------------- | ------- |
 | `cryptosuite` | Library | `eddsa-jcs-2022` (hardcoded, immutable) |
 | `proofPurpose` | Library | `assertionMethod` (hardcoded, immutable) |
-| `verificationMethod` | Function parameter | Must be a valid `did:key:...` |
-| `created` | Function parameter | ISO 8601 timestamp (defaults to `now()`) |
-| `proofValue` | Signer callback | Return this from your callback |
+| `verificationMethod` | `witnessSigner.getVerificationMethodId()` | Must identify a valid did:key witness |
+| `created` | Library | Generated by the library |
+| `proofValue` | `witnessSigner.sign()` | Return this from the signer |
 
-Callbacks can no longer override proof metadata — this hardens security by preventing misconfiguration.
+The signer must be a member of the witness list governing the candidate entry.
+Before signing, the method verifies the trusted/candidate log relationship and
+supplied historical proofs. It never fetches witness proofs: callers must
+provide `witnessProofs`, including an explicit `[]` when the prior proof list is
+empty.
 
 ### Migration Steps
 
-1. **Update signer callbacks** to return only `proofValue`:
-
-   **Old (2.x)**:
-
-   ```typescript
-   const signer = async (data) => {
-     const signature = await signData(data);
-     return {
-       proofValue: signature,
-       verificationMethod: 'did:key:...',    // ✗ not allowed in 3.0.0
-       created: new Date().toISOString(),    // ✗ not allowed in 3.0.0
-       proofPurpose: 'assertionMethod',      // ✗ not allowed in 3.0.0
-       cryptosuite: 'eddsa-jcs-2022',        // ✗ not allowed in 3.0.0
-     };
-   };
-   ```
-
-   **New (3.0.0)**:
-
-   ```typescript
-   const signer = async (data) => {
-     const signature = await signData(data);
-     return {
-       proofValue: signature, // ✓ return only this field
-     };
-   };
-   ```
-
-2. **Pass proof metadata via function parameters instead**:
-
-   **Old (2.x)**: Metadata was in the callback's return object  
-   **New (3.0.0)**: Metadata is passed as parameters to `createWitnessProof`
-
-   ```typescript
-   const proof = await createWitnessProof(
-     // Parameter 1: Signer callback
-     async (doc, proofTemplate) => ({
-       proof: { 
-         proofValue: await signer.sign(doc) 
-       }
-     }),
-     // Parameter 2: versionId (target DID log version)
-     '1-abc123def456',
-     // Parameter 3: verificationMethod (witness key)
-     'did:key:z6Mky...#z6Mky...',
-     // Parameter 4: created (optional, defaults to now)
-     new Date().toISOString()
-   );
-   ```
-
-3. **Why this matters**: The strict callback contract ensures:
-   - **Cryptosuite cannot be changed** — prevents accidental use of non-compliant algorithms
-   - **Proof purpose is always `assertionMethod`** — required by did:webvh witness proofs
-   - **Verification method is validated** — must be a `did:key:...` URL
-   - **Signer only handles the signature** — clear separation of concerns
-
-### Common Pattern
+Implement `Signer` with the cryptographic library and key management used by
+your application. `prepareDataForSigning` can produce the bytes to sign:
 
 ```typescript
-const proof = await createWitnessProof(
-  // Minimal signer: just convert signature bytes to hex or multibase
-  async (doc) => ({
-    proof: { 
-      proofValue: await ed25519Signer.sign(doc) 
-    }
-  }),
-  versionId,
-  'did:key:z6MkhaXgBZDvotzX8L2j6mVGXoLDrxsEZoF36liSFmMethod#z6MkhaXgBZDvotzX8L2j6mVGXoLDrxsEZoF36liSFmMethod',
-  new Date().toISOString()
-);
-   
-   // The resulting proof will have:
-   // - cryptosuite: 'eddsa-jcs-2022' (library-controlled)
-   // - proofPurpose: 'assertionMethod' (library-controlled)
-   // - verificationMethod: <your did:key:...> (set via parameter)
-   // - proofValue: <from signer callback> (only caller-supplied data)
-   ```
+import { prepareDataForSigning, signWitnessProofEntry } from 'didwebvh-ts';
+import type { DIDLogEntry, Signer } from 'didwebvh-ts';
+
+const witnessSigner: Signer<Pick<DIDLogEntry, 'versionId'>> = {
+  getVerificationMethodId: () => witnessVerificationMethod,
+  async sign({ document, proof }) {
+    const signingBytes = await prepareDataForSigning(document, proof);
+    const signature = await signWithApplicationKey(signingBytes);
+    return { proofValue: encodeSignature(signature) };
+  },
+};
+```
+
+`signWithApplicationKey` and `encodeSignature` above are application-provided.
+The signer is only responsible for producing the signature and reporting its
+verification method ID. The library builds the witness proof, verifies signer
+eligibility and historical proofs, and validates the candidate log; no custom
+verification or DID-webvh validation implementation is required. Do not
+construct the witness proof yourself or pass proof metadata through the signer
+result.
 
 ### Why This Changed
 
-This is a **security hardening**. Witness proof verification in did:webvh is strict:
-
-- `verificationMethod` must be a valid did:key (enforced via parameter validation)
-- `proofPurpose` must be `assertionMethod` (hardcoded)
-- `cryptosuite` must be `eddsa-jcs-2022` (hardcoded, never configurable)
-- Timestamp fields must be valid (controlled by library)
-
-Allowing callbacks to override these fields created security gaps where a malicious or misconfigured callback could break verification invariants. The library now owns all proof structure, and callbacks supply only cryptographic material (`proofValue`).
+The library owns witness proof structure and performs witness membership and
+log validation before signing. Keeping proof construction inside the public
+operation API avoids a second, unchecked path for signing witness proofs.
 
 ---
 
@@ -465,9 +442,9 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
 - [ ] Add `purpose: 'authentication'` to verification methods
-- [ ] Replace `createProof` with `createWitnessProof`
+- [ ] Replace witness proof creation with `signWitnessProofEntry`
 - [ ] Replace root imports of `parseDidKeyDid` and `parseDidKeyVerificationMethod`
-- [ ] Update signer callbacks to return only `proofValue`
+- [ ] Implement the `Signer` interface and supply explicit historical witness proofs
 - [ ] Review service endpoint filtering for exact-id matching
 - [ ] Remove null checks for witness metadata
 

@@ -8,9 +8,9 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | -------- | ---------- | -------- | ----------- |
 | DID Document Authoring (`didDocument`) | API / Behavior | `createDID` / `updateDID` | [UPGRADE_2.x_to_3.0.md §2](./UPGRADE_2.x_to_3.0.md#2-did-document-authoring-and-removal-of-verificationmethods) |
 | Resolution result shape | API | All resolution calls | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
-| `createProof` export removed | API | Proof creation | [UPGRADE_2.x_to_3.0.md §3](./UPGRADE_2.x_to_3.0.md#3-proof-helper-exports) |
+| Proof/signing API narrowed | API / Security | Proof creation and witness signing | [UPGRADE_2.x_to_3.0.md §3](./UPGRADE_2.x_to_3.0.md#3-public-proof-and-signing-apis) |
 | did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.0.md §3.2](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports) |
-| Witness callback contract | Behavior | Signer callbacks | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-proof-callback-contract) |
+| Witness signer contract | Behavior | Witness signing | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract) |
 | Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
 
 ---
@@ -27,12 +27,13 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Reason**: Aligns with W3C DID Resolution spec for ecosystem compatibility
 - **Upgrade**: Update destructuring and field references → [Full guide](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape)
 
-#### 2. `createProof` Export Removed
+#### 2. Public Proof and Signing API
 
-- **Removed**: Public `createProof` function
-- **Current**: Use `createWitnessProof` for witness proofs
-- **Reason**: `createProof` was too generic; witness proofs have strict requirements (did:key format, assertionMethod purpose)
-- **Upgrade**: Replace calls with `createWitnessProof` → [Full guide](./UPGRADE_2.x_to_3.0.md#3-proof-helper-exports)
+- **Controller signing**: Use `createDID`, `updateDID`, and `deactivateDID` to create signed DID-log entries
+- **Witness signing**: Use `signWitnessProofEntry`, which validates the candidate log, historical witness proofs, and signer membership before signing
+- **Signer utilities**: `prepareDataForSigning`, `DataIntegrityProofTemplate`, and the multibase helpers support custom `Signer` implementations. A custom signer only signs and identifies its verification method; proof construction, signature verification, and DID-log/witness validation remain library responsibilities. Multibase supports base64url without padding and base58btc.
+- **Reason**: Couple signing to DID:webvh operation validation
+- **Upgrade**: Use DID operation methods for controller-authored log entries and `signWitnessProofEntry` for witnessing agents signing proofs → [Full guide](./UPGRADE_2.x_to_3.0.md#3-public-proof-and-signing-apis)
 
 #### 2.1 did:key Parse Helper Root Exports Removed
 
@@ -56,12 +57,13 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Reason**: Full W3C DID Core alignment, controller sovereignty over fragment IDs (`#key-1`), multi-relationship support, and removal of opinionated synthesis heuristics.
 - **Upgrade**: Provide complete `didDocument` structure to `createDID` → [Full guide](./UPGRADE_2.x_to_3.0.md#2-did-document-authoring-and-removal-of-verificationmethods)
 
-#### 4. Witness Proof Callback Contract
+#### 4. Witness Signer Contract
 
-- **Changed**: Signer callbacks can only return `{ proofValue }`
-- **Before**: Could override `verificationMethod`, `created`, `proofPurpose`
-- **Reason**: Security hardening; witness proof verification is strict
-- **Upgrade**: Remove library-controlled fields from callback returns → [Full guide](./UPGRADE_2.x_to_3.0.md#4-witness-proof-callback-contract)
+- **Changed**: `signWitnessProofEntry` takes a `Signer` implementation, which returns only `{ proofValue }`; the library constructs the proof
+- **Validation**: The method checks candidate log continuity, historical witness proofs, and signer membership before signing
+- **Network behavior**: Witness proofs are never fetched by this method; supply `witnessProofs` explicitly
+- **Reason**: Keep proof structure and authorization checks within the DID:webvh operation API
+- **Upgrade**: Implement `Signer` and call `signWitnessProofEntry` → [Full guide](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract)
 
 #### 5. Witness Metadata Shape
 
@@ -87,7 +89,7 @@ The 3.0.0 release fully implements the [did:webvh v1.0 specification](https://id
 Several changes reduce attack surface:
 
 - Explicit `purpose` assignment prevents accidental misuse of keys
-- Proof callback restrictions prevent field injection attacks
+- Witness signer validation keeps proof metadata and authorization checks under library control
 - Strict verification method formats enforce did:webvh witness requirements
 
 ### Developer Experience
