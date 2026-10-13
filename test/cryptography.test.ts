@@ -336,6 +336,16 @@ describe('Assertion Guards', () => {
     await expect(documentStateIsValid(makeDoc(null), [updateKey], null, true, verifier)).rejects.toThrow(
       'Missing proof in DID log entry'
     );
+    const { proof: _proof, ...docWithoutProof } = makeDoc(baseProof);
+    await expect(documentStateIsValid(docWithoutProof, [updateKey], null, true, verifier)).rejects.toThrow(
+      'Missing proof in DID log entry'
+    );
+  });
+
+  test('throws when proof array is empty', async () => {
+    await expect(documentStateIsValid(makeDoc([]), [updateKey], null, true, verifier)).rejects.toThrow(
+      'Missing proof in DID log entry'
+    );
   });
 
   test('normalizes non-array proof into array and verifies', async () => {
