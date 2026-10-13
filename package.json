@@ -41,22 +41,20 @@
     "example:resolver": "tsx examples/elysia-resolver.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.13",
-    "@stablelib/ed25519": "^2.1.0",
+    "@biomejs/biome": "^2.5.15",
     "@types/node": "^24.13.4",
-    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/coverage-v8": "^5.0.4",
     "esbuild": "^0.28.2",
-    "tsx": "^4.23.13",
+    "glob": "^13.0.6",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.4"
   },
   "dependencies": {
     "@noble/curves": "^2.4.0",
     "@noble/hashes": "^2.4.0",
     "@scure/base": "^2.4.0",
     "did-resolver": "^5.0.1",
-    "glob": "^13.0.6",
-    "js-yaml": "^5.4.1",
     "json-canonicalize": "^3.0.1"
   },
   "bin": {

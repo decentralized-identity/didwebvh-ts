@@ -1132,7 +1132,7 @@ describe('Witness Implementation Tests', async () => {
       );
       const invalidSignatureProof = {
         ...validWitness2Proof,
-        proofValue: `${validWitness2Proof.proofValue.slice(0, -1)}1`,
+        proofValue: `${validWitness2Proof.proofValue.slice(0, -1)}${validWitness2Proof.proofValue.endsWith('1') ? '2' : '1'}`,
       };
       const unknownWitnessProof = await createWitnessProof(
         createWitnessSigner(witness3),
