@@ -399,7 +399,7 @@ const processResolvedLogEntries = async ({
       options.versionNumber === versionNumber || options.versionId === resolverContext.meta.versionId;
     const captureByTime =
       options.versionTime !== undefined &&
-      options.versionTime > new Date(resolverContext.meta.updated) &&
+      options.versionTime >= new Date(resolverContext.meta.updated) &&
       (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
 
     if (!resolverContext.resolvedSnapshot && (captureByVersion || captureByTime)) {

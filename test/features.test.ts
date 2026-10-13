@@ -119,6 +119,18 @@ test('Resolve DID at time (last)', async () => {
   expect(meta.versionId!.split('-')[0]).toBe('4');
 });
 
+test('Resolve DID at each exact version time', async () => {
+  for (const [index, entry] of log.entries()) {
+    const { didDocumentMetadata: meta, didResolutionMetadata } = await resolveDIDFromLog(log, {
+      versionTime: new Date(entry.versionTime),
+      verifier: testImplementation,
+    });
+
+    expect(didResolutionMetadata.error).toBeUndefined();
+    expect(meta.versionId!.split('-')[0]).toBe(String(index + 1));
+  }
+});
+
 test('Resolve DID at version', async () => {
   const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, {
     versionId: log[0].versionId,
