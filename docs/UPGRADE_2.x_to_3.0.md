@@ -71,26 +71,29 @@ console.log(result.didResolutionMetadata); // DIDResolutionMetadata
    // Local control is application-owned and is not included in resolution metadata.
    ```
 
-3. **Handle null didDocument** (two cases):
+3. **Handle resolution errors independently of the selected document**:
 
    ```typescript
-   // New pattern: distinguish between deactivated DID vs. resolution error
+   // An invalid later entry can be reported even when an earlier version was resolved.
+   if (result.didResolutionMetadata.error) {
+     console.error(`Resolution error: ${result.didResolutionMetadata.error}`);
+   }
+
    if (result.didDocument === null) {
-     // Case 1: DID was deactivated (valid resolution)
      if (result.didDocumentMetadata.deactivated === true) {
        console.log('DID is deactivated');
-       // You can still inspect metadata (scid, updateKeys, etc.)
-     }
-     // Case 2: Resolution failed (error occurred)
-     else if (result.didResolutionMetadata.error) {
-       const error = result.didResolutionMetadata.error;
-       console.error(`Resolution failed: ${error}`);
      }
    } else {
-     // Case 3: Valid active DID
      const document = result.didDocument;
    }
    ```
+
+   With a `versionId`, `versionNumber`, or `versionTime` selector, a valid earlier
+   document may be returned with `didResolutionMetadata.error = "invalidDid"`
+   when a later log entry is invalid. Do not treat a non-null `didDocument` as
+   proof that the entire log is valid. The selected version's witness
+   requirements must still be satisfied; proofs for invalid entries do not
+   count.
 
 ### Local DID logs and control state
 
