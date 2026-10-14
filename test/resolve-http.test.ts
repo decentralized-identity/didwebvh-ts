@@ -137,6 +137,29 @@ describe('resolveDID over HTTPS', () => {
     }
   );
 
+  test('does not mask witness retrieval failure with an invalid later log entry', async () => {
+    const witnessed = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: createTestDIDDocument(authKey),
+      witness: { threshold: 1, witnesses: [{ id: `did:key:${authKey.publicKeyMultibase}` }] },
+      verifier,
+    });
+    const invalidTail = { ...witnessed.log[0], versionId: '2-junk', versionTime: 'junk' };
+    const fetchMock = vi.fn(async (url: string) =>
+      url.endsWith('did.jsonl')
+        ? createMockResponse(toJsonl([...witnessed.log, invalidTail]))
+        : createMockResponse('', { ok: false, status: 503 })
+    ) as unknown as FetchLike;
+
+    const result = await resolveDID(witnessed.did, { versionNumber: 1, verifier, fetch: fetchMock });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('internalError');
+  });
+
   test.each(['versionId', 'versionNumber', 'versionTime'] as const)(
     'enforces witness threshold for a selected version when the witness proof file returns 404 (%s)',
     async (selectorType) => {
