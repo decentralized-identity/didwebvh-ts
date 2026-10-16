@@ -24,22 +24,12 @@ import type {
   WitnessProofFileEntry,
   WitnessRequirement,
 } from '../interfaces.js';
+import { parseDidWebvhIdentifier } from '../parser.js';
 import { buildProblemDetails } from '../resolver-result.js';
 import { deriveHash } from '../utils/crypto.js';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime.js';
-import {
-  deepClone,
-  parseAndValidateVersionId,
-  parseDidWebvhIdentifier,
-  replaceValueInObject,
-  requireDidDocumentId,
-} from '../utils.js';
-import {
-  countVerifiedWitnessApprovals,
-  fetchWitnessProofs,
-  normalizeWitnessThreshold,
-  validateWitnessParameter,
-} from '../witness.js';
+import { deepClone, fetchWitnessProofs, parseAndValidateVersionId, replaceValueInObject } from '../utils.js';
+import { countVerifiedWitnessApprovals, normalizeWitnessThreshold, validateWitnessParameter } from '../witness.js';
 import {
   getRequiredWitnessForEntry,
   type RequiredWitnessCheck,
@@ -391,7 +381,10 @@ const processResolvedLogEntries = async ({
     }
 
     resolverContext.doc = deepClone(resolvedEntryDoc);
-    resolverContext.did = requireDidDocumentId(resolverContext.doc.id);
+    if (!resolverContext.doc.id) {
+      throw new Error('DID document id is missing');
+    }
+    resolverContext.did = resolverContext.doc.id;
 
     if (options.requestedDid && resolverContext.did === options.requestedDid) {
       resolverContext.didIdMatchCount++;
@@ -480,7 +473,10 @@ const validateAndParseLogEntry = ({
     throw new Error(`versionTime for version '${version}' must not be more than 5 minutes in the future`);
   }
 
-  const parsedStateDid = parseDidWebvhIdentifier(requireDidDocumentId(entry.state.id), `version '${version}' state.id`);
+  if (!entry.state.id) {
+    throw new Error('DID document id is missing');
+  }
+  const parsedStateDid = parseDidWebvhIdentifier(entry.state.id, `version '${version}' state.id`);
 
   return {
     entry,

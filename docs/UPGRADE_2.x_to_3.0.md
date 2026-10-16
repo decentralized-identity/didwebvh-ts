@@ -15,6 +15,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
   - `deriveNextKeyHash` remains exported for pre-rotation `nextKeyHashes`
 4. **Witness signer contract** — signer supplies only signature data through `Signer`
 5. **Witness metadata shape** — always normalized to object form
+6. **did-resolver v6 integration** — upgrade direct `did-resolver` usage and account for parser-level rejection of invalid DID URLs and did:webvh identifiers
 
 ---
 
@@ -445,6 +446,41 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
 
 ---
 
+## 6. did-resolver v6 Integration
+
+### What Changed
+
+`didwebvh-ts` now depends on `did-resolver` v6 and attaches a method-specific
+`DIDParser` to its `webvh` resolver. The v6 resolver validates generic DID and
+DID URL syntax before invoking the method resolver. The did:webvh parser then
+applies the method's additional v1.0 identifier constraints, including SCID,
+fully qualified domain, encoded port, and deployment-path validation.
+
+An identifier rejected by this parser is returned as `invalidDid` before the
+resolver fetches a DID log. DID URL syntax errors are handled by did-resolver
+v6; `invalidDidUrl` in didwebvh-ts is reserved for query values that cannot be
+decoded while extracting method-level version selectors. Version selector
+behavior remains unchanged: `versionId`, `versionNumber`, and `versionTime`
+are accepted as query parameters, are mutually exclusive, and unknown query
+parameters are ignored.
+
+### Migration Steps
+
+1. **Upgrade direct `did-resolver` usage to v6** if your application constructs
+   a `Resolver` and registers the `did:webvh` resolver from `didwebvh-ts`.
+2. **Check the requested DID before relying on network behavior.** Invalid
+   DID URL syntax or did:webvh-specific identifier components can now be
+   rejected before a log fetch; method-specific invalid identifiers surface as
+   `didResolutionMetadata.error = "invalidDid"`.
+3. **Continue using query parameters for version selection.** Supply only one
+   of `versionId`, `versionNumber`, or `versionTime`; matrix-style DID
+   parameters are not a did:webvh selector mechanism.
+4. **Do not duplicate generic DID Core parsing in application method code.**
+   Keep any additional validation specific to your application or method
+   separate from did-resolver's syntax validation.
+
+---
+
 ## Quick Checklist
 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
@@ -454,6 +490,7 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
 - [ ] Implement the `Signer` interface and supply explicit historical witness proofs
 - [ ] Review service endpoint filtering for exact-id matching
 - [ ] Remove null checks for witness metadata
+- [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
 
 ---
 

@@ -1,6 +1,6 @@
-import type { DIDDocument } from 'did-resolver';
+import { type DIDDocument, VerificationRelationship } from 'did-resolver';
 import { assertValidNextKeyHashes, documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
-import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER, VERIFICATION_RELATIONSHIPS } from '../constants.js';
+import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
 import { enrichAlsoKnownAs, replaceCreateDidPlaceholders, validateCreateDidDocument } from '../did-document.js';
 import type {
@@ -12,12 +12,13 @@ import type {
   UpdateDIDOptions,
   WitnessParameterResolution,
 } from '../interfaces.js';
+import { normalizeDidAddress, parseDidWebvhIdentifier } from '../parser.js';
 import { createSCID, deriveHash } from '../utils/crypto.js';
 import {
   assertNoPrivateVerificationMaterial,
   assertValidAuthoredVerificationMethods,
 } from '../utils/verification-methods.js';
-import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier, replaceValueInObject } from '../utils.js';
+import { deepClone, replaceValueInObject } from '../utils.js';
 import { validateWitnessParameter } from '../witness.js';
 
 export interface PreparedEntry {
@@ -304,7 +305,7 @@ export async function prepareUpdateEntry({
     }
 
     // Rewrite self-referential verification methods in relationships
-    for (const rel of VERIFICATION_RELATIONSHIPS) {
+    for (const rel of Object.values(VerificationRelationship)) {
       const relArray = doc[rel as keyof DIDDocument];
       if (Array.isArray(relArray)) {
         (doc as Record<string, unknown>)[rel] = relArray.map((item) => {

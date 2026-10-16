@@ -1,5 +1,5 @@
-import type { DIDDocument, VerificationMethod } from 'did-resolver';
-import { DID_KEY_PREFIX, VERIFICATION_RELATIONSHIPS } from '../constants.js';
+import { type DIDDocument, VerificationRelationship } from 'did-resolver';
+import { DID_KEY_PREFIX } from '../constants.js';
 import type { ParsedDidKeyVerificationMethod } from '../interfaces.js';
 import { multibaseDecode } from './multiformats.js';
 
@@ -55,7 +55,7 @@ export function assertValidAuthoredVerificationMethods(didDocument: DIDDocument)
     });
   }
 
-  for (const rel of VERIFICATION_RELATIONSHIPS) {
+  for (const rel of Object.values(VerificationRelationship)) {
     const relArray = didDocument[rel as keyof DIDDocument];
     if (Array.isArray(relArray)) {
       relArray.forEach((item, index) => {
@@ -65,30 +65,6 @@ export function assertValidAuthoredVerificationMethods(didDocument: DIDDocument)
       });
     }
   }
-}
-
-export function findVerificationMethod(doc: DIDDocument, vmId: string): VerificationMethod | null {
-  const directMatch = doc.verificationMethod?.find((vm) => vm.id === vmId);
-  if (directMatch) {
-    return directMatch;
-  }
-
-  const hasMatchingId = (item: unknown): item is VerificationMethod => {
-    if (typeof item !== 'object' || item === null) return false;
-    return (item as { id?: unknown }).id === vmId;
-  };
-
-  for (const relationship of VERIFICATION_RELATIONSHIPS) {
-    const relationshipValues = doc[relationship as keyof DIDDocument];
-    if (Array.isArray(relationshipValues)) {
-      const match = relationshipValues.find(hasMatchingId);
-      if (match) {
-        return match;
-      }
-    }
-  }
-
-  return null;
 }
 
 export function validateDidKeyMultibase(keyMultibase: string): void {

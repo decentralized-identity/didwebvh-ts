@@ -230,7 +230,7 @@ For this to work, the `didwebvh-ts` package on npmjs.com must have a Trusted Pub
 
 ## Creating a DID Resolver
 
-Resolution follows the standard W3C [`did-resolver`](https://github.com/decentralized-identity/did-resolver) interface. `resolveDID` / `resolveDIDFromLog` return a `DIDResolutionResult` (`{ didResolutionMetadata, didDocument, didDocumentMetadata }`), and `getResolver()` produces a registry entry you can drop into a `did-resolver` `Resolver` alongside `did:web`, `did:ethr`, etc.
+Resolution follows the standard W3C [`did-resolver`](https://github.com/decentralized-identity/did-resolver) interface. `didwebvh-ts` uses `did-resolver` 6. `resolveDID` / `resolveDIDFromLog` return a `DIDResolutionResult` (`{ didResolutionMetadata, didDocument, didDocumentMetadata }`), and `getResolver()` produces a registry entry you can drop into a v6 `did-resolver` `Resolver` alongside `did:web`, `did:ethr`, etc. Applications that directly depend on `did-resolver` should use v6 when registering this resolver.
 
 ### Using the did-resolver interface
 
@@ -297,7 +297,7 @@ For complete examples, see the [examples](./examples/) directory.
 
 Resolver failures are surfaced on `didResolutionMetadata`:
 
-- `didResolutionMetadata.error` is one of `"invalidDid"` (the resolved DID or log fails validation), `"invalidDidUrl"` (the DID URL violates `did-url` syntax, e.g. malformed percent-encoding), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). Unknown query parameters are ignored per DID Core extensibility.
+- `didResolutionMetadata.error` is one of `"invalidDid"` (the DID or log fails validation), `"invalidDidUrl"` (a query value cannot be decoded for method-level selector processing), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). The `did-resolver` v6 parser rejects DID URL syntax errors before the method resolver is called. Unknown query parameters are ignored per DID Core extensibility.
 - `didResolutionMetadata.problemDetails` carries RFC9457-style fields (`type`, `title`, `detail`) where available, and `didResolutionMetadata.message` carries the underlying detail string.
 - Local control is an application concern and is not reported in resolution metadata.
 

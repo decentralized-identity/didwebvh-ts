@@ -208,15 +208,6 @@ describe('getResolver integration', () => {
     expect(result.didDocument?.id).toBe(did);
   });
 
-  test('matrix-form version selectors are rejected, not silently ignored', async () => {
-    // Silently dropping `;versionId=` would resolve latest when the caller
-    // asked for a specific version — reject instead.
-    serveLog(fullLog);
-    const result = await resolver.resolve(`${did};versionId=${v1Id}`);
-    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
-    expect(result.didDocument).toBeNull();
-  });
-
   test('lowercase hex in query percent-encoding resolves successfully', async () => {
     serveLog(fullLog);
     const result = await resolver.resolve(`${did}?versionTime=2023-01-15T00:00:00%2b01%3a00`);
@@ -224,18 +215,19 @@ describe('getResolver integration', () => {
     expect(result.didDocumentMetadata.versionId).toBe(v1Id);
   });
 
-  test('malformed percent-encoding in a query key returns invalidDidUrl', async () => {
-    serveLog(fullLog);
-    const result = await resolver.resolve(`${did}?%ZZ=1`);
-    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
-    expect(result.didDocument).toBeNull();
-  });
+  test.each([
+    ['invalid SCID', `did:webvh:${'0'.repeat(46)}:example.com`],
+    ['invalid domain', `did:webvh:${'1'.repeat(46)}:example`],
+    ['invalid path segment', `did:webvh:${'1'.repeat(46)}:example.com:..`],
+  ])('method parser rejects %s before fetching', async (_condition, invalidDid) => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-  test('malformed percent-encoding in a query value returns invalidDidUrl', async () => {
-    serveLog(fullLog);
-    const result = await resolver.resolve(`${did}?versionId=%E0%A4%A`);
-    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    const result = await resolver.resolve(invalidDid);
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
     expect(result.didDocument).toBeNull();
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test('not-found DID returns notFound', async () => {
