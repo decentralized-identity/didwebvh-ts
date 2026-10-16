@@ -21,6 +21,7 @@ import type {
   WitnessSigningOptions,
   WitnessVerificationResult,
 } from './interfaces.js';
+import { normalizeDidAddress, parseDidWebvhIdentifier } from './parser.js';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result.js';
 import {
   createDate,
@@ -29,7 +30,7 @@ import {
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime.js';
 import { normalizeUpdateKeys, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
-import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils.js';
+import { fetchLogFromIdentifier } from './utils.js';
 import { defaultVerifier } from './verifier.js';
 import { resolveWitnessParameter, validateWitnessParameter } from './witness.js';
 
@@ -127,7 +128,10 @@ export const createDID = async (options: CreateDIDOptions): Promise<CreateDIDRes
     createdDate,
   });
 
-  const didId = requireDidDocumentId(entry.state.id);
+  const didId = entry.state.id;
+  if (!didId) {
+    throw new Error('DID document id is missing');
+  }
   const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(didId, entry.state) : undefined;
 
   return {
@@ -232,7 +236,10 @@ export const updateDID = async (options: UpdateDIDOptions): Promise<UpdateDIDRes
   });
 
   const hasWebAlias = (entry.state.alsoKnownAs ?? []).some((alias: string) => alias.startsWith('did:web:'));
-  const updatedDidId = requireDidDocumentId(entry.state.id);
+  const updatedDidId = entry.state.id;
+  if (!updatedDidId) {
+    throw new Error('DID document id is missing');
+  }
   const webDoc = hasWebAlias ? generateParallelDidWeb(updatedDidId, entry.state) : undefined;
 
   return {
@@ -287,7 +294,10 @@ export const deactivateDID = async (
     deactivated: true,
   });
 
-  const didId = requireDidDocumentId(entry.state.id);
+  const didId = entry.state.id;
+  if (!didId) {
+    throw new Error('DID document id is missing');
+  }
 
   return {
     did: didId,

@@ -7,7 +7,8 @@ import {
   SERVICE_TYPE_RELATIVE_REF,
   ServiceFragment,
 } from './constants.js';
-import { deepClone, getBaseUrl, replaceValueInObject } from './utils.js';
+import { getBaseUrl } from './parser.js';
+import { deepClone, replaceValueInObject } from './utils.js';
 
 type ServiceIdStyle = 'absolute' | 'fragment';
 

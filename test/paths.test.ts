@@ -108,7 +108,7 @@ describe('Paths feature', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const { doc } = await createDID({
-      address: 'localhost:3000',
+      address: 'localhost.example.com:3000',
       paths: ['api', 'health'],
       signer: createTestSigner(authKey),
       updateKeys: [authKey.publicKeyMultibase!],
@@ -119,7 +119,7 @@ describe('Paths feature', () => {
     // Should contain encoded domain + path components
     const didParts = doc.id!.split(':');
     expect(didParts.length).toBe(6); // did:webvh:scid:domain:path1:path2
-    expect(didParts[3]).toBe('localhost%3A3000'); // domain should be encoded
+    expect(didParts[3]).toBe('localhost.example.com%3A3000'); // domain should be encoded
     expect(didParts[4]).toBe('api');
     expect(didParts[5]).toBe('health');
   });

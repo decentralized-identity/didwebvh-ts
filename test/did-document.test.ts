@@ -219,7 +219,7 @@ describe('didDocument create pass-through', () => {
 
 describe('generateParallelDidWeb', () => {
   test('shared default-service helper adds fragment-form implicit services without mutating the input document', () => {
-    const did = 'did:webvh:zQmExample:example.com:path';
+    const did = `did:webvh:${'1'.repeat(46)}:example.com:path`;
     const originalDoc = {
       id: did,
       service: [
@@ -449,7 +449,7 @@ describe('generateParallelDidWeb', () => {
   });
 
   test('default-service helper returns original object unchanged when both implicit services already exist', () => {
-    const did = 'did:webvh:zQmExample:example.com:path';
+    const did = `did:webvh:${'1'.repeat(46)}:example.com:path`;
     const existing: DIDDocument = {
       id: did,
       service: [
@@ -474,7 +474,7 @@ describe('generateParallelDidWeb', () => {
 
   test('adds implicit #files and #whois services to DID with pre-existing #files, preserving custom endpoint', () => {
     // Regression test: verify no duplication when #files already exists
-    const did = 'did:webvh:zQmExample:example.com';
+    const did = `did:webvh:${'1'.repeat(46)}:example.com`;
     const withPreexistingFiles: DIDDocument = {
       id: did,
       service: [
@@ -500,17 +500,17 @@ describe('generateParallelDidWeb', () => {
   });
 
   test('foreign DID service ids ending with #files/#whois do not suppress implicit services', () => {
-    const did = 'did:webvh:zQmExample:example.com';
+    const did = `did:webvh:${'1'.repeat(46)}:example.com`;
     const withForeignServices: DIDDocument = {
       id: did,
       service: [
         {
-          id: 'did:webvh:zQmOther:other.example#files',
+          id: `did:webvh:${'2'.repeat(46)}:other.example.com#files`,
           type: 'RelativeRef',
           serviceEndpoint: 'https://other.example/files/',
         },
         {
-          id: 'did:webvh:zQmOther:other.example#whois',
+          id: `did:webvh:${'2'.repeat(46)}:other.example.com#whois`,
           type: 'LinkedVerifiablePresentation',
           serviceEndpoint: 'https://other.example/whois.vp',
         },

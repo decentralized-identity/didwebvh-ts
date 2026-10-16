@@ -657,7 +657,7 @@ describe('Not So Happy Path Tests', () => {
     expect(r.didResolutionMetadata.message).toContain('must not contain SCID parameter');
   });
 
-  test('Rejects SCID using non-SHA-256 multihash algorithm', async () => {
+  test('Rejects a non-SHA-256 SCID before validating the log', async () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(initialDID.log));
     const originalScid = tamperedLog[0].parameters.scid as string;
 
@@ -673,7 +673,7 @@ describe('Not So Happy Path Tests', () => {
     const r = await resolveDIDFromLog(tamperedLogWithBadScid, { verifier: testImplementation });
     expect(r.didDocument).toBeNull();
     expect(r.didResolutionMetadata.error).toBe('invalidDid');
-    expect(r.didResolutionMetadata.message).toContain('SCID multihash algorithm must be SHA-256 (0x12)');
+    expect(r.didResolutionMetadata.message).toContain('must include a valid SCID');
   });
 
   test('createDID rejects when updateKeys is not supplied', async () => {

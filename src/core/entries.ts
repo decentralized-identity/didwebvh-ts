@@ -12,12 +12,13 @@ import type {
   UpdateDIDOptions,
   WitnessParameterResolution,
 } from '../interfaces.js';
+import { normalizeDidAddress, parseDidWebvhIdentifier } from '../parser.js';
 import { createSCID, deriveHash } from '../utils/crypto.js';
 import {
   assertNoPrivateVerificationMaterial,
   assertValidAuthoredVerificationMethods,
 } from '../utils/verification-methods.js';
-import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier, replaceValueInObject } from '../utils.js';
+import { deepClone, replaceValueInObject } from '../utils.js';
 import { validateWitnessParameter } from '../witness.js';
 
 export interface PreparedEntry {
