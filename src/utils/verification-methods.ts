@@ -67,30 +67,6 @@ export function assertValidAuthoredVerificationMethods(didDocument: DIDDocument)
   }
 }
 
-export function findVerificationMethod(doc: DIDDocument, vmId: string): VerificationMethod | null {
-  const directMatch = doc.verificationMethod?.find((vm) => vm.id === vmId);
-  if (directMatch) {
-    return directMatch;
-  }
-
-  const hasMatchingId = (item: unknown): item is VerificationMethod => {
-    if (typeof item !== 'object' || item === null) return false;
-    return (item as { id?: unknown }).id === vmId;
-  };
-
-  for (const relationship of VERIFICATION_RELATIONSHIPS) {
-    const relationshipValues = doc[relationship as keyof DIDDocument];
-    if (Array.isArray(relationshipValues)) {
-      const match = relationshipValues.find(hasMatchingId);
-      if (match) {
-        return match;
-      }
-    }
-  }
-
-  return null;
-}
-
 export function validateDidKeyMultibase(keyMultibase: string): void {
   if (!keyMultibase) {
     throw new Error('Malformed did:key identifier');

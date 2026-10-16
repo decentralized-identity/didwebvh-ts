@@ -7,7 +7,6 @@ import {
 } from '../src/did-document.js';
 import type { DIDDocument, VerificationMethod } from '../src/interfaces.js';
 import { createDID, updateDID } from '../src/method.js';
-import { findVerificationMethod } from '../src/utils/verification-methods.js';
 import {
   createTestDIDDocument,
   createTestSigner,
@@ -568,23 +567,6 @@ describe('did-document helper branches', () => {
     expect(() =>
       enrichAlsoKnownAs({ id: '{DID}' } as DIDDocument, 'did:example:123', { alsoKnownAsWeb: true })
     ).toThrow("Invalid did:webvh id 'did:example:123'");
-  });
-
-  test('findVerificationMethod resolves from relationship object and returns null when not found', () => {
-    const vm: VerificationMethod = {
-      id: '#rel-vm',
-      type: 'Multikey',
-      controller: 'did:webvh:zQmExample:example.com',
-      publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-    };
-
-    const doc: DIDDocument = {
-      id: 'did:webvh:zQmExample:example.com',
-      authentication: [vm as unknown as string],
-    };
-
-    expect(findVerificationMethod(doc, '#rel-vm')).toEqual(vm);
-    expect(findVerificationMethod(doc, '#missing')).toBeNull();
   });
 });
 
