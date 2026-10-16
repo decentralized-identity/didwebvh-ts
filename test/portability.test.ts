@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import type { CreateDIDResult, DIDLog } from '../src/interfaces.js';
+import type { CreateDIDResult, DIDDocument, DIDLog, VerificationMethod } from '../src/interfaces.js';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import {
   createTestDIDDocument,
@@ -166,6 +166,67 @@ describe('Portability', () => {
     const resolved = await resolveDIDFromLog(updateResult.log, { verifier: testImplementation });
     expect(resolved.didDocument?.id).toBe(`did:webvh:${scid}:example.org`);
     expect(resolved.didDocument?.alsoKnownAs).toContain(originalDid);
+  });
+
+  test('Portable move rewrites self-references and preserves unrelated references without duplicating aliases', async () => {
+    const created = await createDID({
+      address: 'example.com',
+      portable: true,
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: createTestDIDDocument(authKey, { alsoKnownAs: ['{DID}'] }),
+      verifier: testImplementation,
+    });
+    const originalDid = created.did;
+    const externalDid = 'did:example:external';
+    const publicKeyMultibase = authKey.publicKeyMultibase!;
+    const embeddedSelfReference: VerificationMethod = {
+      id: `${originalDid}#embedded`,
+      type: 'Multikey',
+      controller: originalDid,
+      publicKeyMultibase,
+    };
+    const embeddedExternalReference: VerificationMethod = {
+      id: `${externalDid}#embedded`,
+      type: 'Multikey',
+      controller: externalDid,
+      publicKeyMultibase,
+    };
+    const updateDocument: DIDDocument = {
+      ...created.doc,
+      controller: [originalDid, externalDid],
+      authentication: [
+        `${originalDid}#${publicKeyMultibase.slice(-8)}`,
+        `${externalDid}#key-1`,
+        embeddedSelfReference,
+        embeddedExternalReference,
+      ],
+    };
+
+    const updateResult = await updateDID({
+      log: created.log,
+      address: 'example.org',
+      didDocument: updateDocument,
+      signer: createTestSigner(authKey),
+      updateKeys: [publicKeyMultibase],
+      verifier: testImplementation,
+    });
+
+    const movedDid = `did:webvh:${created.did.split(':')[2]}:example.org`;
+    const movedDoc = updateResult.log[1].state;
+
+    expect(movedDoc.controller).toEqual([movedDid, externalDid]);
+    expect(movedDoc.verificationMethod?.[0]).toMatchObject({
+      id: `${movedDid}#${publicKeyMultibase.slice(-8)}`,
+      controller: movedDid,
+    });
+    expect(movedDoc.authentication).toEqual([
+      `${movedDid}#${publicKeyMultibase.slice(-8)}`,
+      `${externalDid}#key-1`,
+      { ...embeddedSelfReference, id: `${movedDid}#embedded`, controller: movedDid },
+      embeddedExternalReference,
+    ]);
+    expect(movedDoc.alsoKnownAs?.filter((alias) => alias === originalDid)).toHaveLength(1);
   });
 
   test('Non-portable DID rejects a move to a new domain', async () => {
