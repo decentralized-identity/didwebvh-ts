@@ -64,8 +64,9 @@ export interface ProblemDetails {
 /**
  * Codes surfaced on `didResolutionMetadata.error`.
  *
- * `invalidDid`/`notFound` match DID Core §7.1.2; `invalidDidUrl` is reserved for a
- * DID URL that violates `did-url` syntax (e.g. malformed percent-encoding);
+ * `invalidDid`/`notFound` match DID Core §7.1.2; generic DID URL syntax is
+ * validated by did-resolver before method resolution, while `invalidDidUrl`
+ * covers query values that cannot be decoded for method-level processing;
  * `invalidOptions` covers well-formed URLs carrying invalid resolution options
  * (conflicting or ill-typed version selectors) per the DID Resolution spec's
  * INVALID_OPTIONS; `internalError` covers transport/resolver-side failures.
