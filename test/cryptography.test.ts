@@ -641,24 +641,9 @@ describe('Crypto Helpers', () => {
     await expect(deriveHash(circular)).rejects.toThrow();
   });
 
-  test('deriveHash succeeds when cache-key stringify fails once (defensive branch)', async () => {
-    const originalStringify = JSON.stringify;
-    let firstCall = true;
-
-    const stringifySpy = vi.spyOn(JSON, 'stringify').mockImplementation((...args) => {
-      if (firstCall) {
-        firstCall = false;
-        throw new TypeError('synthetic stringify failure');
-      }
-
-      return originalStringify(...(args as Parameters<typeof JSON.stringify>));
-    });
-
-    try {
-      await expect(deriveHash({ a: 1, b: 'x' })).resolves.toMatch(/^[1-9A-HJ-NP-Za-km-z]+$/);
-    } finally {
-      stringifySpy.mockRestore();
-    }
+  test('deriveHash validates every input regardless of previously hashed values', async () => {
+    await deriveHash({ n: null });
+    await expect(deriveHash({ n: Number.NaN })).rejects.toThrow('non-finite number');
   });
 
   test('createDocumentSigner wraps non-Error throws with document-signing message', async () => {

@@ -251,6 +251,8 @@ export interface WitnessRequirement {
 }
 
 export interface VerifyWitnessProofsOptions {
+  log: DIDLog;
+  witnessProofs: WitnessProofFileEntry[];
   verifier?: Verifier;
 }
 

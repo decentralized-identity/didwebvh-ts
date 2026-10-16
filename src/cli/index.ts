@@ -399,7 +399,9 @@ export async function handleVerifyProofs(args: string[]) {
       throw new Error('Witness proofs could not be loaded');
     }
 
-    const result = await verifyWitnessProofs(log, witnessProofs, {
+    const result = await verifyWitnessProofs({
+      log,
+      witnessProofs,
       verifier: createCustomCrypto(),
     });
     console.log(JSON.stringify(result, null, 2));
