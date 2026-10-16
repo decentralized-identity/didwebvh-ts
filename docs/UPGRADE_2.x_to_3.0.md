@@ -125,6 +125,10 @@ In 3.0.0, `createDID` requires a full, standard W3C `didDocument: DIDDocument`. 
 
 `{SCID}` is the specification-defined placeholder for the self-certifying identifier. `{DID}` is a convenience placeholder for the DID derived from the `address` option. For example, with `address: 'example.com'`, `{DID}#key-0` is first resolved as `did:webvh:{SCID}:example.com#key-0`; after the SCID is calculated, the runtime replaces `{SCID}` with the actual value. Both placeholders are creation-time templates only and are absent from the final DID Document and log.
 
+### Implicit `#files` and `#whois` Services
+
+When either default service is missing, 3.0.0 adds it with an absolute service ID (`<did>#files` or `<did>#whois`); 2.8.0 used relative IDs (`#files` and `#whois`). Both ID forms are allowed by the specification. The generated `#files` endpoint is also now the origin with a trailing slash (for example, `https://example.com/`), rather than the bare origin (`https://example.com`). These endpoint strings identify the same root URL; the trailing slash does not indicate a different resource path in this case. Explicit service entries are not rewritten.
+
 **Old (2.x)**:
 
 ```typescript

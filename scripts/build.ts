@@ -25,11 +25,11 @@ function createDistPackageJson() {
     files: ['cjs', 'esm', 'browser', 'cli', 'types'],
     exports: {
       '.': {
+        types: './types/index.d.ts',
         'react-native': './cjs/index.cjs',
         browser: './browser/index.js',
         import: './esm/index.js',
         require: './cjs/index.cjs',
-        types: './types/index.d.ts',
       },
       './types': {
         types: './types/types.d.ts',

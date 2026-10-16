@@ -399,7 +399,7 @@ const processResolvedLogEntries = async ({
       options.versionNumber === versionNumber || options.versionId === resolverContext.meta.versionId;
     const captureByTime =
       options.versionTime !== undefined &&
-      options.versionTime > new Date(resolverContext.meta.updated) &&
+      options.versionTime >= new Date(resolverContext.meta.updated) &&
       (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
 
     if (!resolverContext.resolvedSnapshot && (captureByVersion || captureByTime)) {
@@ -495,7 +495,11 @@ const processGenesisEntry = async ({
   entryContext: ParsedResolutionEntryContext;
   options: InternalResolutionOptions;
 }): Promise<DIDDocument> => {
-  const { entry: sourceEntry, parsedStateDid } = entryContext;
+  const {
+    entry: sourceEntry,
+    parsedVersion: { entryHash },
+    parsedStateDid,
+  } = entryContext;
   const { versionTime, parameters, proof } = sourceEntry;
 
   resolverContext.meta.created = versionTime;
@@ -538,6 +542,11 @@ const processGenesisEntry = async ({
   const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, resolverContext.meta.scid);
 
   const logEntryHash2 = await deriveHash(prelimEntry);
+
+  if (!hashChainIsValid(logEntryHash2, entryHash)) {
+    throw new Error(`Hash chain broken at '${resolverContext.meta.versionId}'`);
+  }
+
   const verified = await documentStateIsValid(
     { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
     resolverContext.meta.updateKeys,

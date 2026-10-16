@@ -336,6 +336,16 @@ describe('Assertion Guards', () => {
     await expect(documentStateIsValid(makeDoc(null), [updateKey], null, true, verifier)).rejects.toThrow(
       'Missing proof in DID log entry'
     );
+    const { proof: _proof, ...docWithoutProof } = makeDoc(baseProof);
+    await expect(documentStateIsValid(docWithoutProof, [updateKey], null, true, verifier)).rejects.toThrow(
+      'Missing proof in DID log entry'
+    );
+  });
+
+  test('throws when proof array is empty', async () => {
+    await expect(documentStateIsValid(makeDoc([]), [updateKey], null, true, verifier)).rejects.toThrow(
+      'Missing proof in DID log entry'
+    );
   });
 
   test('normalizes non-array proof into array and verifies', async () => {
@@ -631,24 +641,9 @@ describe('Crypto Helpers', () => {
     await expect(deriveHash(circular)).rejects.toThrow();
   });
 
-  test('deriveHash succeeds when cache-key stringify fails once (defensive branch)', async () => {
-    const originalStringify = JSON.stringify;
-    let firstCall = true;
-
-    const stringifySpy = vi.spyOn(JSON, 'stringify').mockImplementation((...args) => {
-      if (firstCall) {
-        firstCall = false;
-        throw new TypeError('synthetic stringify failure');
-      }
-
-      return originalStringify(...(args as Parameters<typeof JSON.stringify>));
-    });
-
-    try {
-      await expect(deriveHash({ a: 1, b: 'x' })).resolves.toMatch(/^[1-9A-HJ-NP-Za-km-z]+$/);
-    } finally {
-      stringifySpy.mockRestore();
-    }
+  test('deriveHash validates every input regardless of previously hashed values', async () => {
+    await deriveHash({ n: null });
+    await expect(deriveHash({ n: Number.NaN })).rejects.toThrow('non-finite number');
   });
 
   test('createDocumentSigner wraps non-Error throws with document-signing message', async () => {

@@ -43,6 +43,16 @@ describe('did:webvh normative tests', async () => {
     expect(result.didResolutionMetadata.error).toBeDefined();
   });
 
+  test('Resolve MUST reject a log entry with no controller proof', async () => {
+    const { proof: _proof, ...entryWithoutProof } = newLog1[0];
+    for (const entry of [{ ...newLog1[0], proof: [] }, entryWithoutProof]) {
+      const result = await resolveDIDFromLog([entry], { verifier: testImplementation });
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.error).toBeDefined();
+      expect(result.didResolutionMetadata.problemDetails?.detail).toContain('Missing proof in DID log entry');
+    }
+  });
+
   test('Update implementation MUST generate a correct DID Entry (positive)', async () => {
     const authKey2 = await generateTestVerificationMethod();
 
