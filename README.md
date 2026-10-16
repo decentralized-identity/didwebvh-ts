@@ -303,7 +303,7 @@ Resolver failures are surfaced on `didResolutionMetadata`:
 
 Absence cases (missing DID log or missing DID URL resource) use `didResolutionMetadata.error = "notFound"`.
 
-When resolving a requested earlier version (with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `didResolutionMetadata.error = "invalidDid"` if a later log entry fails verification. Deactivation is terminal: any entry after a deactivation entry makes the log invalid. A historical selector can still return its valid earlier document, with the invalid tail identified in `didResolutionMetadata`.
+When resolving a requested earlier version (with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `didResolutionMetadata.error = "invalidDid"` if a later log entry fails verification. The selected version's witness requirements must still be satisfied; otherwise no document is returned. Only proofs for validated log entries can count when a later entry is invalid. Deactivation is terminal: any entry after a deactivation entry makes the log invalid. A historical selector can still return its valid earlier document, with the invalid tail identified in `didResolutionMetadata`.
 
 Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, `portable`, `witness`, `watchers`, `previousLogEntryHash`, `latestVersionId`) is returned on `didDocumentMetadata` alongside the standard `versionId`/`created`/`updated`/`deactivated` fields.
 

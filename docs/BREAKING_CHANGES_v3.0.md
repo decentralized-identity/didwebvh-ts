@@ -12,6 +12,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.0.md §3.2](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports) |
 | Witness signer contract | Behavior | Witness signing | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract) |
 | Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
+| Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
 
 ---
 
@@ -71,6 +72,12 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Before**: Could be `null`, `undefined`, or use `witnessThreshold` field
 - **Reason**: Consistent shape; removes null handling burden
 - **Upgrade**: Remove null checks; update field name references → [Full guide](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape)
+
+#### 6. Historical Resolution Errors
+
+- **Changed**: Resolving an earlier version with `versionId`, `versionNumber`, or `versionTime` can return a non-null `didDocument` alongside `didResolutionMetadata.error = "invalidDid"` when a later log entry is invalid. The error reports the invalid later entry, not a failure of the selected document.
+- **Witnesses**: The selected version's witness requirements must still be met before its document is returned. Proofs for an invalid log entry do not count.
+- **Upgrade**: Check `didResolutionMetadata.error` even when `didDocument` is non-null; handle or report the invalid later history separately from the selected document → [Full guide](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape)
 
 ---
 

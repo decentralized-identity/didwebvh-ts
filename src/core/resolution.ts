@@ -64,6 +64,8 @@ interface ResolverContext {
   doc: DIDDocument | null;
   resolvedSnapshot: ResolutionSnapshot | null;
   lastValidSnapshot: ResolutionSnapshot | null;
+  validatedEntryCount: number;
+  selectedEntryCount: number | null;
   requiredWitnessChecks: RequiredWitnessCheck[];
   witnessChecks?: WitnessCheckResult[];
   didIdMatchCount: number;
@@ -206,13 +208,16 @@ export const resolveLogWithWitnessResults = async (
     resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
   }
 
-  if (logTraversalSucceeded) {
-    await finalizeResolutionChecks({
-      resolverContext,
-      options,
-      logEntries,
-    });
+  const maxWitnessVersionNumber = logTraversalSucceeded ? undefined : resolverContext.selectedEntryCount;
+  if (maxWitnessVersionNumber === null) {
+    throw new Error('DID resolution failed: No selected version available for witness validation');
   }
+  await finalizeResolutionChecks({
+    resolverContext,
+    options,
+    logEntries: logTraversalSucceeded ? logEntries : logEntries.slice(0, resolverContext.validatedEntryCount),
+    maxWitnessVersionNumber,
+  });
 
   // Stage 4: finalize fallback selection and shape the response.
   let resolvedSnapshot = resolverContext.resolvedSnapshot;
@@ -408,6 +413,7 @@ const processResolvedLogEntries = async ({
         did: resolverContext.did,
         meta: { ...resolverContext.meta },
       };
+      resolverContext.selectedEntryCount = entryIndex + 1;
     }
 
     resolverContext.lastValidSnapshot = {
@@ -415,6 +421,7 @@ const processResolvedLogEntries = async ({
       did: resolverContext.did,
       meta: { ...resolverContext.meta },
     };
+    resolverContext.validatedEntryCount = entryIndex + 1;
   }
 };
 
@@ -440,6 +447,8 @@ const createInitialResolverContext = (): ResolverContext => {
     doc: null,
     resolvedSnapshot: null,
     lastValidSnapshot: null,
+    validatedEntryCount: 0,
+    selectedEntryCount: null,
     requiredWitnessChecks: [],
     didIdMatchCount: 0,
   };
@@ -665,20 +674,30 @@ const finalizeResolutionChecks = async ({
   resolverContext,
   options,
   logEntries,
+  maxWitnessVersionNumber,
 }: {
   resolverContext: ResolverContext;
   options: InternalResolutionOptions;
   logEntries: DIDLog;
+  maxWitnessVersionNumber?: number;
 }): Promise<void> => {
   if (options.requestedDid && resolverContext.didIdMatchCount === 0) {
     throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
   }
 
-  if (resolverContext.requiredWitnessChecks.length > 0) {
+  const requiredWitnessChecks =
+    maxWitnessVersionNumber === undefined
+      ? resolverContext.requiredWitnessChecks
+      : resolverContext.requiredWitnessChecks.filter((check) => check.targetVersionNumber <= maxWitnessVersionNumber);
+  if (requiredWitnessChecks.length > 0) {
+    const did = maxWitnessVersionNumber === undefined ? resolverContext.did : resolverContext.lastValidSnapshot?.did;
+    if (!did) {
+      throw new Error('DID resolution failed: No validated identifier available for witness validation');
+    }
     const witnessChecks = await evaluateRequiredWitnessChecks({
-      requiredWitnessChecks: resolverContext.requiredWitnessChecks,
+      requiredWitnessChecks,
       witnessProofs: options.witnessProofs,
-      did: resolverContext.did,
+      did,
       logEntries,
       verifier: options.verifier,
       fetchFn: options.fetch,
