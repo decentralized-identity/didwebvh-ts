@@ -5,7 +5,7 @@ import {
   generateParallelDidWeb,
   validateCreateDidDocument,
 } from '../src/did-document.js';
-import type { DIDDocument, VerificationMethod } from '../src/interfaces.js';
+import type { DIDDocument } from '../src/interfaces.js';
 import { createDID, updateDID } from '../src/method.js';
 import {
   createTestDIDDocument,
