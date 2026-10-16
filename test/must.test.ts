@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import type { CreateDIDResult, DataIntegrityProofTemplate, DIDLog, WitnessProofFileEntry } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
-import { createWitnessProof } from '../src/witness.js';
 import {
   createTestDIDDocument,
   createTestSigner,
+  createWitnessProof,
   generateTestVerificationMethod,
   TestCryptoImplementation,
   type TestVerificationMethod,
@@ -41,6 +41,16 @@ describe('did:webvh normative tests', async () => {
     const result = await resolveDIDFromLog(malformedLog as unknown as DIDLog, { verifier: testImplementation });
     expect(result.didDocument).toBeNull();
     expect(result.didResolutionMetadata.error).toBeDefined();
+  });
+
+  test('Resolve MUST reject a log entry with no controller proof', async () => {
+    const { proof: _proof, ...entryWithoutProof } = newLog1[0];
+    for (const entry of [{ ...newLog1[0], proof: [] }, entryWithoutProof]) {
+      const result = await resolveDIDFromLog([entry], { verifier: testImplementation });
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.error).toBeDefined();
+      expect(result.didResolutionMetadata.problemDetails?.detail).toContain('Missing proof in DID log entry');
+    }
   });
 
   test('Update implementation MUST generate a correct DID Entry (positive)', async () => {
@@ -208,25 +218,13 @@ describe('did:webvh normative witness tests', async () => {
       },
     ];
 
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map(String).join(' '));
-    };
-
-    let result: Awaited<ReturnType<typeof resolveDIDFromLog>>;
-    try {
-      result = await resolveDIDFromLog(initialDID.log, {
-        witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
-        verifier: testImplementation,
-      });
-    } finally {
-      console.warn = originalWarn;
-    }
+    const result = await resolveDIDFromLog(initialDID.log, {
+      witnessProofs: mockWitnessProofs as unknown as WitnessProofFileEntry[],
+      verifier: testImplementation,
+    });
     expect(result.didDocument).toBeNull();
     expect(result.didResolutionMetadata.error).toBeDefined();
     expect(result.didResolutionMetadata.message).toContain('Witness threshold not met');
-    expect(warnings.some((msg) => msg.includes('Invalid witness proof cryptosuite'))).toBe(true);
   });
 
   test('resolver MUST verify witness proofs before accepting DID update', async () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { DIDLog, FetchLike } from '../src/interfaces.js';
-import { createDID, resolveDID } from '../src/method.js';
+import type { DIDLog, FetchLike, ResolutionOptions } from '../src/interfaces.js';
+import { createDID, resolveDID, resolveDIDFromLog } from '../src/method.js';
 import { fetchLogFromIdentifier, fetchWitnessProofs } from '../src/utils.js';
 import {
   createTestDIDDocument,
@@ -13,7 +13,6 @@ import {
 const toJsonl = (log: DIDLog) => log.map((entry) => JSON.stringify(entry)).join('\n');
 
 const originalFetch = globalThis.fetch;
-let consoleErrorSpy: { mockRestore: () => void } | undefined;
 
 // Stub the global fetch with a single canned response, returning the mock so
 // tests can assert on the requested URL.
@@ -38,14 +37,8 @@ const stubFetchFailure = (error: Error) => {
   globalThis.fetch = vi.fn().mockRejectedValue(error) as unknown as typeof fetch;
 };
 
-const silenceConsoleError = () => {
-  consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-};
-
 const restoreStubs = () => {
   globalThis.fetch = originalFetch;
-  consoleErrorSpy?.mockRestore();
-  consoleErrorSpy = undefined;
 };
 
 describe('resolveDID over HTTPS', () => {
@@ -83,6 +76,21 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didResolutionMetadata.contentType).toBe('application/did+ld+json');
   });
 
+  test('rejects conflicting selectors without fetching for identifier or in-memory resolution', async () => {
+    const fetchMock = createFetchMock(toJsonl(log));
+    const selectorOptions = { versionId: log[0].versionId, versionNumber: 1, fetch: fetchMock };
+
+    const identifierResult = await resolveDID(did, { verifier, ...selectorOptions });
+    const inMemoryResult = await resolveDIDFromLog(log, { verifier, ...selectorOptions });
+
+    expect(identifierResult.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(identifierResult.didDocument).toBeNull();
+
+    expect(inMemoryResult.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(inMemoryResult.didDocument).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test('uses a custom fetch override when resolving a DID by identifier', async () => {
     stubFetchFailure(new Error('global fetch should not be called'));
     const customFetch = createFetchMock(toJsonl(log));
@@ -94,6 +102,99 @@ describe('resolveDID over HTTPS', () => {
     expect(result.didDocument?.id).toBe(did);
     expect(result.didResolutionMetadata.error).toBeUndefined();
   });
+
+  test.each(['versionId', 'versionNumber', 'versionTime'] as const)(
+    'does not return a selected version when witness proof retrieval fails (%s)',
+    async (selectorType) => {
+      const witnessDid = `did:key:${authKey.publicKeyMultibase}`;
+      const witnessed = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier,
+      });
+      const genesisEntry = witnessed.log[0];
+      const selector: Pick<ResolutionOptions, 'versionId' | 'versionNumber' | 'versionTime'> =
+        selectorType === 'versionId'
+          ? { versionId: genesisEntry.versionId }
+          : selectorType === 'versionNumber'
+            ? { versionNumber: 1 }
+            : { versionTime: new Date(Date.parse(genesisEntry.versionTime) + 1000) };
+
+      const fetchMock = vi.fn(async (url: string) =>
+        url.endsWith('did.jsonl')
+          ? createMockResponse(toJsonl(witnessed.log))
+          : createMockResponse('', { ok: false, status: 503 })
+      ) as unknown as FetchLike;
+
+      const result = await resolveDID(witnessed.did, { ...selector, verifier, fetch: fetchMock });
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.error).toBe('internalError');
+    }
+  );
+
+  test('does not mask witness retrieval failure with an invalid later log entry', async () => {
+    const witnessed = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: createTestDIDDocument(authKey),
+      witness: { threshold: 1, witnesses: [{ id: `did:key:${authKey.publicKeyMultibase}` }] },
+      verifier,
+    });
+    const invalidTail = { ...witnessed.log[0], versionId: '2-junk', versionTime: 'junk' };
+    const fetchMock = vi.fn(async (url: string) =>
+      url.endsWith('did.jsonl')
+        ? createMockResponse(toJsonl([...witnessed.log, invalidTail]))
+        : createMockResponse('', { ok: false, status: 503 })
+    ) as unknown as FetchLike;
+
+    const result = await resolveDID(witnessed.did, { versionNumber: 1, verifier, fetch: fetchMock });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('internalError');
+  });
+
+  test.each(['versionId', 'versionNumber', 'versionTime'] as const)(
+    'enforces witness threshold for a selected version when the witness proof file returns 404 (%s)',
+    async (selectorType) => {
+      const witnessDid = `did:key:${authKey.publicKeyMultibase}`;
+      const witnessed = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier,
+      });
+      const genesisEntry = witnessed.log[0];
+      const selector: Pick<ResolutionOptions, 'versionId' | 'versionNumber' | 'versionTime'> =
+        selectorType === 'versionId'
+          ? { versionId: genesisEntry.versionId }
+          : selectorType === 'versionNumber'
+            ? { versionNumber: 1 }
+            : { versionTime: new Date(Date.parse(genesisEntry.versionTime) + 1000) };
+
+      const fetchMock = vi.fn(async (url: string) =>
+        url.endsWith('did.jsonl')
+          ? createMockResponse(toJsonl(witnessed.log))
+          : createMockResponse('', { ok: false, status: 404 })
+      ) as unknown as FetchLike;
+
+      const result = await resolveDID(witnessed.did, { ...selector, verifier, fetch: fetchMock });
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+      expect(result.didDocument).toBeNull();
+      expect(result.didResolutionMetadata.message).toContain(
+        `Witness threshold not met for version ${witnessed.log[0].versionId}`
+      );
+    }
+  );
 
   test.each([
     ['localhost.example.com', [], 'https://localhost.example.com/.well-known/did.jsonl'],
@@ -191,7 +292,6 @@ describe('resolveDID over HTTPS', () => {
   });
 
   test('maps an HTTP 404 to the notFound resolution error', async () => {
-    silenceConsoleError();
     stubFetchResponse('', { ok: false, status: 404 });
 
     const result = await resolveDID(did, { verifier });
@@ -202,7 +302,6 @@ describe('resolveDID over HTTPS', () => {
   });
 
   test('maps an empty DID log to the notFound resolution error', async () => {
-    silenceConsoleError();
     stubFetchResponse('  \n  ');
 
     const result = await resolveDID(did, { verifier });
@@ -234,7 +333,6 @@ describe('resolveDID over HTTPS', () => {
   });
 
   test('maps a network failure to the internalError resolution error', async () => {
-    silenceConsoleError();
     stubFetchFailure(new TypeError('fetch failed'));
 
     const result = await resolveDID(did, { verifier });
@@ -305,10 +403,15 @@ describe('fetchWitnessProofs', () => {
     expect(await fetchWitnessProofs('did:webvh:scid123:example.com')).toEqual([]);
   });
 
-  test('returns an empty list when fetching fails', async () => {
-    silenceConsoleError();
+  test('propagates network errors when fetching witness proofs', async () => {
     stubFetchFailure(new Error('connection refused'));
 
-    expect(await fetchWitnessProofs('did:webvh:scid123:example.com')).toEqual([]);
+    await expect(fetchWitnessProofs('did:webvh:scid123:example.com')).rejects.toThrow('connection refused');
+  });
+
+  test('rejects non-404 HTTP errors when fetching witness proofs', async () => {
+    stubFetchResponse('', { ok: false, status: 503 });
+
+    await expect(fetchWitnessProofs('did:webvh:scid123:example.com')).rejects.toThrow('HTTP error! status: 503');
   });
 });

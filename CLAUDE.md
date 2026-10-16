@@ -58,7 +58,7 @@ pnpm build:clean
 createDID(options) [method.ts]
   → prepareGenesisEntry() [core/entries.ts]
       → assertNoPrivateVerificationMaterial() & substitutePlaceholders() [did-document.ts]
-      → prepareDataForSigning() + createProof() [cryptography.ts]
+      → signing and proof finalization [cryptography.ts]
       → entry hash derivation [utils.ts]
       → returns { did, doc, log, ... }
 ```

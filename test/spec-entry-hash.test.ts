@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import type { DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { deriveHash } from '../src/utils/crypto.js';
+import { deepClone } from '../src/utils.js';
 import {
   createTestDIDDocument,
   createTestSigner,
@@ -79,6 +80,17 @@ describe('didwebvh v1.0 entryHash spec compliance', () => {
     const placeholderHash = await specEntryHashForEntry(entry, '{SCID}');
     const [, storedHash] = entry.versionId.split('-');
     expect(placeholderHash).not.toBe(storedHash);
+  });
+
+  test('genesis resolution rejects a claimed entry hash that does not match the derived hash', async () => {
+    const tamperedLog = deepClone(log);
+    tamperedLog[0].versionId = '1-QmInvalidGenesisEntryHash';
+
+    const resolved = await resolveDIDFromLog(tamperedLog, { verifier });
+
+    expect(resolved.didDocument).toBeNull();
+    expect(resolved.didResolutionMetadata.error).toBe('invalidDid');
+    expect(resolved.didResolutionMetadata.message).toContain('Hash chain broken');
   });
 
   test("deactivate entry's hash also follows the spec predecessor rule", async () => {
