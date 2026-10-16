@@ -1,6 +1,6 @@
 import { base64 } from '@scure/base';
 import type { VerificationMethod } from 'did-resolver';
-import type { DIDLog } from '../interfaces.js';
+import type { DIDLog } from '../index.js';
 
 export type CliSigningKey = VerificationMethod & {
   secretKeyMultibase: string;
