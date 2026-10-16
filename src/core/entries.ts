@@ -1,6 +1,6 @@
-import type { DIDDocument } from 'did-resolver';
+import { type DIDDocument, VerificationRelationship } from 'did-resolver';
 import { assertValidNextKeyHashes, documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
-import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER, VERIFICATION_RELATIONSHIPS } from '../constants.js';
+import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
 import { enrichAlsoKnownAs, replaceCreateDidPlaceholders, validateCreateDidDocument } from '../did-document.js';
 import type {
@@ -304,7 +304,7 @@ export async function prepareUpdateEntry({
     }
 
     // Rewrite self-referential verification methods in relationships
-    for (const rel of VERIFICATION_RELATIONSHIPS) {
+    for (const rel of Object.values(VerificationRelationship)) {
       const relArray = doc[rel as keyof DIDDocument];
       if (Array.isArray(relArray)) {
         (doc as Record<string, unknown>)[rel] = relArray.map((item) => {
