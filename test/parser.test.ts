@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { buildDidLogUrl, getBaseUrl, parseCanonicalAddress, parseDidWebvhIdentifier } from '../src/parser.js';
+import {
+  buildDidLogUrl,
+  getBaseUrl,
+  normalizeDidAddress,
+  parseCanonicalAddress,
+  parseDidWebvhIdentifier,
+} from '../src/parser.js';
 
 const TEST_SCID = '1'.repeat(46);
 
@@ -53,6 +59,33 @@ describe('DID-to-HTTPS URL derivation', () => {
 });
 
 describe('Canonical address parsing', () => {
+  test('normalizes address, supplied, and fallback paths in order', () => {
+    const fromAddress = normalizeDidAddress({
+      address: 'https://example.com/address',
+      scid: TEST_SCID,
+      paths: ['supplied'],
+      fallbackPaths: ['fallback'],
+      context: 'test',
+    });
+    const fromFallback = normalizeDidAddress({
+      address: 'https://example.com',
+      scid: TEST_SCID,
+      fallbackPaths: ['fallback'],
+      context: 'test',
+    });
+    const emptyPathsSuppressFallback = normalizeDidAddress({
+      address: 'https://example.com',
+      scid: TEST_SCID,
+      paths: [],
+      fallbackPaths: ['fallback'],
+      context: 'test',
+    });
+
+    expect(fromAddress.did).toBe(`did:webvh:${TEST_SCID}:example.com:address:supplied`);
+    expect(fromFallback.did).toBe(`did:webvh:${TEST_SCID}:example.com:fallback`);
+    expect(emptyPathsSuppressFallback.did).toBe(`did:webvh:${TEST_SCID}:example.com`);
+  });
+
   test('rejects did:webvh with a missing domain segment', () => {
     expect(() => parseCanonicalAddress(`did:webvh:${TEST_SCID}`)).toThrow(
       'did:webvh identifier must include SCID and domain segments'
@@ -69,6 +102,33 @@ describe('Canonical address parsing', () => {
 
   test('rejects invalid host percent-encoding', () => {
     expect(() => parseCanonicalAddress('%E0%A4%A')).toThrow('Invalid percent-encoding in host: %E0%A4%A');
+  });
+
+  test('wraps URL syntax errors but preserves URL validation errors', () => {
+    expect(() => parseCanonicalAddress('https://')).toThrow('Invalid URL:');
+    for (const address of [
+      'https://example.com/?query=1',
+      'https://example.com/?',
+      'https://example.com/#fragment',
+      'https://example.com/#',
+    ]) {
+      expect(() => parseCanonicalAddress(address)).toThrow('URL input must not include query or fragment components');
+    }
+    expect(() => parseCanonicalAddress('https://example.com/a%2Fb')).toThrow(
+      'URL pathname must not contain decoded slash within a single path segment'
+    );
+  });
+
+  test.each([
+    { username: 'user', password: '' },
+    { username: '', password: 'password' },
+    { username: 'user', password: 'password' },
+  ])('rejects URL credentials', ({ username, password }) => {
+    const url = new URL('https://example.com');
+    url.username = username;
+    url.password = password;
+
+    expect(() => parseCanonicalAddress(url.toString())).toThrow('URL input must not include username or password');
   });
 
   test('rejects IPv6-style hosts', () => {

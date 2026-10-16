@@ -99,35 +99,39 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
   }
 
   if (input.startsWith('https://') || input.startsWith('http://')) {
+    let url: URL;
     try {
-      const url = new URL(input);
-      if (url.protocol === 'http:') {
-        throw new Error('HTTP is not allowed; use HTTPS');
-      }
-      if (url.hash || url.search) {
-        throw new Error('URL input must not include query or fragment components');
-      }
-      const host = url.hostname;
-      const port = url.port ? parseInt(url.port, 10) : undefined;
-
-      if (isIpAddress(host)) {
-        throw new Error('IP addresses are not allowed as hosts');
-      }
-
-      const pathParts = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter((p) => p.length > 0) : [];
-      validateMethodSpecificPathSegments(pathParts, 'URL pathname');
-
-      return {
-        canonicalHost: host,
-        canonicalPort: port,
-        didDomainComponent: port ? `${host}%3A${port}` : host,
-        paths: pathParts.length > 0 ? pathParts : undefined,
-      };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      if (message.includes('not allowed')) throw e;
+      url = new URL(input);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Invalid URL: ${message}`);
     }
+
+    if (url.protocol === 'http:') {
+      throw new Error('HTTP is not allowed; use HTTPS');
+    }
+    if (hasFragmentOrQuery(input)) {
+      throw new Error('URL input must not include query or fragment components');
+    }
+    if (url.username || url.password) {
+      throw new Error('URL input must not include username or password');
+    }
+    const host = url.hostname;
+    const port = url.port ? parseInt(url.port, 10) : undefined;
+
+    if (isIpAddress(host)) {
+      throw new Error('IP addresses are not allowed as hosts');
+    }
+
+    const pathParts = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter((p) => p.length > 0) : [];
+    validateMethodSpecificPathSegments(pathParts, 'URL pathname');
+
+    return {
+      canonicalHost: host,
+      canonicalPort: port,
+      didDomainComponent: port ? `${host}%3A${port}` : host,
+      paths: pathParts.length > 0 ? pathParts : undefined,
+    };
   }
 
   if (hasFragmentOrQuery(input)) {
@@ -168,19 +172,18 @@ export function normalizeDidAddress({
   context: string;
 }): ParsedDidWebvhIdentifier {
   const parsed = parseCanonicalAddress(address);
-  const addressPaths = parsed.paths || [];
-  const resolvedPaths =
-    fallbackPaths !== undefined
-      ? paths !== undefined
-        ? [...addressPaths, ...paths]
-        : addressPaths.length
-          ? addressPaths
-          : fallbackPaths
-      : [...addressPaths, ...(paths || [])];
+  const resolvedPaths = [...(parsed.paths ?? [])];
 
-  const locationKey = resolvedPaths.length
-    ? `${parsed.didDomainComponent}:${resolvedPaths.join(':')}`
-    : parsed.didDomainComponent;
+  if (paths !== undefined) {
+    resolvedPaths.push(...paths);
+  } else if (resolvedPaths.length === 0 && fallbackPaths !== undefined) {
+    resolvedPaths.push(...fallbackPaths);
+  }
+
+  let locationKey = parsed.didDomainComponent;
+  if (resolvedPaths.length > 0) {
+    locationKey += `:${resolvedPaths.join(':')}`;
+  }
   const did = `did:${METHOD}:${scid}:${locationKey}`;
 
   return parseDidWebvhIdentifier(did, context, { allowScidPlaceholder: true });
