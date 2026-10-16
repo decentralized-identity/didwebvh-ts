@@ -19,7 +19,7 @@ import {
   deactivateDID,
   resolveDID,
   resolveDIDFromLog,
-  signWitnessProofEntries,
+  signWitnessProofEntry,
   updateDID,
   verifyWitnessProofs,
 } from '../index.js';
@@ -34,6 +34,7 @@ import {
   type CliSigningKey,
   getVerificationMethodsFromEnv,
   readLogFromDisk,
+  readLogFromString,
   writeLogToDisk,
   writeVerificationMethodToEnv,
 } from './persistence.js';
@@ -47,7 +48,7 @@ Commands:
   verify-proofs Verify witness proofs for a DID log
   update     Update an existing DID
   deactivate Deactivate an existing DID
-  generate-witness-proof Generate witness proofs for a DID version
+  generate-witness-proof Generate witness proof for a DID version
   generate-vm Generate a new verification method keypair
 
 Options:
@@ -66,9 +67,11 @@ Options:
   --witness-file [file]     Path to witness proofs file (optional for resolve, update, deactivate)
 
   # Options for generate-witness-proof:
-  --version-id [id]         The version ID to generate proofs for (required, can be used multiple times)
-  --witness-did [did]       Witness DID (did:key) (can be used multiple times)
-  --witness-secret [secret] Witness secret key multibase (matches witness-did order)
+  --trusted-log [file]      Witness-owned published DID log (empty for genesis signing)
+  --candidate-log [file]    Candidate log containing one new entry
+  --witness-file [file]     Historical witness proofs (required; use [] for an empty witness list)
+  --witness-did [did]       Signing witness DID (did:key)
+  --witness-secret [secret] Signing witness secret key multibase
 
 Examples:
   pnpm cli -- create --address example.com --portable --witness did:key:z6Mk... --witness did:key:z6Mk...
@@ -81,8 +84,7 @@ Examples:
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --next-key did:key:z6Mk...
   pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
-  pnpm cli -- generate-witness-proof --version-id 1-abc123 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
-  pnpm cli -- generate-witness-proof --version-id 1-abc123 --version-id 2-def456 --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
+  pnpm cli -- generate-witness-proof --trusted-log did.jsonl --candidate-log candidate.jsonl --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
   pnpm cli -- generate-vm
 `;
 
@@ -602,50 +604,49 @@ export async function handleDeactivate(args: string[]) {
 
 async function handleGenerateWitnessProof(args: string[]) {
   const options = parseOptions(args);
-  const rawVersionIds = options['version-id'];
-  const versionIds = Array.isArray(rawVersionIds) ? rawVersionIds : rawVersionIds ? [rawVersionIds] : [];
-  const witnessDids = options['witness-did'] as string[] | undefined;
-  const witnessSecrets = options['witness-secret'] as string[] | undefined;
+  const trustedLogPath = options['trusted-log'] as string;
+  const candidateLogPath = options['candidate-log'] as string;
+  const witnessDid = Array.isArray(options['witness-did']) ? options['witness-did'][0] : options['witness-did'];
+  const witnessSecret = Array.isArray(options['witness-secret'])
+    ? options['witness-secret'][0]
+    : options['witness-secret'];
+  const witnessFilePath = options['witness-file'] as string | undefined;
   const output = options.output as string;
 
-  if (versionIds.length === 0) {
-    throw new CliError('At least one --version-id is required');
+  if (!trustedLogPath || !candidateLogPath) {
+    throw new CliError('--trusted-log and --candidate-log are required');
   }
   if (!output) {
     throw new CliError('Output file is required');
   }
-  if (!witnessDids || !witnessSecrets || witnessDids.length !== witnessSecrets.length) {
-    throw new CliError('Must provide matching number of witness DIDs and secrets');
+  if (!witnessDid || !witnessSecret) {
+    throw new CliError('--witness-did and --witness-secret are required');
   }
-
+  if (!witnessFilePath) {
+    throw new CliError('--witness-file is required; use a JSON array (possibly []) for the witness list');
+  }
   try {
-    const witnessSignersByDid: Record<string, Signer> = {};
-    const witnesses: { id: string }[] = [];
-
-    for (let i = 0; i < witnessDids.length; i++) {
-      const did = witnessDids[i];
-      const secret = witnessSecrets[i];
-      const { did: normalizedDid, keyMultibase: publicKeyMultibase } = parseDidKeyDid(did);
-      const vm: CliSigningKey = {
-        id: `${normalizedDid}#${publicKeyMultibase}`,
-        type: 'Multikey',
-        controller: normalizedDid,
-        publicKeyMultibase,
-        secretKeyMultibase: secret,
-      };
-
-      witnessSignersByDid[normalizedDid] = createCustomCrypto(vm);
-      witnesses.push({ id: normalizedDid });
+    const witnessProofs = readWitnessProofsFile(witnessFilePath);
+    if (!witnessProofs) {
+      throw new CliError('--witness-file could not be read');
     }
+    const { did: normalizedDid, keyMultibase: publicKeyMultibase } = parseDidKeyDid(witnessDid);
+    const vm: CliSigningKey = {
+      id: `${normalizedDid}#${publicKeyMultibase}`,
+      type: 'Multikey',
+      controller: normalizedDid,
+      publicKeyMultibase,
+      secretKeyMultibase: witnessSecret,
+    };
+    const trustedLogText = fs.readFileSync(trustedLogPath, 'utf8').trim();
+    const result = await signWitnessProofEntry({
+      trustedLog: trustedLogText ? readLogFromString(trustedLogText) : [],
+      candidateLog: await readLogFromDisk(candidateLogPath),
+      witnessSigner: createCustomCrypto(vm),
+      witnessProofs,
+    });
 
-    const witnessEntries = await signWitnessProofEntries(versionIds, witnesses, witnessSignersByDid);
-
-    const witnessFileContent = witnessEntries.map((entry) => ({
-      versionId: entry.versionId,
-      proof: entry.proof,
-    }));
-
-    fs.writeFileSync(output, JSON.stringify(witnessFileContent, null, 2));
+    fs.writeFileSync(output, JSON.stringify([result], null, 2));
     console.log(`Witness proof file generated at ${output}`);
   } catch (error) {
     if (error instanceof CliError) throw error;
@@ -667,8 +668,7 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
           key === 'next-key-hash' ||
           key === 'watcher' ||
           key === 'witness-did' ||
-          key === 'witness-secret' ||
-          key === 'version-id'
+          key === 'witness-secret'
         ) {
           options[key] = options[key] || [];
           (options[key] as string[]).push(args[++i]);

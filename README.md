@@ -23,7 +23,7 @@ The `examples` directory contains sample code demonstrating how to use the libra
   - `elysia-resolver.ts`: (`pnpm example:resolver`) A resolver built with the Elysia web framework
   - `express-resolver.ts`: A resolver built with Express.js
   Both examples demonstrate how to implement a DID resolver with different web frameworks. See the [Examples README](./examples/README.md) for more information.
-- **Signer Example**: The `examples/signer.ts` (`pnpm example:signer`) file demonstrates how to implement a custom signer using `AbstractCrypto`.
+- **Signer Example**: The `examples/signer.ts` (`pnpm example:signer`) file demonstrates a custom signing and verification implementation using `AbstractCrypto`. Applications that only need custom signing can implement `Signer` directly.
 
 ## Toolchain
 
@@ -303,7 +303,7 @@ Resolver failures are surfaced on `didResolutionMetadata`:
 
 Absence cases (missing DID log or missing DID URL resource) use `didResolutionMetadata.error = "notFound"`.
 
-When resolving a requested earlier version (with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `didResolutionMetadata.error = "invalidDid"` if a later log entry fails verification.
+When resolving a requested earlier version (with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `didResolutionMetadata.error = "invalidDid"` if a later log entry fails verification. The selected version's witness requirements must still be satisfied; otherwise no document is returned. Only proofs for validated log entries can count when a later entry is invalid. Deactivation is terminal: any entry after a deactivation entry makes the log invalid. A historical selector can still return its valid earlier document, with the invalid tail identified in `didResolutionMetadata`.
 
 Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, `portable`, `witness`, `watchers`, `previousLogEntryHash`, `latestVersionId`) is returned on `didDocumentMetadata` alongside the standard `versionId`/`created`/`updated`/`deactivated` fields.
 
@@ -345,14 +345,21 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 
 ### Witness Functions
 
-- `createWitnessProof(signer, versionId, verificationMethod, created?): Promise<DataIntegrityProof>`
-  Creates and signs one witness proof for a specific `versionId`.
+- `fetchWitnessProofs(did: string, fetchFn?: FetchLike): Promise<WitnessProofFileEntry[]>`
+  Fetches the DID's published `did-witness.json` file. Returns `[]` when the
+  file is not found (HTTP 404); other HTTP errors are thrown.
 
-- `signWitnessProofEntry(options: WitnessSigningOptions): Promise<WitnessSigningResult>`
-  Signs one did-witness proof entry (`{ versionId, proof[] }`) for a single target version.
-
-- `signWitnessProofEntries(versionIds: string[], witnesses: WitnessEntry[], witnessSignersByDid: Record<string, WitnessSigner>, created?: string): Promise<WitnessSigningResult[]>`
-  Signs did-witness proof entries for multiple target versions.
+- `signWitnessProofEntry(options: WitnessSigningOptions): Promise<WitnessProofFileEntry>`
+  Verifies the trusted/candidate log continuation and supplied historical
+  witness proofs, then signs one did-witness proof entry
+  (`{ versionId, proof[] }`) for a single target version. The function never
+  fetches proofs itself: `witnessProofs` must be supplied explicitly. Pass `[]`
+  to provide an empty witness list; signing fails if required historical
+  witness thresholds are unmet. The supplied signer must be in the witness
+  list governing the candidate entry. To sign a genesis entry, provide an
+  empty `trustedLog` and a `candidateLog` containing only the genesis entry.
+  For a continuation, `candidateLog` must contain exactly one entry more than
+  `trustedLog`. Each call signs one witness proof; DID controllers combine proofs for the same `versionId` in the witness proof file.
 
 - `getWitnessRequirements(log: DIDLog): WitnessRequirement[]`
   Derives the witness approvals required for each entry in a DID log that requires witnessing, by applying the did:webvh witness transition rules (genesis activation, inheritance, replacement, and removal). Synchronous, performs no network fetch, and requires no `Verifier`. Returns `[]` when the log has no active witness requirement.
@@ -395,13 +402,27 @@ proof retrieval. Pass `witnessProofs: []` when the caller intentionally wants
 network-free, fail-fast validation; pass an explicit proof array to validate
 against caller-supplied proofs.
 
-### Cryptography Functions
-
-- `createDocumentSigner<TDocument>(signer: Signer<TDocument>, verificationMethodId: string)`
-  Creates a function that signs DID documents with the supplied signer and verification method.
+### Cryptography and Key Helpers
 
 - `prepareDataForSigning(document: unknown, proof: DataIntegrityProofTemplate): Promise<Uint8Array>`
-  Canonicalizes and hashes a document and proof template into the bytes passed to a signer.
+  Canonicalizes and hashes a document and proof template into the bytes passed
+  to a custom `Signer`.
+
+- `MultibaseEncoding`, `multibaseEncode(bytes, encoding?)`, and `multibaseDecode(value)`
+  Encode and decode the multibase values supported by this package (`base64url`
+  without padding and `base58btc`). `multibaseDecode` returns the decoded bytes
+  and the detected encoding. These helpers are exported for custom signer
+  implementations to encode signature values and decode key material.
+
+`prepareDataForSigning`, `DataIntegrityProofTemplate`, and the multibase helpers
+support the cryptographic part of a custom `Signer`: obtaining signing bytes,
+signing them with application-managed key material, and encoding the signature.
+The signer only needs to implement `sign` and `getVerificationMethodId`; it
+does not need to implement proof construction, signature verification, or DID
+log/witness validation. The public DID and witness operation methods construct
+the required proofs and perform their applicable validation. A custom
+`Verifier` is only needed when an application wants to override the library's
+default signature verifier.
 
 - `deriveNextKeyHash(input: string): Promise<string>`
   Derives the did:webvh pre-rotation hash for a future update key. Accepts a
@@ -409,14 +430,14 @@ against caller-supplied proofs.
   normalizes it before hashing. The decoded key must contain the two-byte
   Ed25519 multicodec header and exactly 32 bytes of public key material.
 
-- `createDataIntegrityProofTemplate(options): DataIntegrityProofTemplate`
-  Creates an `eddsa-jcs-2022` Data Integrity proof template.
-
-- `signDataIntegrityProof<TDocument>(document: TDocument, proofTemplate: DataIntegrityProofTemplate, signer: Signer<TDocument>): Promise<DataIntegrityProof>`
-  Signs a document and returns the completed Data Integrity proof.
-
 - `AbstractCrypto`
-  An abstract class for implementing custom signers.
+  An abstract class for implementations that provide both signing and
+  verification. Implement the `Signer` interface directly when only custom
+  signing is needed; this does not require implementing `Verifier`.
+
+Use `createDID`, `updateDID`, or `deactivateDID` for controller-signed DID log
+entries, and `signWitnessProofEntry` for witness proofs. These public methods
+apply operation-specific validation before signing.
 
 `nextKeyHashes` options are strict: callers must provide already-derived
 pre-rotation hashes, not `did:key` or multikey values. Use `deriveNextKeyHash`

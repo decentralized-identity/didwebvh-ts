@@ -20,7 +20,9 @@ import type {
   DIDResolutionMeta,
   FetchLike,
   ResolutionOptions,
+  Verifier,
   WitnessProofFileEntry,
+  WitnessRequirement,
 } from '../interfaces.js';
 import { buildProblemDetails } from '../resolver-result.js';
 import { deriveHash } from '../utils/crypto.js';
@@ -41,6 +43,7 @@ import {
 import {
   getRequiredWitnessForEntry,
   type RequiredWitnessCheck,
+  toWitnessRequirement,
   transitionWitnessState,
   type WitnessCheckResult,
 } from './witness-requirements.js';
@@ -61,6 +64,8 @@ interface ResolverContext {
   doc: DIDDocument | null;
   resolvedSnapshot: ResolutionSnapshot | null;
   lastValidSnapshot: ResolutionSnapshot | null;
+  validatedEntryCount: number;
+  selectedEntryCount: number | null;
   requiredWitnessChecks: RequiredWitnessCheck[];
   witnessChecks?: WitnessCheckResult[];
   didIdMatchCount: number;
@@ -110,6 +115,44 @@ export const resolveLog = async (
 };
 
 /**
+ * Resolves a candidate log once and enforces historical witness thresholds
+ * while returning the requirement governing its final entry. For continuation
+ * signing, when a trusted tip is supplied, confirms that the candidate prefix
+ * reaches that tip. Genesis signing supplies no trusted tip and skips this
+ * continuity check.
+ */
+export const resolveWitnessCandidateRequirement = async (
+  candidateLog: DIDLog,
+  trustedTipVersionId: string | undefined,
+  options: { verifier: Verifier; witnessProofs: WitnessProofFileEntry[] }
+): Promise<WitnessRequirement | undefined> => {
+  const { witnessChecks } = await resolveLogWithWitnessResults(candidateLog, options);
+  const candidateEntry = candidateLog.at(-1);
+  const candidateTipVersionId = candidateEntry?.versionId;
+  const candidatePrefixTipVersionId = candidateLog.at(-2)?.versionId;
+
+  if (trustedTipVersionId !== undefined && candidatePrefixTipVersionId !== trustedTipVersionId) {
+    throw new Error('Candidate log does not extend the trusted log tip');
+  }
+
+  const failedHistoricalCheck = witnessChecks.find(
+    (check) => check.targetVersionId !== candidateTipVersionId && !check.satisfied
+  );
+  if (failedHistoricalCheck) {
+    throw new Error(
+      `Witness threshold not met for version ${failedHistoricalCheck.targetVersionId}: got ${failedHistoricalCheck.approvals}, need ${failedHistoricalCheck.witness.threshold}`
+    );
+  }
+
+  const candidateRequirement = witnessChecks.find((check) => check.targetVersionId === candidateTipVersionId);
+  if (!candidateRequirement) {
+    return undefined;
+  }
+
+  return toWitnessRequirement(candidateRequirement);
+};
+
+/**
  * Resolves a DID log and evaluates all applicable witness proofs, returning the
  * computed witness results without strictly enforcing their thresholds.
  * Structural, cryptographic, and non-witness integrity failures still throw;
@@ -140,15 +183,19 @@ export const resolveLogWithWitnessResults = async (
   const resolverContext = createInitialResolverContext();
   const hasExplicitHistoricalSelector =
     options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
+  let logTraversalSucceeded = false;
 
   try {
-    // Stage 2: process log entries and enforce post-loop checks.
+    // Stage 2: process log entries. Historical selectors may preserve a result
+    // when a later log entry is invalid, but witness retrieval errors must not
+    // be handled by that fallback.
     await processResolvedLogEntries({
       resolverContext,
       logEntries,
       initialMethod,
       options,
     });
+    logTraversalSucceeded = true;
   } catch (e) {
     // Stage 3: preserve a captured historical result when possible.
     const resolvedSnapshot = resolverContext.resolvedSnapshot;
@@ -156,13 +203,21 @@ export const resolveLogWithWitnessResults = async (
       throw e;
     }
 
-    const decorateError = resolvedSnapshot.meta && !hasExplicitHistoricalSelector;
-    if (decorateError) {
-      const message = e instanceof Error ? e.message : String(e);
-      resolvedSnapshot.meta.error = 'invalidDid';
-      resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
-    }
+    const message = e instanceof Error ? e.message : String(e);
+    resolvedSnapshot.meta.error = 'invalidDid';
+    resolvedSnapshot.meta.problemDetails = buildProblemDetails('invalidDid', message);
   }
+
+  const maxWitnessVersionNumber = logTraversalSucceeded ? undefined : resolverContext.selectedEntryCount;
+  if (maxWitnessVersionNumber === null) {
+    throw new Error('DID resolution failed: No selected version available for witness validation');
+  }
+  await finalizeResolutionChecks({
+    resolverContext,
+    options,
+    logEntries: logTraversalSucceeded ? logEntries : logEntries.slice(0, resolverContext.validatedEntryCount),
+    maxWitnessVersionNumber,
+  });
 
   // Stage 4: finalize fallback selection and shape the response.
   let resolvedSnapshot = resolverContext.resolvedSnapshot;
@@ -265,12 +320,16 @@ const processResolvedLogEntries = async ({
   logEntries: DIDLog;
   initialMethod: string;
   options: InternalResolutionOptions;
-}): Promise<WitnessCheckResult[]> => {
+}): Promise<void> => {
   let activeMethod = initialMethod; // mutable; changes only on a single permitted upgrade
   let transitionOccurred = false;
 
   // Process each log entry in order and update resolution context.
   for (let entryIndex = 0; entryIndex < logEntries.length; entryIndex++) {
+    if (resolverContext.meta.deactivated) {
+      throw new Error(`Log entry '${logEntries[entryIndex].versionId}' follows a deactivation entry`);
+    }
+
     const entryContext = validateAndParseLogEntry({
       entry: logEntries[entryIndex],
       expectedVersionNumber: entryIndex + 1,
@@ -345,7 +404,7 @@ const processResolvedLogEntries = async ({
       options.versionNumber === versionNumber || options.versionId === resolverContext.meta.versionId;
     const captureByTime =
       options.versionTime !== undefined &&
-      options.versionTime > new Date(resolverContext.meta.updated) &&
+      options.versionTime >= new Date(resolverContext.meta.updated) &&
       (!nextEntry || options.versionTime < new Date(nextEntry.versionTime));
 
     if (!resolverContext.resolvedSnapshot && (captureByVersion || captureByTime)) {
@@ -354,6 +413,7 @@ const processResolvedLogEntries = async ({
         did: resolverContext.did,
         meta: { ...resolverContext.meta },
       };
+      resolverContext.selectedEntryCount = entryIndex + 1;
     }
 
     resolverContext.lastValidSnapshot = {
@@ -361,15 +421,8 @@ const processResolvedLogEntries = async ({
       did: resolverContext.did,
       meta: { ...resolverContext.meta },
     };
+    resolverContext.validatedEntryCount = entryIndex + 1;
   }
-
-  // Run post-iteration invariants and witness enforcement.
-  await finalizeResolutionChecks({
-    resolverContext,
-    options,
-    logEntries,
-  });
-  return resolverContext.witnessChecks ?? [];
 };
 
 const createInitialResolverContext = (): ResolverContext => {
@@ -394,6 +447,8 @@ const createInitialResolverContext = (): ResolverContext => {
     doc: null,
     resolvedSnapshot: null,
     lastValidSnapshot: null,
+    validatedEntryCount: 0,
+    selectedEntryCount: null,
     requiredWitnessChecks: [],
     didIdMatchCount: 0,
   };
@@ -449,7 +504,11 @@ const processGenesisEntry = async ({
   entryContext: ParsedResolutionEntryContext;
   options: InternalResolutionOptions;
 }): Promise<DIDDocument> => {
-  const { entry: sourceEntry, parsedStateDid } = entryContext;
+  const {
+    entry: sourceEntry,
+    parsedVersion: { entryHash },
+    parsedStateDid,
+  } = entryContext;
   const { versionTime, parameters, proof } = sourceEntry;
 
   resolverContext.meta.created = versionTime;
@@ -492,6 +551,11 @@ const processGenesisEntry = async ({
   const prelimEntry = replaceValueInObject(logEntry, SCID_PLACEHOLDER, resolverContext.meta.scid);
 
   const logEntryHash2 = await deriveHash(prelimEntry);
+
+  if (!hashChainIsValid(logEntryHash2, entryHash)) {
+    throw new Error(`Hash chain broken at '${resolverContext.meta.versionId}'`);
+  }
+
   const verified = await documentStateIsValid(
     { ...prelimEntry, versionId: `1-${logEntryHash2}`, proof },
     resolverContext.meta.updateKeys,
@@ -610,20 +674,30 @@ const finalizeResolutionChecks = async ({
   resolverContext,
   options,
   logEntries,
+  maxWitnessVersionNumber,
 }: {
   resolverContext: ResolverContext;
   options: InternalResolutionOptions;
   logEntries: DIDLog;
+  maxWitnessVersionNumber?: number;
 }): Promise<void> => {
   if (options.requestedDid && resolverContext.didIdMatchCount === 0) {
     throw new Error(`Requested DID '${options.requestedDid}' does not match state.id in any valid log version`);
   }
 
-  if (resolverContext.requiredWitnessChecks.length > 0) {
+  const requiredWitnessChecks =
+    maxWitnessVersionNumber === undefined
+      ? resolverContext.requiredWitnessChecks
+      : resolverContext.requiredWitnessChecks.filter((check) => check.targetVersionNumber <= maxWitnessVersionNumber);
+  if (requiredWitnessChecks.length > 0) {
+    const did = maxWitnessVersionNumber === undefined ? resolverContext.did : resolverContext.lastValidSnapshot?.did;
+    if (!did) {
+      throw new Error('DID resolution failed: No validated identifier available for witness validation');
+    }
     const witnessChecks = await evaluateRequiredWitnessChecks({
-      requiredWitnessChecks: resolverContext.requiredWitnessChecks,
+      requiredWitnessChecks,
       witnessProofs: options.witnessProofs,
-      did: resolverContext.did,
+      did,
       logEntries,
       verifier: options.verifier,
       fetchFn: options.fetch,

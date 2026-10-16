@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, test } from 'vitest';
+import { prepareUpdateEntry } from '../src/core/entries.js';
 import { resolveLog } from '../src/core/resolution.js';
+import { signWitnessProofEntry } from '../src/index.js';
 import type { CreateDIDOptions, CreateDIDResult, DIDLog } from '../src/interfaces.js';
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats.js';
@@ -8,6 +10,7 @@ import {
   createFutureDIDLog,
   createTestDIDDocument,
   createTestSigner,
+  createWitnessProof,
   generateTestVerificationMethod,
   TestCryptoImplementation,
   type TestVerificationMethod,
@@ -176,7 +179,7 @@ describe('Not So Happy Path Tests', () => {
     expect(r.didResolutionMetadata.error).toBe('invalidDid');
   });
 
-  test('Historical versionNumber selector remains successful when a later entry fails', async () => {
+  test('Historical versionNumber selector returns its snapshot and flags an invalid later entry', async () => {
     // Create a 3-entry log
     const { log: log1 } = await createDID({
       address: 'example.com',
@@ -213,11 +216,119 @@ describe('Not So Happy Path Tests', () => {
 
     expect(result.didDocument).not.toBeNull();
     expect(result.didDocumentMetadata.versionId?.split('-')[0]).toBe('1');
-    expect(result.didResolutionMetadata.error).toBeUndefined();
-    expect(result.didResolutionMetadata.problemDetails).toBeUndefined();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain('Hash chain broken');
+    expect(result.didResolutionMetadata.problemDetails?.detail).toContain('Hash chain broken');
   });
 
-  test('Historical versionId selector remains successful when a later entry fails', async () => {
+  test.each(['versionNumber', 'versionId', 'versionTime'] as const)(
+    'enforces witness proofs before returning a selected snapshot when a later entry is invalid (%s)',
+    async (selectorType) => {
+      const witnessed = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(authKey),
+        witness: { threshold: 1, witnesses: [{ id: `did:key:${authKey.publicKeyMultibase}` }] },
+        verifier: testImplementation,
+      });
+      const versionId = witnessed.log[0].versionId;
+      const invalidTail = {
+        ...witnessed.log[0],
+        versionId: '2-junk',
+        versionTime:
+          selectorType === 'versionTime'
+            ? new Date(Date.parse(witnessed.log[0].versionTime) + 2000).toISOString()
+            : 'junk',
+      };
+      const log = [...witnessed.log, invalidTail];
+      const selector =
+        selectorType === 'versionId'
+          ? { versionId }
+          : selectorType === 'versionNumber'
+            ? { versionNumber: 1 }
+            : { versionTime: new Date(Date.parse(witnessed.log[0].versionTime) + 1000) };
+
+      const missing = await resolveDIDFromLog(log, {
+        ...selector,
+        verifier: testImplementation,
+        witnessProofs: [],
+      });
+      expect(missing.didDocument).toBeNull();
+      expect(missing.didResolutionMetadata.error).toBe('invalidDid');
+      expect(missing.didResolutionMetadata.message).toContain(`Witness threshold not met for version ${versionId}`);
+
+      const signer = createTestSigner(authKey);
+      const verificationMethod = signer.getVerificationMethodId();
+      const signProof = (targetVersionId: string) =>
+        createWitnessProof(
+          async (document, proof) => ({
+            proof: await signer.sign({ document, proof: proof! }),
+          }),
+          targetVersionId,
+          verificationMethod
+        );
+
+      const unvalidatedTailProof = await resolveDIDFromLog(log, {
+        ...selector,
+        verifier: testImplementation,
+        witnessProofs: [{ versionId: invalidTail.versionId, proof: [await signProof(invalidTail.versionId)] }],
+      });
+      expect(unvalidatedTailProof.didDocument).toBeNull();
+      expect(unvalidatedTailProof.didResolutionMetadata.message).toContain('Witness threshold not met');
+
+      const witnessedHistory = await resolveDIDFromLog(log, {
+        ...selector,
+        verifier: testImplementation,
+        witnessProofs: [{ versionId, proof: [await signProof(versionId)] }],
+      });
+      expect(witnessedHistory.didDocument?.id).toBe(witnessed.did);
+      expect(witnessedHistory.didResolutionMetadata.error).toBe('invalidDid');
+      expect(witnessedHistory.didResolutionMetadata.message).toMatch(/versionTime|SCID/);
+    }
+  );
+
+  test('counts a version 2 witness proof when resolving version 1 despite an invalid version 3 entry', async () => {
+    const witnessed = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: createTestDIDDocument(authKey),
+      witness: { threshold: 1, witnesses: [{ id: `did:key:${authKey.publicKeyMultibase}` }] },
+      verifier: testImplementation,
+    });
+    const signer = createTestSigner(authKey);
+    const proof = await createWitnessProof(
+      async (document, template) => ({ proof: await signer.sign({ document, proof: template! }) }),
+      witnessed.log[0].versionId,
+      signer.getVerificationMethodId()
+    );
+    const updated = await updateDID({
+      log: witnessed.log,
+      signer,
+      verifier: testImplementation,
+      witnessProofs: [{ versionId: witnessed.log[0].versionId, proof: [proof] }],
+    });
+    const laterProof = await createWitnessProof(
+      async (document, template) => ({ proof: await signer.sign({ document, proof: template! }) }),
+      updated.log[1].versionId,
+      signer.getVerificationMethodId()
+    );
+    const result = await resolveDIDFromLog(
+      [...updated.log, { ...updated.log[1], versionId: '3-junk', versionTime: 'junk' }],
+      {
+        versionNumber: 1,
+        verifier: testImplementation,
+        witnessProofs: [{ versionId: updated.log[1].versionId, proof: [laterProof] }],
+      }
+    );
+
+    expect(result.didDocument?.id).toBe(witnessed.did);
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain('versionTime');
+  });
+
+  test('Historical versionId selector returns its snapshot and flags an invalid later entry', async () => {
     const { log: log1 } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey),
@@ -250,11 +361,12 @@ describe('Not So Happy Path Tests', () => {
 
     expect(result.didDocument).not.toBeNull();
     expect(result.didDocumentMetadata.versionId).toBe(log1[0].versionId);
-    expect(result.didResolutionMetadata.error).toBeUndefined();
-    expect(result.didResolutionMetadata.problemDetails).toBeUndefined();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain('Hash chain broken');
+    expect(result.didResolutionMetadata.problemDetails?.detail).toContain('Hash chain broken');
   });
 
-  test('Historical versionTime selector remains successful when a later entry fails', async () => {
+  test('Historical versionTime selector returns its snapshot and flags an invalid later entry', async () => {
     const { log: log1 } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey),
@@ -291,8 +403,79 @@ describe('Not So Happy Path Tests', () => {
 
     expect(result.didDocument).not.toBeNull();
     expect(result.didDocumentMetadata.versionId).toBe(log1[0].versionId);
-    expect(result.didResolutionMetadata.error).toBeUndefined();
-    expect(result.didResolutionMetadata.problemDetails).toBeUndefined();
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didResolutionMetadata.message).toContain('Hash chain broken');
+    expect(result.didResolutionMetadata.problemDetails?.detail).toContain('Hash chain broken');
+  });
+
+  test('rejects a validly signed entry appended after deactivation while preserving earlier selected history', async () => {
+    const genesis = await createDID({
+      address: 'example.com',
+      signer: createTestSigner(authKey),
+      updateKeys: [authKey.publicKeyMultibase!],
+      didDocument: createTestDIDDocument(authKey),
+      verifier: testImplementation,
+    });
+    const deactivated = await deactivateDID({
+      log: genesis.log,
+      signer: createTestSigner(authKey),
+      verifier: testImplementation,
+    });
+    const validDeactivation = await resolveDIDFromLog(deactivated.log, {
+      verifier: testImplementation,
+      witnessProofs: [],
+    });
+    expect(validDeactivation.didDocument).toBeNull();
+    expect(validDeactivation.didDocumentMetadata.deactivated).toBe(true);
+    expect(validDeactivation.didResolutionMetadata.error).toBeUndefined();
+
+    const deactivatedResolution = await resolveLog(deactivated.log, {
+      verifier: testImplementation,
+      witnessProofs: [],
+    });
+    const { entry: illegalUpdate } = await prepareUpdateEntry({
+      options: {
+        log: deactivated.log,
+        signer: createTestSigner(authKey),
+        verifier: testImplementation,
+      },
+      lastEntry: deactivated.log[deactivated.log.length - 1],
+      lastMeta: deactivatedResolution.meta,
+      log: deactivated.log,
+      versionNumber: deactivated.log.length + 1,
+      createdDate: new Date(Date.parse(deactivatedResolution.meta.updated) + 1000).toISOString(),
+    });
+    const illegallyExtendedLog = [...deactivated.log, illegalUpdate];
+
+    await expect(
+      signWitnessProofEntry({
+        trustedLog: deactivated.log,
+        candidateLog: illegallyExtendedLog,
+        witnessSigner: createTestSigner(authKey),
+        witnessProofs: [],
+        verifier: testImplementation,
+      })
+    ).rejects.toThrow('follows a deactivation entry');
+
+    const historical = await resolveDIDFromLog(illegallyExtendedLog, {
+      versionNumber: 1,
+      verifier: testImplementation,
+      witnessProofs: [],
+    });
+
+    expect(historical.didDocument).not.toBeNull();
+    expect(historical.didDocumentMetadata.versionId).toBe(genesis.log[0].versionId);
+    expect(historical.didDocumentMetadata.deactivated).toBe(true);
+    expect(historical.didResolutionMetadata.error).toBe('invalidDid');
+    expect(historical.didResolutionMetadata.message).toContain('follows a deactivation entry');
+
+    const latest = await resolveDIDFromLog(illegallyExtendedLog, {
+      verifier: testImplementation,
+      witnessProofs: [],
+    });
+    expect(latest.didDocument).toBeNull();
+    expect(latest.didResolutionMetadata.error).toBe('invalidDid');
+    expect(latest.didResolutionMetadata.message).toContain('follows a deactivation entry');
   });
 
   test('rejects log where no state.id matches the resolved DID when requestedDid is omitted', async () => {

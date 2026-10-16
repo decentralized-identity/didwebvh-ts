@@ -150,7 +150,6 @@ export const createDocumentSigner = <TDocument extends SignableDocument>(
 
       return { ...doc, proof };
     } catch (e) {
-      console.error(e);
       const message = e instanceof Error ? e.message : String(e);
       throw new Error(`Document signing failure: ${message}`);
     }

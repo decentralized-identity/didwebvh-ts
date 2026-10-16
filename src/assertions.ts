@@ -32,7 +32,7 @@ export const documentStateIsValid = async (
   }
 
   let { proof: proofs, ...rest } = doc;
-  if (!proofs) {
+  if (!proofs || proofs.length === 0) {
     throw new Error('Missing proof in DID log entry');
   }
   if (!Array.isArray(proofs)) {
