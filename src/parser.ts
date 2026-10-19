@@ -246,6 +246,10 @@ export function validateMethodSpecificPathSegments(pathSegments: string[], conte
       throw new Error(`${context} contains invalid percent-encoding in path segment '${segment}'`);
     }
 
+    if (decodedSegment === '') {
+      throw new Error(`${context} must not contain empty path segments`);
+    }
+
     if (decodedSegment === '.' || decodedSegment === '..') {
       throw new Error(`${context} must not contain dot-segments`);
     }
@@ -361,10 +365,22 @@ function parseDidForUrl(id: string): ParsedDidWebvhIdentifier {
   return parseDidWebvhIdentifier(id, 'did:webvh identifier');
 }
 
+/**
+ * Decodes a validated path segment once and re-encodes it with uppercase hex, as the
+ * did:webvh v1.0 DID-to-HTTPS transformation requires. Only RFC 3986 unreserved
+ * characters are left unencoded, so encoded sub-delimiters keep their meaning.
+ */
+function encodeUrlPathSegment(segment: string): string {
+  return encodeURIComponent(decodeURIComponent(segment)).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+}
+
 function getBaseUrlFromParsedDid(parsedDid: ParsedDidWebvhIdentifier): string {
   const host = toASCII(parsedDid.canonicalHost.normalize('NFC'));
   const normalizedHost = parsedDid.canonicalPort ? `${host}:${parsedDid.canonicalPort}` : host;
-  const path = parsedDid.paths?.join('/') ?? '';
+  const path = parsedDid.paths?.map(encodeUrlPathSegment).join('/') ?? '';
 
   return `https://${normalizedHost}${path ? `/${path}` : ''}`;
 }

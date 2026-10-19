@@ -32,6 +32,19 @@ describe('DID-to-HTTPS URL derivation', () => {
     expect(buildDidLogUrl(did)).toBe('https://example.com:8080/custom/path/did.jsonl');
   });
 
+  test.each([
+    ['%E7%94%A8%E6%88%B7', '%E7%94%A8%E6%88%B7'],
+    ['%e7%94%a8%e6%88%b7', '%E7%94%A8%E6%88%B7'],
+    ['%41b%2dc', 'Ab-c'],
+    ['a%7eb', 'a~b'],
+    ['a%21b%2Ac%3Ad', 'a%21b%2Ac%3Ad'],
+    ['a%20b', 'a%20b'],
+  ])('re-encodes path segment %s with uppercase hex', (segment, encoded) => {
+    const did = `did:webvh:${MOCK_SCID}:example.com:${segment}`;
+    expect(getBaseUrl(did)).toBe(`https://example.com/${encoded}`);
+    expect(buildDidLogUrl(did)).toBe(`https://example.com/${encoded}/did.jsonl`);
+  });
+
   test('uses .well-known did.jsonl when the DID has no path', () => {
     const did = `did:webvh:${MOCK_SCID}:example.com`;
     expect(getBaseUrl(did)).toBe('https://example.com');
@@ -54,6 +67,14 @@ describe('DID-to-HTTPS URL derivation', () => {
     expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:a%2Fb`)).toThrow(
       'did:webvh identifier must not contain decoded slash within a single path segment'
     );
+  });
+
+  test('rejects empty path segments', () => {
+    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com::path`)).toThrow(
+      'did:webvh identifier must not contain empty path segments'
+    );
+    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:path:`)).toThrow();
+    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:`)).toThrow();
   });
 });
 
