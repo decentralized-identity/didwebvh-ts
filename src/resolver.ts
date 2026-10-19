@@ -8,6 +8,7 @@ import type {
 } from 'did-resolver';
 import type { FetchLike, ResolutionOptions, Verifier } from './interfaces.js';
 import { resolveDID } from './method.js';
+import { didWebvhParser } from './parser.js';
 import { toErrorResult, validateSingleVersionSelector, WEBVH_ERROR_TYPES } from './resolver-result.js';
 import { defaultVerifier } from './verifier.js';
 
@@ -102,6 +103,8 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
     // parsed.did is the bare DID without query/fragment.
     return resolveDID(parsed.did, selector);
   };
+
+  resolve.parser = didWebvhParser;
 
   return { webvh: resolve };
 }

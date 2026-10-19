@@ -7,6 +7,7 @@ import {
   createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
+  MOCK_SCID,
   TestCryptoImplementation,
   type TestVerificationMethod,
 } from './utils.js';
@@ -236,6 +237,21 @@ describe('getResolver integration', () => {
     const result = await resolver.resolve(`${did}?versionId=%E0%A4%A`);
     expect(result.didResolutionMetadata.error).toBe('invalidDid');
     expect(result.didDocument).toBeNull();
+  });
+
+  test.each([
+    ['invalid SCID', `did:webvh:${'0'.repeat(46)}:example.com`],
+    ['invalid domain', `did:webvh:${MOCK_SCID}:example`],
+    ['invalid path segment', `did:webvh:${MOCK_SCID}:example.com:..`],
+  ])('method parser rejects %s before fetching', async (_condition, invalidDid) => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await resolver.resolve(invalidDid);
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didDocument).toBeNull();
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test('not-found DID returns notFound', async () => {
