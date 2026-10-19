@@ -13,7 +13,6 @@ import { canonicalizeStrict } from './utils/canonicalize.js';
 import { createHash } from './utils/crypto.js';
 import { multibaseDecode } from './utils/multiformats.js';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
-import { fetchWitnessProofs } from './utils.js';
 
 export function resolveWitnessParameter(parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined {
   if ('witness' in parameters) {
@@ -217,5 +216,3 @@ export async function countVerifiedWitnessApprovals(
 
   return { approvals, rejectedProofs };
 }
-
-export { fetchWitnessProofs };

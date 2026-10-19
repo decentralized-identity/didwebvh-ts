@@ -21,6 +21,7 @@ import type {
   WitnessSigningOptions,
   WitnessVerificationResult,
 } from './interfaces.js';
+import { normalizeDidAddress, parseDidWebvhIdentifier } from './parser.js';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result.js';
 import {
   createDate,
@@ -29,7 +30,7 @@ import {
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime.js';
 import { normalizeUpdateKeys, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
-import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils.js';
+import { fetchLogFromIdentifier, requireDidDocumentId } from './utils.js';
 import { defaultVerifier } from './verifier.js';
 import { resolveWitnessParameter, validateWitnessParameter } from './witness.js';
 

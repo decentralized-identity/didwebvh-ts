@@ -24,22 +24,18 @@ import type {
   WitnessProofFileEntry,
   WitnessRequirement,
 } from '../interfaces.js';
+import { parseDidWebvhIdentifier } from '../parser.js';
 import { buildProblemDetails } from '../resolver-result.js';
 import { deriveHash } from '../utils/crypto.js';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime.js';
 import {
   deepClone,
+  fetchWitnessProofs,
   parseAndValidateVersionId,
-  parseDidWebvhIdentifier,
   replaceValueInObject,
   requireDidDocumentId,
 } from '../utils.js';
-import {
-  countVerifiedWitnessApprovals,
-  fetchWitnessProofs,
-  normalizeWitnessThreshold,
-  validateWitnessParameter,
-} from '../witness.js';
+import { countVerifiedWitnessApprovals, normalizeWitnessThreshold, validateWitnessParameter } from '../witness.js';
 import {
   getRequiredWitnessForEntry,
   type RequiredWitnessCheck,

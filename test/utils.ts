@@ -28,10 +28,11 @@ import type {
   Verifier,
   WitnessParameter,
 } from '../src/interfaces.js';
+import { normalizeDidAddress } from '../src/parser.js';
 import { createSCID, deriveHash } from '../src/utils/crypto.js';
 import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats.js';
-import { deepClone, normalizeDidAddress, replaceValueInObject } from '../src/utils.js';
+import { deepClone, replaceValueInObject } from '../src/utils.js';
 
 export type TestVerificationMethod = VerificationMethod & {
   secretKeyMultibase: string;
