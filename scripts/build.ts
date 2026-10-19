@@ -31,11 +31,21 @@ function createDistPackageJson() {
         import: './esm/index.js',
         require: './cjs/index.cjs',
       },
+      './idna': {
+        types: './types/idna.d.ts',
+        'react-native': './cjs/idna.cjs',
+        browser: './browser/idna.js',
+        import: './esm/idna.js',
+        require: './cjs/idna.cjs',
+      },
       './types': {
         types: './types/types.d.ts',
       },
     },
     dependencies: pkg.dependencies,
+    peerDependencies: pkg.peerDependencies,
+    peerDependenciesMeta: pkg.peerDependenciesMeta,
+    engines: pkg.engines,
   };
 
   // Only add optional fields if they exist in the source package.json
@@ -80,6 +90,21 @@ async function buildRuntime() {
     outfile: 'dist/esm/index.js',
     sourcemap: true,
   });
+
+  for (const [platform, format, outfile] of [
+    ['node', 'esm', 'dist/esm/idna.js'],
+    ['node', 'cjs', 'dist/cjs/idna.cjs'],
+    ['browser', 'esm', 'dist/browser/idna.js'],
+  ] as const) {
+    await esbuild({
+      entryPoints: ['src/idna.ts'],
+      bundle: true,
+      external: ['tr46'],
+      format,
+      platform,
+      outfile,
+    });
+  }
 
   console.log('\nBuilding CJS bundle...');
   await esbuild({

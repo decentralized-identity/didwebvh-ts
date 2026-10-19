@@ -390,7 +390,9 @@ const processResolvedLogEntries = async ({
       resolverContext.didIdMatchCount++;
     }
 
-    resolverContext.doc = addDefaultDidWebvhServices(resolverContext.did, resolverContext.doc);
+    resolverContext.doc = addDefaultDidWebvhServices(resolverContext.did, resolverContext.doc, {
+      toASCII: options.toASCII,
+    });
 
     const nextEntry = logEntries[entryIndex + 1];
     const captureByVersion =
@@ -697,6 +699,7 @@ const finalizeResolutionChecks = async ({
       logEntries,
       verifier: options.verifier,
       fetchFn: options.fetch,
+      toASCII: options.toASCII,
     });
     resolverContext.witnessChecks = witnessChecks;
   }
@@ -722,6 +725,7 @@ const evaluateRequiredWitnessChecks = async ({
   logEntries,
   verifier,
   fetchFn,
+  toASCII,
 }: {
   requiredWitnessChecks: RequiredWitnessCheck[];
   witnessProofs: WitnessProofFileEntry[] | undefined;
@@ -729,10 +733,11 @@ const evaluateRequiredWitnessChecks = async ({
   logEntries: DIDLog;
   verifier: ResolutionOptions['verifier'];
   fetchFn?: FetchLike;
+  toASCII?: ResolutionOptions['toASCII'];
 }): Promise<WitnessCheckResult[]> => {
   let resolvedWitnessProofs = witnessProofs;
   if (!resolvedWitnessProofs) {
-    resolvedWitnessProofs = await fetchWitnessProofs(did, fetchFn);
+    resolvedWitnessProofs = await fetchWitnessProofs(did, fetchFn, toASCII);
   }
 
   const publishedVersionNumbers = new Map(logEntries.map((entry, index) => [entry.versionId, index + 1]));

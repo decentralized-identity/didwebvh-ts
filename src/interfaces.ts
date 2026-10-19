@@ -46,6 +46,8 @@ export interface Verifier {
  */
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
+export type ToASCII = (host: string) => string;
+
 export interface GetResolverConfig {
   verifier?: Verifier;
   /**
@@ -53,6 +55,7 @@ export interface GetResolverConfig {
    * overridden per resolution via `resolver.resolve(didUrl, { fetch })`.
    */
   fetch?: FetchLike;
+  toASCII?: ToASCII;
 }
 
 export interface SignerOptions {
@@ -186,6 +189,7 @@ export interface UpdateDIDResult {
 
 export interface CreateDIDOptions {
   address?: string;
+  toASCII?: ToASCII;
   signer: Signer;
   updateKeys: string[];
   /**
@@ -228,6 +232,7 @@ export interface UpdateDIDOptions {
   verifier?: Verifier;
   witnessProofs?: WitnessProofFileEntry[];
   address?: string;
+  toASCII?: ToASCII;
   paths?: string[];
 }
 
@@ -239,6 +244,7 @@ export interface DeactivateDIDOptions {
 }
 
 export interface ResolutionOptions {
+  toASCII?: ToASCII;
   versionNumber?: number;
   versionId?: string;
   versionTime?: Date;

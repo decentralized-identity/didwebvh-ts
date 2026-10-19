@@ -50,8 +50,16 @@ const resolveNextDidContext = ({
     paths: options.paths,
     fallbackPaths: parsedLastEntryDid.paths ?? [],
     context: 'updateDID path segments',
+    toASCII: options.toASCII,
   });
-  const did = normalizedAddress.did;
+  // Re-supplying the current location is not a move: keep a non-canonical DID.
+  const canonicalLastEntryDid = normalizeDidAddress({
+    address: lastEntryDid,
+    scid: parsedLastEntryDid.scid,
+    context: 'updateDID previous DID',
+    toASCII: options.toASCII,
+  }).did;
+  const did = normalizedAddress.did === canonicalLastEntryDid ? lastEntryDid : normalizedAddress.did;
 
   if (did !== lastEntryDid && !portable) {
     throw new Error('Cannot move DID: portability is disabled');

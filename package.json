@@ -10,7 +10,7 @@
     "url": "https://github.com/decentralized-identity/didwebvh-ts.git"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.14.0"
   },
   "react-native": "dist/cjs/index.cjs",
   "main": "dist/cjs/index.cjs",
@@ -43,9 +43,11 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
     "@types/node": "^24.13.4",
+    "@types/tr46": "^5.0.1",
     "@vitest/coverage-v8": "^5.0.4",
     "esbuild": "^0.28.2",
     "glob": "^13.0.6",
+    "tr46": "^7.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
@@ -57,6 +59,14 @@
     "did-resolver": "^6.0.0",
     "json-canonicalize": "^3.0.1"
   },
+  "peerDependencies": {
+    "tr46": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "tr46": {
+      "optional": true
+    }
+  },
   "bin": {
     "didwebvh": "./dist/cli/didwebvh.js"
   },
@@ -67,6 +77,13 @@
       "browser": "./dist/browser/index.js",
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.cjs"
+    },
+    "./idna": {
+      "types": "./dist/types/idna.d.ts",
+      "react-native": "./dist/cjs/idna.cjs",
+      "browser": "./dist/browser/idna.js",
+      "import": "./dist/esm/idna.js",
+      "require": "./dist/cjs/idna.cjs"
     },
     "./types": {
       "types": "./dist/types/types.d.ts"

@@ -101,7 +101,9 @@ describe('Canonical address parsing', () => {
   });
 
   test('rejects invalid host percent-encoding', () => {
-    expect(() => parseCanonicalAddress('%E0%A4%A')).toThrow('Invalid percent-encoding in host: %E0%A4%A');
+    expect(() => parseCanonicalAddress('%E0%A4%A')).toThrow(
+      "Address host contains invalid percent-encoding: '%E0%A4%A'"
+    );
   });
 
   test('wraps URL syntax errors but preserves URL validation errors', () => {

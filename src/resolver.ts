@@ -6,7 +6,7 @@ import type {
   Resolvable,
   ResolverRegistry,
 } from 'did-resolver';
-import type { FetchLike, GetResolverConfig, ResolutionOptions } from './interfaces.js';
+import type { FetchLike, GetResolverConfig, ResolutionOptions, ToASCII } from './interfaces.js';
 import { resolveDID } from './method.js';
 import { didWebvhParser } from './parser.js';
 import { toErrorResult, validateSingleVersionSelector, WEBVH_ERROR_TYPES } from './resolver-result.js';
@@ -14,6 +14,7 @@ import { defaultVerifier } from './verifier.js';
 
 interface WebvhDidResolutionOptions extends DIDResolutionOptions {
   fetch?: unknown;
+  toASCII?: unknown;
 }
 
 const isFetchLike = (value: unknown): value is FetchLike => typeof value === 'function';
@@ -39,6 +40,12 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
     if (options.fetch !== undefined && !isFetchLike(options.fetch)) {
       return toErrorResult('invalidOptions', 'Invalid fetch option: expected function.');
     }
+    if (
+      (options.toASCII !== undefined && typeof options.toASCII !== 'function') ||
+      (config.toASCII !== undefined && typeof config.toASCII !== 'function')
+    ) {
+      return toErrorResult('invalidOptions', 'Invalid toASCII option: expected function.');
+    }
 
     // Decode per RFC 3986 (decodeURIComponent), NOT via URLSearchParams: a DID
     // URL query is a URI component where `+` is a literal plus, whereas
@@ -61,7 +68,10 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
         return toErrorResult('invalidDidUrl', 'Malformed percent-encoding in DID URL query.');
       }
     }
-    const selector: ResolutionOptions = { verifier };
+    const selector: ResolutionOptions = {
+      verifier,
+      toASCII: (options.toASCII ?? config.toASCII) as ToASCII | undefined,
+    };
     const fetchOverride = options.fetch ?? config.fetch;
     if (fetchOverride) {
       selector.fetch = fetchOverride;

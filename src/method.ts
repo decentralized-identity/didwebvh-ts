@@ -116,6 +116,7 @@ export const createDID = async (options: CreateDIDOptions): Promise<CreateDIDRes
     scid: SCID_PLACEHOLDER,
     paths: options.paths,
     context: 'createDID path segments',
+    toASCII: options.toASCII,
   });
   if (options.created) {
     validateUtcIso8601NotInFuture(options.created, 'createDID created');
@@ -132,7 +133,7 @@ export const createDID = async (options: CreateDIDOptions): Promise<CreateDIDRes
   if (!didId) {
     throw new Error('DID document id is missing');
   }
-  const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(didId, entry.state) : undefined;
+  const webDoc = options.alsoKnownAsWeb ? generateParallelDidWeb(didId, entry.state, options.toASCII) : undefined;
 
   return {
     did: didId,
@@ -161,7 +162,7 @@ export const resolveDID = async (did: string, options: ResolutionOptions = {}): 
     // Validate the requested identifier before asking the caller to locate a controlled log.
     const { scid } = parseDidWebvhIdentifier(did, 'DID');
     const controlledLog = options.resolveControlledDid ? await options.resolveControlledDid(did) : undefined;
-    const log = controlledLog ?? (await fetchLogFromIdentifier(did, options.fetch));
+    const log = controlledLog ?? (await fetchLogFromIdentifier(did, options.fetch, options.toASCII));
     const result = await resolveLog(log, { ...options, verifier, scid, requestedDid: did });
     return toResolutionResult(result);
   } catch (e) {
@@ -206,7 +207,13 @@ export const updateDID = async (options: UpdateDIDOptions): Promise<UpdateDIDRes
   }
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
+  const lastMeta = (
+    await resolveLog(log, {
+      verifier: options.verifier,
+      witnessProofs: options.witnessProofs,
+      toASCII: options.toASCII,
+    })
+  ).meta;
   const currentUpdateKeys = options.updateKeys;
   if (lastMeta.deactivated) {
     throw new Error('Cannot update deactivated DID');
@@ -240,7 +247,7 @@ export const updateDID = async (options: UpdateDIDOptions): Promise<UpdateDIDRes
   if (!updatedDidId) {
     throw new Error('DID document id is missing');
   }
-  const webDoc = hasWebAlias ? generateParallelDidWeb(updatedDidId, entry.state) : undefined;
+  const webDoc = hasWebAlias ? generateParallelDidWeb(updatedDidId, entry.state, options.toASCII) : undefined;
 
   return {
     did: updatedDidId,

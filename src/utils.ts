@@ -1,4 +1,4 @@
-import type { DIDLog, FetchLike, WitnessProofFileEntry } from './interfaces.js';
+import type { DIDLog, FetchLike, ToASCII, WitnessProofFileEntry } from './interfaces.js';
 import { buildDidLogUrl } from './parser.js';
 
 // Version parsing/validation utilities
@@ -32,12 +32,16 @@ export function parseAndValidateVersionId(versionId: string, expectedVersionNumb
 
 // URL and filesystem/network log loading
 
-export async function fetchLogFromIdentifier(identifier: string, fetchFn: FetchLike = fetch): Promise<DIDLog> {
+export async function fetchLogFromIdentifier(
+  identifier: string,
+  fetchFn: FetchLike = fetch,
+  toASCII?: ToASCII
+): Promise<DIDLog> {
   const parseDidLogText = (text: string): DIDLog => {
     return text.split('\n').map((line) => JSON.parse(line));
   };
 
-  const url = buildDidLogUrl(identifier);
+  const url = buildDidLogUrl(identifier, toASCII);
   const response = await fetchFn(url);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
@@ -50,8 +54,12 @@ export async function fetchLogFromIdentifier(identifier: string, fetchFn: FetchL
   return parseDidLogText(text);
 }
 
-export async function fetchWitnessProofs(did: string, fetchFn: FetchLike = fetch): Promise<WitnessProofFileEntry[]> {
-  const url = buildDidLogUrl(did).replace('did.jsonl', 'did-witness.json');
+export async function fetchWitnessProofs(
+  did: string,
+  fetchFn: FetchLike = fetch,
+  toASCII?: ToASCII
+): Promise<WitnessProofFileEntry[]> {
+  const url = buildDidLogUrl(did, toASCII).replace('did.jsonl', 'did-witness.json');
 
   const response = await fetchFn(url);
   if (!response.ok) {

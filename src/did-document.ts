@@ -7,6 +7,7 @@ import {
   SERVICE_TYPE_RELATIVE_REF,
   ServiceFragment,
 } from './constants.js';
+import type { ToASCII } from './interfaces.js';
 import { getBaseUrl } from './parser.js';
 import { deepClone, replaceValueInObject } from './utils.js';
 
@@ -62,10 +63,10 @@ export function replaceCreateDidPlaceholders<T>(input: T, scid: string, did: str
 export function addDefaultDidWebvhServices(
   did: string,
   doc: DIDDocument,
-  options: { idStyle?: ServiceIdStyle } = {}
+  options: { idStyle?: ServiceIdStyle; toASCII?: ToASCII } = {}
 ): DIDDocument {
   const services = Array.isArray(doc.service) ? [...doc.service] : [];
-  const baseUrl = getBaseUrl(did);
+  const baseUrl = getBaseUrl(did, options.toASCII);
   const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const idStyle = options.idStyle ?? 'absolute';
   const createServiceId = (fragment: ServiceFragment) =>
@@ -104,8 +105,8 @@ export function addDefaultDidWebvhServices(
   return changed ? { ...doc, service: services } : doc;
 }
 
-export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocument): DIDDocument {
-  let webDoc = addDefaultDidWebvhServices(didwebvhDid, deepClone(didwebvhDoc), { idStyle: 'fragment' });
+export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocument, toASCII?: ToASCII): DIDDocument {
+  let webDoc = addDefaultDidWebvhServices(didwebvhDid, deepClone(didwebvhDoc), { idStyle: 'fragment', toASCII });
 
   const scidPrefix = didwebvhDid.replace(/^did:webvh:([^:]+):.*$/, 'did:webvh:$1:');
   webDoc = replaceValueInObject(webDoc, scidPrefix, 'did:web:');

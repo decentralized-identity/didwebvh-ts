@@ -30,6 +30,9 @@ importers:
       '@types/node':
         specifier: ^24.13.4
         version: 24.13.4
+      '@types/tr46':
+        specifier: ^5.0.1
+        version: 5.0.1
       '@vitest/coverage-v8':
         specifier: ^5.0.4
         version: 5.0.4(vitest@5.0.4)
@@ -39,6 +42,9 @@ importers:
       glob:
         specifier: ^13.0.6
         version: 13.0.6
+      tr46:
+        specifier: ^7.0.0
+        version: 7.0.0
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -437,6 +443,9 @@ packages:
   '@types/node@24.13.4':
     resolution: {integrity: sha512-YJ7EqCstVTzIr0fMr7qul/977en+pQHrfmuKIo6Zr9i75Be21dr3MovcfvGtyvi2HAUrRerWps5sMO9I7WaxDw==}
 
+  '@types/tr46@5.0.1':
+    resolution: {integrity: sha512-/nNLTzy884WMMjksAFsrazXpwKcipQn1FltlXu4PycQFD8t6a4aq/z+F7mw05UI7p5O8MUvXLTPbISOoQtaugg==}
+
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
     engines: {node: '>=16.20.0'}
@@ -770,6 +779,10 @@ packages:
     resolution: {integrity: sha512-J7EF+8X+CzRPaJPOv9Ck2wNWJvGnnl3PcNPAdGg6GTLjyVpyQ0yATMSXRFRV01BviT/9Gwuc3rjEyJbDJG9a4w==}
     engines: {node: ^10 || ^12 || >=14}
 
+  punycode@2.3.1:
+    resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
+    engines: {node: '>=6'}
+
   rolldown@1.1.5:
     resolution: {integrity: sha512-t9z29cJjXf/vxQ8dyhCSpt6H6aSwHTk8cT5I3iy6SMXuFpk5mB6PL6XfC8PCwrPTx93udwKUm9HRteAlTGBLiA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -797,6 +810,10 @@ packages:
   tinyrainbow@3.2.0:
     resolution: {integrity: sha512-LgO3D9yZJjApUiuUfl9iFAwrtaX4+lok3wJIqttGoKCHlWUqHqbQpnxCf82L8FjgKsh4iGo78hqJwgL8F6To2A==}
     engines: {node: '>=14.0.0'}
+
+  tr46@7.0.0:
+    resolution: {integrity: sha512-BcDSDW+SIGWVOns1Zm6Yg91q9AEj7eaID0QDY9oIqJD1A8dscNwMcl9Sms2DeuWCNov1X0/oXanHGYQBSLwZsg==}
+    engines: {node: ^22.14.0 || >=24.0.0}
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
@@ -1144,6 +1161,8 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
+  '@types/tr46@5.0.1': {}
+
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
 
@@ -1393,6 +1412,8 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  punycode@2.3.1: {}
+
   rolldown@1.1.5:
     dependencies:
       '@oxc-project/types': 0.139.0
@@ -1428,6 +1449,10 @@ snapshots:
       picomatch: 4.0.7
 
   tinyrainbow@3.2.0: {}
+
+  tr46@7.0.0:
+    dependencies:
+      punycode: 2.3.1
 
   tslib@2.8.1:
     optional: true
