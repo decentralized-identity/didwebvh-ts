@@ -51,7 +51,14 @@ const resolveNextDidContext = ({
     fallbackPaths: parsedLastEntryDid.paths ?? [],
     context: 'updateDID path segments',
   });
-  const did = normalizedAddress.did;
+  // An uncanonicalised DID (e.g. a percent-encoded U-label domain) canonicalises to a different
+  // string; re-supplying its current location is not a move, so keep the DID as-is.
+  const canonicalLastEntryDid = normalizeDidAddress({
+    address: lastEntryDid,
+    scid: parsedLastEntryDid.scid,
+    context: 'updateDID previous DID',
+  }).did;
+  const did = normalizedAddress.did === canonicalLastEntryDid ? lastEntryDid : normalizedAddress.did;
 
   if (did !== lastEntryDid && !portable) {
     throw new Error('Cannot move DID: portability is disabled');

@@ -1,4 +1,5 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
+import { expect } from 'vitest';
 import {
   DID_PLACEHOLDER,
   METHOD,
@@ -6,6 +7,7 @@ import {
   METHOD_PROTOCOL_V0_5,
   SCID_PLACEHOLDER,
 } from '../src/constants.js';
+import { prepareGenesisEntry } from '../src/core/entries.js';
 import {
   AbstractCrypto,
   createDataIntegrityProofTemplate,
@@ -28,6 +30,7 @@ import type {
   Verifier,
   WitnessParameter,
 } from '../src/interfaces.js';
+import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { normalizeDidAddress } from '../src/parser.js';
 import { createSCID, deriveHash } from '../src/utils/crypto.js';
 import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime.js';
@@ -399,4 +402,69 @@ export async function appendV05LogEntry(options: {
   };
 
   return [...options.log, entry];
+}
+
+export async function createAndResolve(address: string, paths?: string[]) {
+  const authKey = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+  const created = await createDID({
+    address,
+    paths,
+    signer: createTestSigner(authKey),
+    updateKeys: [authKey.publicKeyMultibase!],
+    didDocument: createTestDIDDocument(authKey),
+    verifier,
+  });
+  const resolved = await resolveDIDFromLog(created.log, { verifier });
+  return { created, resolved };
+}
+
+export function expectRoundTrip(
+  { created, resolved }: Awaited<ReturnType<typeof createAndResolve>>,
+  expectedDid: (scid: string) => string
+) {
+  const scid = created.log[0].parameters.scid!;
+  expect(created.did).toBe(expectedDid(scid));
+  expect(created.doc.id).toBe(created.did);
+  expect(created.did).not.toContain('{SCID}');
+  expect(resolved.didResolutionMetadata.error).toBeUndefined();
+  expect(resolved.didDocument?.id).toBe(created.did);
+  expect(resolved.didDocumentMetadata.versionId).toBe(created.log[0].versionId);
+}
+
+/**
+ * Creates a signed genesis log for `did` exactly as written, bypassing createDID's
+ * address canonicalisation. Simulates logs written by earlier releases or other
+ * implementations (e.g. non-canonical hex, uppercase hosts, percent-encoded U-labels).
+ */
+export async function createUncanonicalisedDID({
+  did,
+  portable = false,
+  alsoKnownAsWeb = false,
+}: {
+  did: string;
+  portable?: boolean;
+  alsoKnownAsWeb?: boolean;
+}) {
+  const authKey = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+  const signer = createTestSigner(authKey);
+  const updateKeys = [authKey.publicKeyMultibase!];
+  const { entry } = await prepareGenesisEntry({
+    options: {
+      address: did,
+      portable,
+      alsoKnownAsWeb,
+      signer,
+      updateKeys,
+      didDocument: createTestDIDDocument(authKey),
+      verifier,
+    },
+    did,
+    createdDate: createDate(),
+  });
+  const created = { did: entry.state.id!, doc: entry.state, log: [entry] as DIDLog };
+  const update = (address?: string, paths?: string[]) =>
+    updateDID({ log: created.log, signer, updateKeys, verifier, address, paths });
+  return { created, scid: entry.parameters.scid!, verifier, signer, updateKeys, update };
 }

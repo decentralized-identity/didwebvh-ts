@@ -30,9 +30,19 @@ interface HostPort {
   port?: number;
 }
 
+interface UrlAddress {
+  rawHost: string;
+  port?: number;
+  paths: string[];
+}
+
 interface ParsedAddress {
   didDomainComponent: string;
   paths?: string[];
+}
+
+interface CanonicalAddressOptions {
+  scid?: string;
 }
 
 interface NormalizeDidAddressOptions {
@@ -44,7 +54,7 @@ interface NormalizeDidAddressOptions {
 }
 
 // ---------------------------------------------------------------------------
-// Shared host and port helpers
+// Shared host, port and IDNA helpers
 // ---------------------------------------------------------------------------
 
 function isIpAddress(host: string): boolean {
@@ -56,6 +66,60 @@ function parsePort(rawPort: string): number | undefined {
   if (!/^\d{1,5}$/.test(rawPort)) return undefined;
   const port = Number(rawPort);
   return port >= 1 && port <= 65535 ? port : undefined;
+}
+
+let urlSupportsIdna: boolean | undefined;
+
+/**
+ * Converts a Unicode host to its A-label form using the runtime's WHATWG URL
+ * implementation. Runtimes whose URL cannot apply IDNA (e.g. bare React Native)
+ * are detected once and rejected rather than producing a wrong host.
+ */
+function urlToASCII(host: string): string {
+  try {
+    urlSupportsIdna ??=
+      new URL('https://faß.de').hostname === 'xn--fa-hia.de' &&
+      new URL('https://BÜCHER.example').hostname === 'xn--bcher-kva.example';
+  } catch {
+    urlSupportsIdna = false;
+  }
+  if (!urlSupportsIdna) {
+    throw new Error("This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead");
+  }
+  try {
+    return new URL(`https://${host}`).hostname;
+  } catch {
+    throw new Error('Host must be a valid fully qualified domain');
+  }
+}
+
+const hasNonAscii = (value: string): boolean => /[\u0080-\u{10FFFF}]/u.test(value);
+const hasInvalidHostCharacter = (value: string): boolean =>
+  [...value].some((char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code < 32 || code === 127 || '%/#?@:\\'.includes(char) || /\s/.test(char);
+  });
+// `\p{Surrogate}` under the `u` flag matches only unpaired surrogates
+// (String.prototype.isWellFormed is ES2024 and not available on every runtime).
+const hasUnpairedSurrogate = (value: string): boolean => /\p{Surrogate}/u.test(value);
+
+/**
+ * Maps a decoded domain to its lowercase ASCII (A-label) form and validates it
+ * as a fully qualified DNS name.
+ */
+function domainToAscii(decodedDomain: string): string {
+  if (hasInvalidHostCharacter(decodedDomain)) {
+    throw new Error('Host contains invalid characters');
+  }
+  const host = hasNonAscii(decodedDomain) ? urlToASCII(decodedDomain.normalize('NFC')) : decodedDomain.toLowerCase();
+  if (isIpAddress(host)) {
+    throw new Error('IP addresses are not allowed as hosts');
+  }
+  const labels = host.split('.');
+  if (host.length > 253 || labels.length < 2 || !labels.every((label) => DNS_LABEL_PATTERN.test(label))) {
+    throw new Error('Host must be a valid fully qualified domain');
+  }
+  return host;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,39 +149,32 @@ function parseDomainComponent(component: string): ParsedDomainComponent | null {
   // again, contrary to the method's exactly-once decoding requirement.
   if (decodedDomain.includes('%')) return null;
 
-  try {
-    const url = new URL(`https://${decodedDomain}`);
-    const asciiDomain = url.hostname;
+  if (hasNonAscii(decodedDomain)) {
+    // Identifiers created before A-label output may carry percent-encoded
+    // U-labels. Accept them with runtime-independent checks; IDNA mapping happens
+    // only when the HTTPS URL is built.
+    const labels = decodedDomain.split('.');
     if (
-      url.username ||
-      url.password ||
-      url.port ||
-      url.pathname !== '/' ||
-      url.search ||
-      url.hash ||
-      isIpAddress(asciiDomain)
-    ) {
-      return null;
-    }
-
-    const labels = asciiDomain.split('.');
-    if (
-      asciiDomain.length > 253 ||
+      hasInvalidHostCharacter(decodedDomain) ||
       labels.length < 2 ||
-      !labels.every((label) => label.length <= 63 && DNS_LABEL_PATTERN.test(label))
+      labels.some((label) => !label || label.length > 63)
     ) {
       return null;
     }
-
-    return {
-      canonicalHost: decodedDomain,
-      canonicalPort,
-      // Kept exactly as encoded in the identifier; it is decoded only when building the HTTPS URL.
-      didDomainComponent: component,
-    };
-  } catch {
-    return null;
+  } else {
+    try {
+      domainToAscii(decodedDomain);
+    } catch {
+      return null;
+    }
   }
+
+  return {
+    canonicalHost: decodedDomain,
+    canonicalPort,
+    // Kept exactly as encoded in the identifier; it is decoded only when building the HTTPS URL.
+    didDomainComponent: component,
+  };
 }
 
 function validateMethodSpecificPathSegments(pathSegments: string[], context: string): void {
@@ -216,26 +273,103 @@ export function parseDidWebvhIdentifier(identifier: string, context: string): Pa
 
 /**
  * Parses a did:webvh creation template, `did:webvh:{SCID}:<location>`. A template
- * is not a DID: `{SCID}` is not a DID Core idchar, so it is parsed with a
- * SCID-shaped stand-in and the placeholder is restored in the result.
+ * is not a DID: `{SCID}` is not a DID Core idchar. The spec also permits additional
+ * `{SCID}` placeholders in the domain and path, so every placeholder is swapped for
+ * a SCID-shaped stand-in, the result is parsed as a DID, and the placeholders are
+ * restored in the output.
  */
 export function parseDidWebvhTemplate(template: string, context: string): ParsedDidWebvhIdentifier {
   if (!template.startsWith(TEMPLATE_PREFIX)) {
     throw new Error(`${context} must be a did:webvh template starting with '${TEMPLATE_PREFIX}'`);
   }
-  const standIn = `did:${METHOD}:${SCID_PLACEHOLDER_SUBSTITUTE}:${template.slice(TEMPLATE_PREFIX.length)}`;
-  const narrowed = parseDidWebvhIdentifier(standIn, context);
+  // Otherwise the stand-in could not be told apart from a placeholder when restoring.
+  if (template.includes(SCID_PLACEHOLDER_SUBSTITUTE)) {
+    throw new Error(`${context} must be a valid did:webvh identifier`);
+  }
 
+  const parsed = parseDidWebvhIdentifier(template.replaceAll(SCID_PLACEHOLDER, SCID_PLACEHOLDER_SUBSTITUTE), context);
+  const restore = (value: string) => value.replaceAll(SCID_PLACEHOLDER_SUBSTITUTE, SCID_PLACEHOLDER);
   return {
-    ...narrowed,
+    ...parsed,
     scid: SCID_PLACEHOLDER,
-    did: `${TEMPLATE_PREFIX}${narrowed.locationKey}`,
+    canonicalHost: restore(parsed.canonicalHost),
+    didDomainComponent: restore(parsed.didDomainComponent),
+    paths: parsed.paths?.map(restore),
+    locationKey: restore(parsed.locationKey),
+    did: restore(parsed.did),
   };
 }
 
 // ---------------------------------------------------------------------------
 // Address input (create/update): turns a domain, URL, DID or template into a did:webvh identifier
 // ---------------------------------------------------------------------------
+
+/**
+ * Percent-encodes a decoded value so it consists only of DID Core `idchar`s,
+ * using uppercase hex as the did:webvh v1.0 canonical form requires.
+ */
+function encodeIdchars(decoded: string): string {
+  // encodeURIComponent leaves these unencoded, but DID Core `idchar` only permits
+  // ALPHA / DIGIT / "." / "-" / "_" / pct-encoded.
+  return encodeURIComponent(decoded).replace(
+    /[!'()*~]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+}
+
+/**
+ * Splits a caller-supplied DID component (domain or path segment), which may be raw
+ * Unicode or already percent-encoded, around occurrences of the SCID (or `{SCID}`
+ * placeholder) and decodes each remaining part exactly once. SCID occurrences are
+ * kept verbatim, so an encoded `%7BSCID%7D` remains literal text and a mixed-case
+ * SCID is never case-folded.
+ */
+function decodeDidComponentParts(value: string, context: string, scid: string): string[] {
+  if (hasUnpairedSurrogate(value)) {
+    throw new Error(`${context} contains ill-formed Unicode (unpaired surrogate)`);
+  }
+  return value.split(scid).map((part) => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      throw new Error(`${context} contains invalid percent-encoding: '${value}'`);
+    }
+  });
+}
+
+/**
+ * Canonicalises a caller-supplied path segment to DID Core `idchar`s with uppercase
+ * hex. Path segments are otherwise left byte-exact for the web server.
+ */
+function canonicalPathSegment(value: string, context: string, scid: string): string {
+  return decodeDidComponentParts(value, context, scid).map(encodeIdchars).join(scid);
+}
+
+/**
+ * Decodes a caller-supplied host exactly once, NFC-normalises it and maps it to
+ * the canonical A-label form, keeping any SCID (or `{SCID}`) occurrences verbatim.
+ */
+function canonicalHostComponent(rawHost: string, context: string, scid: string): string {
+  const parts = decodeDidComponentParts(rawHost, context, scid).map((part) => part.normalize('NFC'));
+  // A SCID that only appears after decoding was percent-encoded by the caller and
+  // is literal text, not a placeholder; it cannot be part of a valid domain.
+  if (parts.some((part) => part.includes(scid))) {
+    throw new Error(`${context} must include a valid fully qualified domain`);
+  }
+  if (parts.length === 1) return domainToAscii(parts[0]);
+
+  const host = parts.join(scid);
+  if (scid !== SCID_PLACEHOLDER_SUBSTITUTE && host.includes(SCID_PLACEHOLDER_SUBSTITUTE)) {
+    throw new Error(`${context} must include a valid fully qualified domain`);
+  }
+  if (host.split('.').some((label) => label.includes(scid) && hasNonAscii(label))) {
+    throw new Error('Unicode and {SCID} cannot share a domain label');
+  }
+  return domainToAscii(host.replaceAll(scid, SCID_PLACEHOLDER_SUBSTITUTE)).replaceAll(
+    SCID_PLACEHOLDER_SUBSTITUTE,
+    scid
+  );
+}
 
 function formatDomainComponent(host: string, port?: number): string {
   return port ? `${host}%3A${port}` : host;
@@ -261,13 +395,54 @@ function parseHostPort(input: string): HostPort {
   return { host: parts[0], port: requirePort(parts[1]) };
 }
 
+function parseUrlAddress(input: string): UrlAddress {
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid URL: ${message}`);
+  }
+
+  if (url.protocol === 'http:') {
+    throw new Error('HTTP is not allowed; use HTTPS');
+  }
+  if (url.username || url.password) {
+    throw new Error('URL input must not include username or password');
+  }
+  if (isIpAddress(url.hostname)) {
+    throw new Error('IP addresses are not allowed as hosts');
+  }
+
+  // The host is taken from the input rather than `url.hostname`, which has already
+  // been case-folded and IDNA-mapped by the runtime's URL implementation.
+  const authority = input.slice(input.indexOf('://') + 3).split('/', 1)[0];
+  const portSeparator = authority.lastIndexOf(':');
+  const rawHost = portSeparator === -1 ? authority : authority.slice(0, portSeparator);
+
+  const paths = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter((p) => p.length > 0) : [];
+  validateMethodSpecificPathSegments(paths, 'URL pathname');
+
+  return { rawHost, port: url.port ? requirePort(url.port) : undefined, paths };
+}
+
 /**
  * Canonicalises a bare domain (optionally with port), an HTTPS URL, a did:webvh DID
- * or a `{SCID}` template into the DID domain component and any path segments.
+ * or a `{SCID}` template into the A-label DID domain component and uppercase-hex path
+ * segments. `scid` names the token kept verbatim in the domain and paths: `{SCID}`
+ * on create, the actual SCID on update.
  */
-export function parseCanonicalAddress(input: string): ParsedAddress {
+export function parseCanonicalAddress(
+  input: string,
+  { scid = SCID_PLACEHOLDER }: CanonicalAddressOptions = {}
+): ParsedAddress {
   if (!input || typeof input !== 'string') {
     throw new Error('Address input must be a non-empty string');
+  }
+  // Checked before URL parsing, which would silently replace an unpaired
+  // surrogate with U+FFFD.
+  if (hasUnpairedSurrogate(input)) {
+    throw new Error('Address input contains ill-formed Unicode (unpaired surrogate)');
   }
 
   const isUrl = input.startsWith('https://') || input.startsWith('http://');
@@ -275,66 +450,40 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     throw new Error(`${isUrl ? 'URL' : 'Address'} input must not include query or fragment components`);
   }
 
+  let rawHost: string;
+  let port: number | undefined;
+  let paths: string[];
+  let context: string;
+
   if (input.startsWith(`did:${METHOD}:`)) {
+    // Validate as a DID first, then re-canonicalise: a conformant DID may still
+    // use lowercase hex, a lowercase `%3a`, uppercase or NFD domain text, none of
+    // which a producer may emit.
     const parsedDid = input.startsWith(TEMPLATE_PREFIX)
       ? parseDidWebvhTemplate(input, 'did:webvh identifier')
       : parseDidWebvhIdentifier(input, 'did:webvh identifier');
-    return {
-      didDomainComponent: parsedDid.didDomainComponent.replace(ENCODED_PORT_SEPARATOR, '%3A'),
-      paths: parsedDid.paths,
-    };
-  }
-
-  if (isUrl) {
-    let url: URL;
-    try {
-      url = new URL(input);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Invalid URL: ${message}`);
+    rawHost = parsedDid.didDomainComponent.split(ENCODED_PORT_SEPARATOR, 1)[0];
+    port = parsedDid.canonicalPort;
+    paths = parsedDid.paths ?? [];
+    context = 'did:webvh identifier';
+  } else if (isUrl) {
+    ({ rawHost, port, paths } = parseUrlAddress(input));
+    context = 'URL';
+  } else {
+    if (input.includes('%25')) {
+      throw new Error('Domain is double-encoded (detected %25)');
     }
-
-    if (url.protocol === 'http:') {
-      throw new Error('HTTP is not allowed; use HTTPS');
-    }
-    if (url.username || url.password) {
-      throw new Error('URL input must not include username or password');
-    }
-    const host = url.hostname;
-    const port = url.port ? requirePort(url.port) : undefined;
-
-    if (isIpAddress(host)) {
-      throw new Error('IP addresses are not allowed as hosts');
-    }
-
-    const pathParts = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter((p) => p.length > 0) : [];
-    validateMethodSpecificPathSegments(pathParts, 'URL pathname');
-
-    return {
-      didDomainComponent: formatDomainComponent(host, port),
-      paths: pathParts.length > 0 ? pathParts.map(encodeDidPathSegment) : undefined,
-    };
+    ({ host: rawHost, port } = parseHostPort(input));
+    paths = [];
+    context = 'Address';
   }
 
-  if (input.includes('%25')) {
-    throw new Error('Domain is double-encoded (detected %25)');
-  }
-
-  const { host: rawHost, port } = parseHostPort(input);
-  let host: string;
-  try {
-    host = decodeURIComponent(rawHost);
-  } catch {
-    throw new Error(`Invalid percent-encoding in host: ${rawHost}`);
-  }
-
-  if (isIpAddress(host)) {
-    throw new Error('IP addresses are not allowed as hosts');
-  }
+  const canonicalHost = canonicalHostComponent(rawHost, `${context} host`, scid);
+  const canonicalPaths = paths.map((path) => canonicalPathSegment(path, `${context} path`, scid));
 
   return {
-    didDomainComponent: formatDomainComponent(host, port),
-    paths: undefined,
+    didDomainComponent: formatDomainComponent(canonicalHost, port),
+    paths: canonicalPaths.length > 0 ? canonicalPaths : undefined,
   };
 }
 
@@ -350,14 +499,22 @@ export function normalizeDidAddress({
   fallbackPaths,
   context,
 }: NormalizeDidAddressOptions): ParsedDidWebvhIdentifier {
-  const parsed = parseCanonicalAddress(address);
+  // did:webvh v1.0 defines the `{SCID}` placeholder only for DID creation. Once
+  // the SCID exists (update/migration) callers must supply the actual value.
+  if (scid !== SCID_PLACEHOLDER && [address, ...(paths ?? [])].some((value) => value.includes(SCID_PLACEHOLDER))) {
+    throw new Error(`${context} must not contain the {SCID} placeholder once the SCID has been generated`);
+  }
+
+  const parsed = parseCanonicalAddress(address, { scid });
+  const canonicalisePath = (path: string) => canonicalPathSegment(path, context, scid);
   const resolvedPaths = [...(parsed.paths ?? [])];
 
   if (paths !== undefined) {
     validateMethodSpecificPathSegments(paths, context);
-    resolvedPaths.push(...paths.map(encodeDidPathSegment));
+    // Caller-supplied segments may be raw Unicode or pre-encoded; both yield the same DID.
+    resolvedPaths.push(...paths.map(canonicalisePath));
   } else if (resolvedPaths.length === 0 && fallbackPaths !== undefined) {
-    resolvedPaths.push(...fallbackPaths);
+    resolvedPaths.push(...fallbackPaths.map(canonicalisePath));
   }
 
   let locationKey = parsed.didDomainComponent;
@@ -373,14 +530,6 @@ export function normalizeDidAddress({
 // DID-to-HTTPS URL derivation
 // ---------------------------------------------------------------------------
 
-const toASCII = (domain: string): string => {
-  try {
-    return new URL(`https://${domain}`).hostname;
-  } catch {
-    return domain;
-  }
-};
-
 /**
  * Decodes a validated path segment once and re-encodes it with uppercase hex, as the
  * did:webvh v1.0 DID-to-HTTPS transformation requires. Only RFC 3986 unreserved
@@ -393,12 +542,8 @@ function encodeUrlPathSegment(segment: string): string {
   );
 }
 
-function encodeDidPathSegment(segment: string): string {
-  return encodeUrlPathSegment(segment).replace(/~/g, '%7E');
-}
-
 function getBaseUrlFromParsedDid(parsedDid: ParsedDidWebvhIdentifier): string {
-  const host = toASCII(parsedDid.canonicalHost.normalize('NFC'));
+  const host = domainToAscii(parsedDid.canonicalHost);
   const normalizedHost = parsedDid.canonicalPort ? `${host}:${parsedDid.canonicalPort}` : host;
   const path = parsedDid.paths?.map(encodeUrlPathSegment).join('/') ?? '';
 

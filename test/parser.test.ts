@@ -137,7 +137,7 @@ describe('Canonical address parsing', () => {
       paths: ['a:b', 'a%3ab', '~user', 'a b'],
       context: 'test',
     });
-    expect(normalized.did).toBe(`did:webvh:${MOCK_SCID}:example.com:a%7eb:a%3Ab:a%3Ab:%7Euser:a%20b`);
+    expect(normalized.did).toBe(`did:webvh:${MOCK_SCID}:example.com:a%7Eb:a%3Ab:a%3Ab:%7Euser:a%20b`);
     expect(buildDidLogUrl(normalized.did)).toBe('https://example.com/a~b/a%3Ab/a%3Ab/~user/a%20b/did.jsonl');
   });
 
@@ -165,7 +165,9 @@ describe('Canonical address parsing', () => {
   });
 
   test('rejects invalid host percent-encoding', () => {
-    expect(() => parseCanonicalAddress('%E0%A4%A')).toThrow('Invalid percent-encoding in host: %E0%A4%A');
+    expect(() => parseCanonicalAddress('%E0%A4%A')).toThrow(
+      "Address host contains invalid percent-encoding: '%E0%A4%A'"
+    );
   });
 
   test('wraps URL syntax errors but preserves URL validation errors', () => {
@@ -248,9 +250,11 @@ describe('did:webvh identifier parsing', () => {
     expect(parsed.canonicalHost).toBe(canonicalHost);
   });
 
-  test('normalizes an encoded did:webvh template address without re-encoding it', () => {
+  test('normalizes an encoded did:webvh template address to its A-label form', () => {
     const address = 'did:webvh:{SCID}:b%C3%BCcher.example.com';
-    expect(normalizeDidAddress({ address, scid: '{SCID}', context: 'test' }).did).toBe(address);
+    expect(normalizeDidAddress({ address, scid: '{SCID}', context: 'test' }).did).toBe(
+      'did:webvh:{SCID}:xn--bcher-kva.example.com'
+    );
   });
 
   test('rejects a {SCID} template, which is not a DID', () => {
