@@ -309,6 +309,48 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 
 > **Breaking change (v3.0.0):** resolution returns the standard `DIDResolutionResult` instead of the previous `{ did, doc, meta, controlled }` shape, and the implementation-specific `verificationMethod` resolution selector has been removed. See [Migration Guide](./docs/UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) for upgrade steps.
 
+## Internationalised domain names and the optional `tr46` peer
+
+**Most users do not need `tr46`.** `didwebvh-ts` lists it as an *optional* peer
+dependency, so package managers neither install it nor warn when it is absent,
+and the main `didwebvh-ts` entry point never loads it.
+
+Converting a Unicode domain (U-label, e.g. `bücher.example`) to its ASCII form
+(A-label, `xn--bcher-kva.example`) uses the runtime's WHATWG `URL` by default.
+This works in Node.js 22.14+ and current browsers. ASCII-only domains never
+need a converter on any runtime.
+
+You only need `tr46` if **both** apply:
+
+- your runtime's `URL` lacks IDNA support, such as React Native/Hermes or
+  `react-native-url-polyfill`; and
+- you create, update, migrate, or resolve DIDs with non-ASCII domains.
+
+In that case, install it and pass the converter from the `didwebvh-ts/idna`
+subpath:
+
+```bash
+npm install tr46
+```
+
+```typescript
+import { Resolver } from 'did-resolver';
+import { createDID, getResolver, resolveDID } from 'didwebvh-ts';
+import { toASCII } from 'didwebvh-ts/idna';
+
+await createDID({ ...options, toASCII });
+await resolveDID(did, { toASCII });
+const resolver = new Resolver(getResolver({ toASCII }));
+```
+
+`toASCII` is accepted by `createDID`, `updateDID`, `migrateDID`,
+`resolveDID`, `resolveDIDFromLog`, and `getResolver`. You may also supply
+your own `(host: string) => string` converter instead of `tr46`.
+
+Without a working converter, a non-ASCII domain fails with
+`This runtime URL implementation does not support IDNA; supply a toASCII converter`.
+It never produces an incorrect DID.
+
 ## API Reference
 
 ### Core Functions
@@ -327,8 +369,9 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 
 - `createDID(options: CreateDIDOptions): Promise<CreateDIDResult>`
   Creates a new DID. Always produces a v1.0 log.
-  Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
+  Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders. `{SCID}` is the did:webvh specification placeholder; `{DID}` is a didwebvh-ts convenience that expands to `did:webvh:{SCID}:<address>` before the SCID is generated. Additional `{SCID}` placeholders may appear in the `address` domain or `paths` at creation; `updateDID` requires the actual SCID.
   Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`).
+  Unicode domain input is converted to an ASCII A-label before the DID and SCID are generated. Existing percent-encoded Unicode-domain DIDs remain resolvable without changing their identifiers; this legacy resolution support is planned for removal in a later version. `toASCII` is optional and only needed on runtimes without IDNA-aware `URL`; see [Internationalised domain names and the optional `tr46` peer](#internationalised-domain-names-and-the-optional-tr46-peer).
   Resolver URL mapping always uses `https://`, including for `localhost` and identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
@@ -336,11 +379,15 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
   Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
   Accepts an optional replacement `didDocument: DIDDocument`. If omitted, the authenticated previous document state is retained.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
+  For a legacy percent-encoded U-label DID, supplying its A-label address preserves the original DID when both addresses refer to the same location.
+
+- `migrateDID(options: MigrateDIDOptions): Promise<UpdateDIDResult>`
+  Migrates a portable legacy percent-encoded U-label DID to its A-label form in a signed update, retaining the SCID and log history. Requires a U-label `address` (raw Unicode or percent-encoded), matching the existing host, port, and path; A-label input and address movement are rejected. It validates and prepares the new DID before calling `updateDID`, which signs the update. Returns the usual update result with the new A-label `did` and the old DID in `doc.alsoKnownAs`. Portability must have been enabled at genesis and still be active. Non-portable DIDs require a new DID with a new SCID. Publish the appended log at the A-label HTTPS location before relying on the new DID.
 
 - `deactivateDID(options: DeactivateDIDOptions): Promise<{did: string, doc: DIDDocument, meta: DIDResolutionMeta, log: DIDLog}>`
   Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
 
-- `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocument): DIDDocument`
+- `generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocument, toASCII?: ToASCII): DIDDocument`
   Generates the parallel `did:web` document defined by did:webvh v1.0 §3.7.10.
 
 ### Witness Functions

@@ -478,6 +478,43 @@ parameters are ignored.
 4. **Do not duplicate generic DID Core parsing in application method code.**
    Keep any additional validation specific to your application or method
    separate from did-resolver's syntax validation.
+5. **Replace `localhost` addresses.** Single-label hosts are not fully
+   qualified domain names and are rejected when creating, updating or resolving
+   a DID. Use an FQDN that resolves to your development host instead.
+6. **Expect A-label domains and percent-encoded Unicode paths in new DIDs.**
+   `createDID` accepts raw Unicode or pre-encoded domains and maps the domain
+   to ASCII before generating the SCID and DID. Unicode path segments remain
+   percent-encoded. Existing percent-encoded U-label DIDs still resolve using
+   the A-label HTTPS host without changing their DID string; this legacy support
+   will be removed in a later version. Raw-Unicode DIDs remain invalid.
+   **No new dependency is required** on Node.js 22.14+ or current browsers.
+   Only on runtimes without IDNA-aware WHATWG `URL` (such as React Native) that
+   handle non-ASCII domains, install the optional peer `tr46`, import
+   `{ toASCII }` from `didwebvh-ts/idna`, and pass it as the `toASCII` option.
+   See the [README](../README.md#internationalised-domain-names-and-the-optional-tr46-peer).
+7. **Expect canonical DIDs from every address form.** Domains are lowercased
+   and converted to A-labels (a `{SCID}` placeholder or embedded SCID keeps its case)
+   and percent-encoding uses uppercase hex and `%3A`, including when `address`
+   is given as a `did:webvh:` DID. If you compare a stored 2.x DID string with
+   one newly created from the same address, compare against `createDID`'s
+   output rather than the input address. `updateDID` keeps an existing DID
+   unchanged when the supplied address canonicalises to the same location.
+8. **Migrate portable legacy U-label DIDs explicitly.** Re-supplying an A-label
+   address for the same location does not change an existing percent-encoded
+   U-label DID in `updateDID`. To change its identity, call `migrateDID` with
+   the existing log, signing options, and a raw or percent-encoded U-label
+   `address` at the **same host, port, and path**. For example, a legacy
+   `did:webvh:<scid>:b%C3%BCcher.example.com` can use
+   `address: 'bücher.example.com'` and return
+   `did:webvh:<scid>:xn--bcher-kva.example.com`. An A-label address or any
+   change of location is rejected. The signed update retains the SCID and
+   history, adds the old DID to `alsoKnownAs`, and returns the new DID as
+   `did`. Publish the appended log at the A-label HTTPS location before
+   relying on the migrated DID. Portability must have been enabled at genesis
+   and remain active. For non-portable DIDs, create a new A-label DID with a
+   new SCID and communicate the replacement. The migrated log still contains
+   its original U-label genesis entry; future resolvers must continue to
+   validate that historical entry even if they stop accepting new U-label DIDs.
 
 ---
 
