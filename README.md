@@ -315,14 +315,14 @@ pipeline as remotely fetched logs. When explicit witness proofs are omitted,
 deterministic URL.
 
 When `witnessProofs` is omitted (`undefined`), `resolveDID`, `resolveDIDFromLog`,
-`updateDID`, and `deactivateDID` use the normal specification-defined witness
+`updateDID`, `deactivateDID`, and `migrateDID` use the normal specification-defined witness
 proof fetch. Pass `witnessProofs: []` explicitly to disable network fetching and fail fast when a witnessed log has no locally supplied proofs. Any non-empty
 explicit proof array is verified directly without fetching.
 
 Each of these functions accepts a `fetch` option (`FetchLike`) used for that
 retrieval in place of the global `fetch`; `resolveDID` also uses it for the DID
 log. `getResolver({ fetch })` applies to resolution only, so pass the same
-function to `updateDID` and `deactivateDID`:
+function to `updateDID`, `deactivateDID`, and `migrateDID`:
 
 ```typescript
 const resolver = new Resolver(getResolver({ fetch: appFetch }));
@@ -372,6 +372,13 @@ On runtimes without IDNA support, supply the A-label form of the domain. A non-A
 
 Existing DIDs whose domain is a percent-encoded U-label (e.g. `did:webvh:<scid>:b%C3%BCcher.example.com`) remain valid: they resolve from the A-label HTTPS host and keep their DID string through `updateDID` and `deactivateDID`. DIDs containing raw (unencoded) Unicode are not DID Core-conformant and are rejected.
 
+A portable percent-encoded U-label DID can be moved to its A-label form with `migrateDID`, which appends a signed update that keeps the SCID and log history:
+
+```typescript
+const { did, log } = await migrateDID({ ...updateOptions, log: existingLog, address: 'bücher.example.com' });
+// did:webvh:<scid>:b%C3%BCcher.example.com -> did:webvh:<scid>:xn--bcher-kva.example.com
+```
+
 ## API Reference
 
 ### Core Functions
@@ -403,6 +410,8 @@ Existing DIDs whose domain is a percent-encoded U-label (e.g. `did:webvh:<scid>:
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
   An `address` that canonicalises to the DID's current location is not a move, so existing non-canonical or percent-encoded U-label DIDs are kept unchanged. A move to a different location requires portability and produces a canonical DID. `{SCID}` placeholders are rejected once the SCID exists.
 
+- `migrateDID(options: MigrateDIDOptions): Promise<UpdateDIDResult>`
+  Migrates a portable percent-encoded U-label DID to its A-label form in a signed update, keeping the SCID and log history. Takes the same options as `updateDID` plus a required U-label `address` (raw Unicode or percent-encoded) with the same host, port, and path as the existing DID; A-label addresses and changes of location are rejected. Returns the usual update result with the new A-label `did` and the old DID in `doc.alsoKnownAs`. Portability must have been enabled at genesis and still be active; non-portable DIDs need a new DID with a new SCID. Publish the appended log at the A-label HTTPS location before relying on the new DID.
 - `deactivateDID(options: DeactivateDIDOptions): Promise<{did: string, doc: DIDDocument, meta: DIDResolutionMeta, log: DIDLog}>`
   Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
 
@@ -466,7 +475,7 @@ if (requirements.length > 0) {
 await callerPublishesDIDLog(result.log);
 ```
 
-For `updateDID` and `deactivateDID`, omitting `witnessProofs` preserves normal
+For `updateDID`, `deactivateDID`, and `migrateDID`, omitting `witnessProofs` preserves normal
 proof retrieval. Pass `witnessProofs: []` when the caller intentionally wants
 network-free, fail-fast validation; pass an explicit proof array to validate
 against caller-supplied proofs.

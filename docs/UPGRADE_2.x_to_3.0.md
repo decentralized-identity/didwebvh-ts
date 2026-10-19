@@ -558,6 +558,8 @@ Existing DIDs are not rewritten:
   to its current location, and `deactivateDID` keeps it too. Only a move to a
   different location (which requires portability) produces a new, canonical
   DID.
+- The new `migrateDID` explicitly moves a portable percent-encoded U-label DID
+  to its A-label form.
 
 ### Migration Steps
 
@@ -573,6 +575,30 @@ Existing DIDs are not rewritten:
    creation; pass the actual SCID in update addresses and paths.
 5. **Replace raw-Unicode DIDs.** DIDs containing unencoded Unicode were never
    DID Core-conformant and are now rejected.
+6. **Migrate portable U-label DIDs explicitly, if desired.** `updateDID` keeps
+   an existing percent-encoded U-label DID when given an address for the same
+   location. To change it to the A-label form, call `migrateDID` with the usual
+   update options and a raw or percent-encoded U-label `address` at the **same
+   host, port, and path**:
+
+   ```typescript
+   const { did, log } = await migrateDID({
+     log: existingLog,
+     signer,
+     verifier,
+     address: 'bücher.example.com',
+   });
+   // did:webvh:<scid>:b%C3%BCcher.example.com -> did:webvh:<scid>:xn--bcher-kva.example.com
+   ```
+
+   An A-label address or any change of location is rejected. The signed update
+   keeps the SCID and history, adds the old DID to `alsoKnownAs`, and returns
+   the new DID as `did`. Publish the appended log at the A-label HTTPS location
+   before relying on the migrated DID. Portability must have been enabled at
+   genesis and still be active; for non-portable DIDs, create a new A-label DID
+   with a new SCID and announce the replacement. The migrated log still
+   contains its original U-label genesis entry, which resolvers continue to
+   verify.
 
 ---
 
@@ -590,6 +616,7 @@ Existing DIDs are not rewritten:
 - [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
 - [ ] Replace single-label hosts (e.g. `localhost`) with fully qualified domain names
 - [ ] Compare new DIDs against `createDID`'s canonical output; use A-label domains on runtimes without IDNA support
+- [ ] Optionally migrate portable percent-encoded U-label DIDs to A-label DIDs with `migrateDID`
 
 ---
 
