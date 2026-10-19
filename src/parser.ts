@@ -4,7 +4,9 @@ import { METHOD, SCID_PLACEHOLDER } from './constants.js';
 const SCID_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{46}$/;
 const DOMAIN_LABEL_PATTERN = /^(?:[A-Za-z0-9-]|%[0-9A-Fa-f]{2})+$/;
 const DNS_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-const ENCODED_PORT_SEPARATOR = /%3A/gi;
+const ENCODED_PORT_SEPARATOR = /%3A/i;
+// Valid base58btc stand-in for {SCID}; preserves label and FQDN lengths during validation.
+const SCID_PLACEHOLDER_SUBSTITUTE = '1'.repeat(46);
 
 export interface ParsedDidWebvhIdentifier {
   scid: string;
@@ -40,43 +42,34 @@ function decodeHostComponent(host: string): string {
   }
 }
 
-function parsePortNumber(rawPort: string): number {
-  const portNum = Number(rawPort);
-  if (!/^\d+$/.test(rawPort) || portNum <= 0 || portNum > 65535) {
+function parsePort(rawPort: string): number | undefined {
+  if (!/^\d{1,5}$/.test(rawPort)) return undefined;
+  const port = Number(rawPort);
+  return port >= 1 && port <= 65535 ? port : undefined;
+}
+
+function requirePort(rawPort: string): number {
+  const port = parsePort(rawPort);
+  if (port === undefined) {
     throw new Error(`Invalid port number: ${rawPort}`);
   }
-  return portNum;
+  return port;
 }
 
-function parseRawHostPort(input: string): { host: string; port?: number } {
-  if (!input.includes(':')) {
+function formatDomainComponent(host: string, port?: number): string {
+  return port ? `${host}%3A${port}` : host;
+}
+
+function parseHostPort(input: string): { host: string; port?: number } {
+  const encoded = ENCODED_PORT_SEPARATOR.test(input);
+  const parts = input.split(encoded ? ENCODED_PORT_SEPARATOR : ':');
+  if (parts.length === 1) {
     return { host: input };
   }
-
-  const parts = input.split(':');
   if (parts.length !== 2) {
-    throw new Error('Invalid host:port format');
+    throw new Error(encoded ? 'Invalid pre-encoded port separator' : 'Invalid host:port format');
   }
-
-  return {
-    host: parts[0],
-    port: parsePortNumber(parts[1]),
-  };
-}
-
-function parseEncodedPortComponent(value: string): { host: string; port?: number } {
-  const encodedSeparator = /%3a/i;
-  if (!encodedSeparator.test(value)) {
-    return { host: value };
-  }
-
-  const parts = value.split(encodedSeparator);
-  if (parts.length !== 2) {
-    throw new Error('Invalid pre-encoded port separator');
-  }
-
-  const [host, rawPort] = parts;
-  return { host, port: parsePortNumber(rawPort) };
+  return { host: parts[0], port: requirePort(parts[1]) };
 }
 
 export function parseCanonicalAddress(input: string): ParsedAddress {
@@ -84,11 +77,12 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     throw new Error('Address input must be a non-empty string');
   }
 
-  if (input.startsWith(`did:${METHOD}:`)) {
-    if (hasFragmentOrQuery(input)) {
-      throw new Error('Address input must not include query or fragment components');
-    }
+  const isUrl = input.startsWith('https://') || input.startsWith('http://');
+  if (hasFragmentOrQuery(input)) {
+    throw new Error(`${isUrl ? 'URL' : 'Address'} input must not include query or fragment components`);
+  }
 
+  if (input.startsWith(`did:${METHOD}:`)) {
     const parsedDid = parseDidWebvhIdentifier(input, 'did:webvh identifier', { allowScidPlaceholder: true });
     return {
       canonicalHost: parsedDid.canonicalHost,
@@ -98,47 +92,44 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
     };
   }
 
-  if (input.startsWith('https://') || input.startsWith('http://')) {
+  if (isUrl) {
+    let url: URL;
     try {
-      const url = new URL(input);
-      if (url.protocol === 'http:') {
-        throw new Error('HTTP is not allowed; use HTTPS');
-      }
-      if (url.hash || url.search) {
-        throw new Error('URL input must not include query or fragment components');
-      }
-      const host = url.hostname;
-      const port = url.port ? parseInt(url.port, 10) : undefined;
-
-      if (isIpAddress(host)) {
-        throw new Error('IP addresses are not allowed as hosts');
-      }
-
-      const pathParts = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter((p) => p.length > 0) : [];
-      validateMethodSpecificPathSegments(pathParts, 'URL pathname');
-
-      return {
-        canonicalHost: host,
-        canonicalPort: port,
-        didDomainComponent: port ? `${host}%3A${port}` : host,
-        paths: pathParts.length > 0 ? pathParts : undefined,
-      };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      if (message.includes('not allowed')) throw e;
+      url = new URL(input);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Invalid URL: ${message}`);
     }
-  }
 
-  if (hasFragmentOrQuery(input)) {
-    throw new Error('Address input must not include query or fragment components');
+    if (url.protocol === 'http:') {
+      throw new Error('HTTP is not allowed; use HTTPS');
+    }
+    if (url.username || url.password) {
+      throw new Error('URL input must not include username or password');
+    }
+    const host = url.hostname;
+    const port = url.port ? requirePort(url.port) : undefined;
+
+    if (isIpAddress(host)) {
+      throw new Error('IP addresses are not allowed as hosts');
+    }
+
+    const pathParts = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter((p) => p.length > 0) : [];
+    validateMethodSpecificPathSegments(pathParts, 'URL pathname');
+
+    return {
+      canonicalHost: host,
+      canonicalPort: port,
+      didDomainComponent: formatDomainComponent(host, port),
+      paths: pathParts.length > 0 ? pathParts : undefined,
+    };
   }
 
   if (input.includes('%25')) {
     throw new Error('Domain is double-encoded (detected %25)');
   }
 
-  const hostAndPort = /%3a/i.test(input) ? parseEncodedPortComponent(input) : parseRawHostPort(input);
+  const hostAndPort = parseHostPort(input);
   const host = decodeHostComponent(hostAndPort.host);
   const port = hostAndPort.port;
 
@@ -149,7 +140,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
   return {
     canonicalHost: host,
     canonicalPort: port,
-    didDomainComponent: port ? `${host}%3A${port}` : host,
+    didDomainComponent: formatDomainComponent(host, port),
     paths: undefined,
   };
 }
@@ -168,19 +159,18 @@ export function normalizeDidAddress({
   context: string;
 }): ParsedDidWebvhIdentifier {
   const parsed = parseCanonicalAddress(address);
-  const addressPaths = parsed.paths || [];
-  const resolvedPaths =
-    fallbackPaths !== undefined
-      ? paths !== undefined
-        ? [...addressPaths, ...paths]
-        : addressPaths.length
-          ? addressPaths
-          : fallbackPaths
-      : [...addressPaths, ...(paths || [])];
+  const resolvedPaths = [...(parsed.paths ?? [])];
 
-  const locationKey = resolvedPaths.length
-    ? `${parsed.didDomainComponent}:${resolvedPaths.join(':')}`
-    : parsed.didDomainComponent;
+  if (paths !== undefined) {
+    resolvedPaths.push(...paths);
+  } else if (resolvedPaths.length === 0 && fallbackPaths !== undefined) {
+    resolvedPaths.push(...fallbackPaths);
+  }
+
+  let locationKey = parsed.didDomainComponent;
+  if (resolvedPaths.length > 0) {
+    locationKey += `:${resolvedPaths.join(':')}`;
+  }
   const did = `did:${METHOD}:${scid}:${locationKey}`;
 
   return parseDidWebvhIdentifier(did, context, { allowScidPlaceholder: true });
@@ -191,21 +181,11 @@ function parseDomainComponent(component: string): {
   canonicalPort?: number;
   didDomainComponent: string;
 } | null {
-  const separators = component.match(ENCODED_PORT_SEPARATOR) ?? [];
-  if (separators.length > 1) return null;
+  const [encodedDomain, rawPort, ...extra] = component.split(ENCODED_PORT_SEPARATOR);
+  if (extra.length > 0) return null;
 
-  let encodedDomain = component;
-  let canonicalPort: number | undefined;
-  if (separators.length === 1) {
-    const separatorIndex = component.search(ENCODED_PORT_SEPARATOR);
-    encodedDomain = component.slice(0, separatorIndex);
-    const port = component.slice(separatorIndex + 3);
-    if (!/^\d{1,5}$/.test(port)) return null;
-
-    const portNumber = Number(port);
-    if (portNumber < 1 || portNumber > 65535) return null;
-    canonicalPort = portNumber;
-  }
+  const canonicalPort = rawPort === undefined ? undefined : parsePort(rawPort);
+  if (rawPort !== undefined && canonicalPort === undefined) return null;
 
   const encodedLabels = encodedDomain.split('.');
   if (encodedLabels.length < 2 || encodedLabels.some((label) => !DOMAIN_LABEL_PATTERN.test(label))) {
@@ -250,7 +230,7 @@ function parseDomainComponent(component: string): {
     return {
       canonicalHost: decodedDomain,
       canonicalPort,
-      didDomainComponent: canonicalPort ? `${decodedDomain}%3A${canonicalPort}` : decodedDomain,
+      didDomainComponent: formatDomainComponent(decodedDomain, canonicalPort),
     };
   } catch {
     return null;
@@ -342,7 +322,7 @@ export function parseDidWebvhIdentifier(
   options: { allowScidPlaceholder?: boolean } = {}
 ): ParsedDidWebvhIdentifier {
   const coreIdentifier = options.allowScidPlaceholder
-    ? identifier.replace(`did:${METHOD}:${SCID_PLACEHOLDER}:`, `did:${METHOD}:${'1'.repeat(46)}:`)
+    ? identifier.replace(`did:${METHOD}:${SCID_PLACEHOLDER}:`, `did:${METHOD}:${SCID_PLACEHOLDER_SUBSTITUTE}:`)
     : identifier;
   const coreParsed = parseDidUrl(coreIdentifier);
 
@@ -382,9 +362,8 @@ function parseDidForUrl(id: string): ParsedDidWebvhIdentifier {
 }
 
 function getBaseUrlFromParsedDid(parsedDid: ParsedDidWebvhIdentifier): string {
-  const parsedDomain = parseEncodedPortComponent(parsedDid.didDomainComponent);
-  const host = toASCII(decodeHostComponent(parsedDomain.host).normalize('NFC'));
-  const normalizedHost = parsedDomain.port ? `${host}:${parsedDomain.port}` : host;
+  const host = toASCII(parsedDid.canonicalHost.normalize('NFC'));
+  const normalizedHost = parsedDid.canonicalPort ? `${host}:${parsedDid.canonicalPort}` : host;
   const path = parsedDid.paths?.join('/') ?? '';
 
   return `https://${normalizedHost}${path ? `/${path}` : ''}`;
