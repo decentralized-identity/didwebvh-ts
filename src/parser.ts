@@ -36,6 +36,7 @@ interface ParsedAddress {
   canonicalPort?: number;
   didDomainComponent: string;
   paths?: string[];
+  decodedHost: string;
 }
 
 function isIpAddress(host: string): boolean {
@@ -219,6 +220,7 @@ export function parseCanonicalAddress(
       canonicalHost: asciiHost,
       canonicalPort: parsedDid.canonicalPort,
       didDomainComponent: asciiHost + (parsedDid.canonicalPort ? `%3A${parsedDid.canonicalPort}` : ''),
+      decodedHost,
       paths: parsedDid.paths?.map((path) => canonicalPathSegment(path, 'did:webvh identifier path', scid)),
     };
   }
@@ -267,6 +269,7 @@ export function parseCanonicalAddress(
       canonicalHost: asciiHost,
       canonicalPort: port,
       didDomainComponent: asciiHost + (port ? `%3A${port}` : ''),
+      decodedHost,
       paths: didPathParts.length > 0 ? didPathParts : undefined,
     };
   }
@@ -295,6 +298,7 @@ export function parseCanonicalAddress(
     canonicalHost: asciiHost,
     canonicalPort: port,
     didDomainComponent: asciiHost + (port ? `%3A${port}` : ''),
+    decodedHost,
     paths: undefined,
   };
 }

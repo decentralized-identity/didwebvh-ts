@@ -236,6 +236,8 @@ export interface UpdateDIDOptions {
   paths?: string[];
 }
 
+export type MigrateDIDOptions = UpdateDIDOptions & { address: string };
+
 export interface DeactivateDIDOptions {
   log: DIDLog;
   signer: Signer;

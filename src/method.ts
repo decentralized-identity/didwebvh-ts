@@ -12,6 +12,7 @@ import type {
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
+  MigrateDIDOptions,
   ResolutionOptions,
   UpdateDIDOptions,
   UpdateDIDResult,
@@ -21,7 +22,7 @@ import type {
   WitnessSigningOptions,
   WitnessVerificationResult,
 } from './interfaces.js';
-import { normalizeDidAddress, parseDidWebvhIdentifier } from './parser.js';
+import { normalizeDidAddress, parseCanonicalAddress, parseDidWebvhIdentifier } from './parser.js';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result.js';
 import {
   createDate,
@@ -191,6 +192,72 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
     const message = e instanceof Error ? e.message : String(e);
     return toErrorResult(mapErrorToCode(e), message);
   }
+};
+
+/**
+ * Migrates a portable legacy percent-encoded U-label DID to its A-label form
+ * by appending a signed update without altering the genesis SCID.
+ *
+ * @param options DID migration options.
+ * @returns The migrated DID, resolved document, and updated DID log.
+ */
+export const migrateDID = async (options: MigrateDIDOptions): Promise<UpdateDIDResult> => {
+  const lastMeta = (
+    await resolveLog(options.log, {
+      verifier: options.verifier,
+      witnessProofs: options.witnessProofs,
+      toASCII: options.toASCII,
+    })
+  ).meta;
+  const lastEntry = options.log[options.log.length - 1];
+  const lastDid = lastEntry.state.id;
+  if (!lastDid) throw new Error('DID document id is missing');
+  const previous = parseDidWebvhIdentifier(lastDid, 'last entry state.id');
+  if (![...previous.canonicalHost].some((character) => (character.codePointAt(0) ?? 0) > 127)) {
+    throw new Error('migrateDID requires a legacy U-label DID');
+  }
+  if (!lastMeta.portable) {
+    throw new Error('Cannot migrate DID: portability is disabled');
+  }
+  if (!options.address) {
+    throw new Error('migrateDID requires a U-label address');
+  }
+  if (options.address.startsWith('did:webvh:')) {
+    const inputDid = parseDidWebvhIdentifier(options.address, 'migration address');
+    if (inputDid.scid !== previous.scid) throw new Error('Migration address must retain the existing SCID');
+  }
+  const input = parseCanonicalAddress(options.address, { scid: previous.scid, toASCII: options.toASCII });
+  if (![...input.decodedHost].some((character) => (character.codePointAt(0) ?? 0) > 127)) {
+    throw new Error('migrateDID requires a U-label address, not an A-label address');
+  }
+  const canonicalPrevious = normalizeDidAddress({
+    address: lastDid,
+    scid: previous.scid,
+    context: 'migrateDID previous DID',
+    toASCII: options.toASCII,
+  });
+  const candidate = normalizeDidAddress({
+    address: options.address,
+    scid: previous.scid,
+    paths: options.paths,
+    fallbackPaths: previous.paths ?? [],
+    context: 'migrateDID address',
+    toASCII: options.toASCII,
+  });
+  if (candidate.did !== canonicalPrevious.did) {
+    throw new Error('Migration address must have the same host, port and path as the legacy DID');
+  }
+  if (candidate.did === lastDid) {
+    throw new Error('migrateDID requires an A-label identity change');
+  }
+  if (options.didDocument?.id && options.didDocument.id !== lastDid && options.didDocument.id !== candidate.did) {
+    throw new Error('Migration DID document id must match the existing or A-label DID');
+  }
+  return updateDID({
+    ...options,
+    address: candidate.did,
+    didDocument: { ...(options.didDocument ?? lastEntry.state), id: candidate.did },
+  });
 };
 
 /**

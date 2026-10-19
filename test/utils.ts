@@ -31,7 +31,7 @@ import type {
   Verifier,
   WitnessParameter,
 } from '../src/interfaces.js';
-import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
+import { createDID, migrateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { normalizeDidAddress } from '../src/parser.js';
 import { createSCID, deriveHash } from '../src/utils/crypto.js';
 import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime.js';
@@ -456,5 +456,7 @@ export async function createLegacyDID({
   });
   const update = (address: string, paths?: string[], toASCII?: ToASCII) =>
     updateDID({ ...signing(), address, paths, toASCII });
-  return { created, scid: entry.parameters.scid!, verifier, update };
+  const migrate = (address: string, paths?: string[], toASCII?: ToASCII) =>
+    migrateDID({ ...signing(), address, paths, toASCII });
+  return { created, scid: entry.parameters.scid!, verifier, update, migrate };
 }
