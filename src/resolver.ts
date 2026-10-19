@@ -48,23 +48,6 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
       return toErrorResult('invalidOptions', 'Invalid fetch option: expected function.');
     }
 
-    // did:webvh selectors arrive as DID-URL query parameters (`?versionId=`),
-    // which did-resolver exposes as the raw, undecoded `parsed.query` string.
-    // Matrix-style DID parameters (`;key=value`) are not part of the DID spec;
-    // reject version selectors supplied that way instead of silently resolving
-    // latest, which would hand back the wrong version.
-    const matrixParams = parsed.params ?? {};
-    if (
-      matrixParams.versionId !== undefined ||
-      matrixParams.versionNumber !== undefined ||
-      matrixParams.versionTime !== undefined
-    ) {
-      return toErrorResult(
-        'invalidOptions',
-        'Version selectors must be supplied as DID URL query parameters (?versionId, ?versionNumber, ?versionTime).'
-      );
-    }
-
     // Decode per RFC 3986 (decodeURIComponent), NOT via URLSearchParams: a DID
     // URL query is a URI component where `+` is a literal plus, whereas
     // URLSearchParams applies application/x-www-form-urlencoded rules and would
@@ -81,7 +64,8 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
       try {
         params[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue);
       } catch {
-        // Malformed percent-encoding violates `did-url` syntax itself.
+        // Invalid UTF-8 in an otherwise syntactically valid percent-encoded query
+        // cannot be decoded into method-level selectors.
         return toErrorResult('invalidDidUrl', 'Malformed percent-encoding in DID URL query.');
       }
     }
