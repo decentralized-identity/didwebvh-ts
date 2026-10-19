@@ -444,6 +444,13 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
    }
    ```
 
+4. **Turn witnessing off explicitly**. In 2.x, calling `updateDID` without
+   `witness` wrote `witness: {}` and turned witnessing off. In 3.0.0, as
+   did:webvh v1.0 requires, an omitted `witness` is left out of the new entry
+   and the active witness configuration stays in effect, so later entries
+   still need witness proofs. To stop witnessing, pass `witness: {}` (or
+   `null`); that entry must itself still be witnessed.
+
 ---
 
 ## 6. did-resolver v6 Integration
@@ -484,6 +491,7 @@ unknown query parameters are ignored.
 - [ ] Implement the `Signer` interface and supply explicit historical witness proofs
 - [ ] Review service endpoint filtering for exact-id matching
 - [ ] Remove null checks for witness metadata
+- [ ] Pass `witness: {}` to `updateDID` where you relied on omitting `witness` to turn witnessing off
 - [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
 
 ---

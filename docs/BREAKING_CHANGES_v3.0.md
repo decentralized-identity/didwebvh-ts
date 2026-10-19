@@ -71,8 +71,9 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 
 - **Changed**: Always an object (`{}` or `{ witnesses, threshold }`)
 - **Before**: Could be `null`, `undefined`, or use `witnessThreshold` field
+- **Changed**: `updateDID` with `witness` omitted keeps the active witness configuration by leaving `witness` out of the new entry's parameters, as did:webvh v1.0 requires. In 2.x, omitting `witness` wrote `witness: {}` and turned witnessing off for later entries. Pass `witness: {}` or `null` to turn witnessing off explicitly.
 - **Reason**: Consistent shape; removes null handling burden
-- **Upgrade**: Remove null checks; update field name references → [Full guide](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape)
+- **Upgrade**: Remove null checks; update field name references; pass `witness: {}` where an update relied on omission to stop witnessing → [Full guide](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape)
 
 #### 6. Historical Resolution Errors
 

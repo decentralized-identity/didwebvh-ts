@@ -222,12 +222,16 @@ export async function prepareUpdateEntry({
       ? assertValidNextKeyHashes(options.nextKeyHashes)
       : (lastMeta.nextKeyHashes ?? []);
   const witnessInput = options.witness;
-  const witness: Record<string, unknown> = witnessInput?.witnesses?.length
-    ? {
-        witnesses: witnessInput.witnesses,
-        threshold: witnessInput.threshold ?? 0,
-      }
-    : {};
+  // An omitted witness is left out of the entry so the previous value is retained (v1.0 §witness).
+  const witness: Record<string, unknown> | undefined =
+    witnessInput === undefined
+      ? undefined
+      : witnessInput?.witnesses?.length
+        ? {
+            witnesses: witnessInput.witnesses,
+            threshold: witnessInput.threshold ?? 0,
+          }
+        : {};
 
   if (options.portable === true) {
     throw new Error(
@@ -246,7 +250,9 @@ export async function prepareUpdateEntry({
   if (options.portable === false) {
     params.portable = false;
   }
-  params.witness = witness;
+  if (witness !== undefined) {
+    params.witness = witness;
+  }
   params.watchers = watchersValue ?? [];
 
   if (witness && 'witnesses' in witness && Array.isArray(witness.witnesses) && witness.witnesses.length) {

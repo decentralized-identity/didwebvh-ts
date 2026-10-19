@@ -335,6 +335,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `updateDID(options: UpdateDIDOptions): Promise<UpdateDIDResult>`
   Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
   Accepts an optional replacement `didDocument: DIDDocument`. If omitted, the authenticated previous document state is retained.
+  Parameters that are omitted keep their previous values. In particular, omitting `witness` keeps the active witness configuration; pass `witness: {}` (or `null`) to turn witnessing off.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
 
 - `deactivateDID(options: DeactivateDIDOptions): Promise<{did: string, doc: DIDDocument, meta: DIDResolutionMeta, log: DIDLog}>`
@@ -404,6 +405,47 @@ For `updateDID` and `deactivateDID`, omitting `witnessProofs` preserves normal
 proof retrieval. Pass `witnessProofs: []` when the caller intentionally wants
 network-free, fail-fast validation; pass an explicit proof array to validate
 against caller-supplied proofs.
+
+`witnessProofs` only covers the already-published log: `updateDID` verifies it
+before appending, then returns the new entry as an unwitnessed proposal. While
+witnessing is active (including when `witness` is omitted from the update), each
+witness checks that proposal against its own copy of the published log and signs
+it with `signWitnessProofEntry`:
+
+```ts
+// DID controller: build the proposal from the published log and witness file.
+const proposal = await updateDID({ ...updateOptions, log: publishedLog, witnessProofs: publishedWitnessFile });
+const proposedVersionId = proposal.log[proposal.log.length - 1].versionId;
+const requirement = getWitnessRequirements(proposal.log).find((r) => r.versionId === proposedVersionId);
+
+if (requirement) {
+  // Application-owned: send proposal.log to each witness in requirement.witnesses.
+  // Each witness signs only if the proposal extends the log it already trusts:
+  const witnessProof = await signWitnessProofEntry({
+    trustedLog: witnessCopyOfPublishedLog,
+    candidateLog: proposal.log,
+    witnessSigner,
+    witnessProofs: publishedWitnessFile,
+  });
+  // Application-owned: witnessProof ({ versionId, proof: [...] }) is returned to the controller.
+
+  // DID controller: merge returned proofs for proposedVersionId into the witness file.
+  const nextWitnessFile = [
+    ...publishedWitnessFile,
+    { versionId: proposedVersionId, proof: collectedProofs.flatMap((p) => p.proof) },
+  ];
+  const { verified } = await verifyWitnessProofs({ log: proposal.log, witnessProofs: nextWitnessFile });
+  if (!verified) {
+    // Keep collecting until requirement.threshold distinct witnesses have approved.
+  }
+
+  await callerPublishesWitnessFile(nextWitnessFile);
+}
+
+await callerPublishesDIDLog(proposal.log);
+```
+
+`deactivateDID` follows the same sequence.
 
 ### Cryptography and Key Helpers
 
