@@ -31,12 +31,21 @@ const resolveNextDidContext = ({
   lastEntryDid,
   parsedLastEntryDid,
   portable,
+  nextDid,
 }: {
   options: UpdateDIDOptions;
   lastEntryDid: string;
   parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
   portable: boolean;
+  nextDid?: string;
 }): { did: string } => {
+  if (nextDid !== undefined) {
+    if (nextDid !== lastEntryDid && !portable) {
+      throw new Error('Cannot move DID: portability is disabled');
+    }
+    return { did: nextDid };
+  }
+
   const requestedAddress = options.address;
   if (!requestedAddress) {
     return {
@@ -209,6 +218,7 @@ export async function prepareUpdateEntry({
   log,
   versionNumber,
   createdDate,
+  nextDid: requestedNextDid,
 }: {
   options: UpdateDIDOptions;
   lastEntry: DIDLogEntry;
@@ -216,6 +226,8 @@ export async function prepareUpdateEntry({
   log: DIDLog;
   versionNumber: number;
   createdDate: string;
+  /** Pre-validated next DID that bypasses `options.address` resolution (used by `migrateDID`). */
+  nextDid?: string;
 }): Promise<PreparedEntry> {
   const currentUpdateKeys = options.updateKeys;
   const lastEntryDid = lastEntry.state.id;
@@ -276,6 +288,7 @@ export async function prepareUpdateEntry({
     lastEntryDid,
     parsedLastEntryDid,
     portable: lastMeta.portable,
+    nextDid: requestedNextDid,
   });
 
   let doc: DIDDocument;

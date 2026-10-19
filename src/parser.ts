@@ -39,6 +39,8 @@ interface UrlAddress {
 interface ParsedAddress {
   didDomainComponent: string;
   paths?: string[];
+  /** The host after percent-decoding and NFC normalisation, before A-label conversion. */
+  decodedHost: string;
 }
 
 interface CanonicalAddressOptions {
@@ -93,7 +95,7 @@ function urlToASCII(host: string): string {
   }
 }
 
-const hasNonAscii = (value: string): boolean => /[\u0080-\u{10FFFF}]/u.test(value);
+export const hasNonAscii = (value: string): boolean => /[\u0080-\u{10FFFF}]/u.test(value);
 const hasInvalidHostCharacter = (value: string): boolean =>
   [...value].some((char) => {
     const code = char.codePointAt(0) ?? 0;
@@ -349,26 +351,31 @@ function canonicalPathSegment(value: string, context: string, scid: string): str
  * Decodes a caller-supplied host exactly once, NFC-normalises it and maps it to
  * the canonical A-label form, keeping any SCID (or `{SCID}`) occurrences verbatim.
  */
-function canonicalHostComponent(rawHost: string, context: string, scid: string): string {
+function canonicalHostComponent(
+  rawHost: string,
+  context: string,
+  scid: string
+): { decodedHost: string; canonicalHost: string } {
   const parts = decodeDidComponentParts(rawHost, context, scid).map((part) => part.normalize('NFC'));
   // A SCID that only appears after decoding was percent-encoded by the caller and
   // is literal text, not a placeholder; it cannot be part of a valid domain.
   if (parts.some((part) => part.includes(scid))) {
     throw new Error(`${context} must include a valid fully qualified domain`);
   }
-  if (parts.length === 1) return domainToAscii(parts[0]);
+  const decodedHost = parts.join(scid);
+  if (parts.length === 1) return { decodedHost, canonicalHost: domainToAscii(decodedHost) };
 
-  const host = parts.join(scid);
-  if (scid !== SCID_PLACEHOLDER_SUBSTITUTE && host.includes(SCID_PLACEHOLDER_SUBSTITUTE)) {
+  if (scid !== SCID_PLACEHOLDER_SUBSTITUTE && decodedHost.includes(SCID_PLACEHOLDER_SUBSTITUTE)) {
     throw new Error(`${context} must include a valid fully qualified domain`);
   }
-  if (host.split('.').some((label) => label.includes(scid) && hasNonAscii(label))) {
+  if (decodedHost.split('.').some((label) => label.includes(scid) && hasNonAscii(label))) {
     throw new Error('Unicode and {SCID} cannot share a domain label');
   }
-  return domainToAscii(host.replaceAll(scid, SCID_PLACEHOLDER_SUBSTITUTE)).replaceAll(
+  const canonicalHost = domainToAscii(decodedHost.replaceAll(scid, SCID_PLACEHOLDER_SUBSTITUTE)).replaceAll(
     SCID_PLACEHOLDER_SUBSTITUTE,
     scid
   );
+  return { decodedHost, canonicalHost };
 }
 
 function formatDomainComponent(host: string, port?: number): string {
@@ -478,12 +485,13 @@ export function parseCanonicalAddress(
     context = 'Address';
   }
 
-  const canonicalHost = canonicalHostComponent(rawHost, `${context} host`, scid);
+  const { decodedHost, canonicalHost } = canonicalHostComponent(rawHost, `${context} host`, scid);
   const canonicalPaths = paths.map((path) => canonicalPathSegment(path, `${context} path`, scid));
 
   return {
     didDomainComponent: formatDomainComponent(canonicalHost, port),
     paths: canonicalPaths.length > 0 ? canonicalPaths : undefined,
+    decodedHost,
   };
 }
 

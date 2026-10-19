@@ -30,7 +30,7 @@ import type {
   Verifier,
   WitnessParameter,
 } from '../src/interfaces.js';
-import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
+import { createDID, migrateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { normalizeDidAddress } from '../src/parser.js';
 import { createSCID, deriveHash } from '../src/utils/crypto.js';
 import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime.js';
@@ -466,5 +466,7 @@ export async function createUncanonicalisedDID({
   const created = { did: entry.state.id!, doc: entry.state, log: [entry] as DIDLog };
   const update = (address?: string, paths?: string[]) =>
     updateDID({ log: created.log, signer, updateKeys, verifier, address, paths });
-  return { created, scid: entry.parameters.scid!, verifier, signer, updateKeys, update };
+  const migrate = (address: string, paths?: string[]) =>
+    migrateDID({ log: created.log, signer, updateKeys, verifier, address, paths });
+  return { created, scid: entry.parameters.scid!, verifier, signer, updateKeys, update, migrate };
 }

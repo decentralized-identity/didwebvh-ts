@@ -8,6 +8,7 @@ export {
   createDID,
   deactivateDID,
   getWitnessRequirements,
+  migrateDID,
   resolveDID,
   resolveDIDFromLog,
   signWitnessProofEntry,
