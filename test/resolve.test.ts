@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import {
-  buildDidLogUrl,
-  deepClone,
-  getBaseUrl,
-  parseCanonicalAddress,
-  parseDidWebvhIdentifier,
-  requireDidDocumentId,
-} from '../src/utils.js';
+import { buildDidLogUrl, getBaseUrl, parseCanonicalAddress, parseDidWebvhIdentifier } from '../src/parser.js';
+import { deepClone, requireDidDocumentId } from '../src/utils.js';
 
 describe('Resolver URL derivation', () => {
   test.each([
