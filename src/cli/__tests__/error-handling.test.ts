@@ -2,7 +2,15 @@ import fs from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, test, vi } from 'vitest';
 import { generateTestVerificationMethod } from '../../../test/utils.js';
-import { CliError, handleCreate, handleDeactivate, handleResolve, handleUpdate, main } from '../index.js';
+import {
+  CliError,
+  handleCreate,
+  handleDeactivate,
+  handleMigrate,
+  handleResolve,
+  handleUpdate,
+  main,
+} from '../index.js';
 
 const TEST_DIR = join(process.cwd(), 'test', 'temp-cli-error-handling');
 fs.mkdirSync(TEST_DIR, { recursive: true });
@@ -28,6 +36,14 @@ describe('CLI error handling', () => {
     await expect(handleDeactivate([])).rejects.toMatchObject({
       name: 'CliError',
       message: 'Log file is required for deactivate command',
+    });
+    await expect(handleMigrate([])).rejects.toMatchObject({
+      name: 'CliError',
+      message: 'Log file is required for migrate command',
+    });
+    await expect(handleMigrate(['--log', 'did.jsonl'])).rejects.toMatchObject({
+      name: 'CliError',
+      message: 'Address is required for migrate command (use --address)',
     });
   });
 

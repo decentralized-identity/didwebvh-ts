@@ -6,6 +6,7 @@ import {
   createTestDIDDocument,
   createTestSigner,
   createTestVerifier,
+  createUncanonicalisedDID,
   createWitnessProof,
   generateTestVerificationMethod,
   TestCryptoImplementation,
@@ -288,6 +289,27 @@ describe('Controller CLI End-to-End Tests', () => {
     expect(finalEntry.state.alsoKnownAs).toBeDefined();
     expect(Array.isArray(finalEntry.state.alsoKnownAs)).toBe(true);
     expect(finalEntry.state.alsoKnownAs).toContain(alias);
+  });
+
+  test('Migrate a percent-encoded U-label DID using CLI', async () => {
+    const logFile = join(TEST_DIR, 'did-migrate.jsonl');
+    const { created, scid, authKey } = await createUncanonicalisedDID({
+      did: 'did:webvh:{SCID}:b%C3%BCcher.example.com',
+      portable: true,
+    });
+    await writeLogToDisk(logFile, created.log);
+    const env = { DID_VERIFICATION_METHODS: encodeVerificationMethods([authKey as CliSigningKey]) };
+
+    const proc = runCli(['migrate', '--log', logFile, '--output', logFile, '--address', 'bücher.example.com'], env);
+    expect(proc.exitCode, proc.stderr).toBe(0);
+
+    const migratedDid = `did:webvh:${scid}:xn--bcher-kva.example.com`;
+    expect(proc.stdout).toContain(`Migrated DID: ${migratedDid}`);
+    const log = await readLogFromDisk(logFile);
+    expect(log).toHaveLength(2);
+    const resolved = await resolveDIDFromLog(log, { verifier, witnessProofs: [] });
+    expect(resolved.didDocument?.id).toBe(migratedDid);
+    expect(resolved.didDocument?.alsoKnownAs).toContain(created.did);
   });
 
   test('Resolve DID command', async () => {

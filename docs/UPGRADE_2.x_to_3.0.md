@@ -600,6 +600,10 @@ Existing DIDs are not rewritten:
    contains its original U-label genesis entry, which resolvers continue to
    verify.
 
+   From the CLI, run `pnpm cli -- migrate --log ./did.jsonl --output
+   ./migrated-did.jsonl --address bücher.example.com`, which takes the same
+   options as `update`.
+
 ---
 
 ## Quick Checklist

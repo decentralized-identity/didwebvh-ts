@@ -195,6 +195,16 @@ pnpm cli -- generate-witness-proof \
 
 The controller merges the proofs from each witness into `did-witness.json`, checks them with `verify-proofs` against the candidate log, and publishes the witness file before the new log.
 
+Use `migrate` to move a portable percent-encoded U-label DID to its A-label form (see [Internationalised domain names](#internationalised-domain-names)). It takes the same options as `update`, plus a required `--address` with the U-label form of the DID's current host, port and path, and prints the new DID:
+
+```bash
+pnpm cli -- migrate \
+  --log ./did.jsonl \
+  --output ./migrated-did.jsonl \
+  --address bücher.example.com \
+  --witness-file ./did-witness.json
+```
+
 Use `verify-proofs` to inspect a local witness proof file before publishing or updating a DID:
 
 ```bash
@@ -378,6 +388,8 @@ A portable percent-encoded U-label DID can be moved to its A-label form with `mi
 const { did, log } = await migrateDID({ ...updateOptions, log: existingLog, address: 'bücher.example.com' });
 // did:webvh:<scid>:b%C3%BCcher.example.com -> did:webvh:<scid>:xn--bcher-kva.example.com
 ```
+
+The CLI equivalent is `pnpm cli -- migrate --log ./did.jsonl --address bücher.example.com`.
 
 ## API Reference
 

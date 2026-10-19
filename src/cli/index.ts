@@ -20,6 +20,7 @@ import {
   deactivateDID,
   deriveNextKeyHash,
   MultibaseEncoding,
+  migrateDID,
   multibaseDecode,
   multibaseEncode,
   prepareDataForSigning,
@@ -48,25 +49,26 @@ Commands:
   resolve    Resolve a DID
   verify-proofs Verify witness proofs for a DID log
   update     Update an existing DID
+  migrate    Migrate a portable percent-encoded U-label DID to its A-label form
   deactivate Deactivate an existing DID
   generate-witness-proof Generate witness proof for a DID version
   generate-vm Generate a new verification method keypair
 
 Options:
-  --address [address]       Address for the DID (host, host:port, https://url, or did:webvh form) (required for create)
-  --log [file]              Path to the DID log file (required for resolve, update, deactivate)
-  --output [file]           Path to save the updated DID log (optional for create, update, deactivate)
+  --address [address]       Address for the DID (host, host:port, https://url, or did:webvh form) (required for create; U-label address at the current location for migrate)
+  --log [file]              Path to the DID log file (required for resolve, update, migrate, deactivate)
+  --output [file]           Path to save the updated DID log (optional for create, update, migrate, deactivate)
   --portable                Make the DID portable (optional for create)
   --witness [witness]       Add a witness (can be used multiple times)
   --witness-threshold [n]   Set witness threshold (optional, defaults to number of witnesses)
-  --disable-witnesses       Turn off witnessing (update only; the entry itself must still be witnessed)
+  --disable-witnesses       Turn off witnessing (update and migrate; the entry itself must still be witnessed)
   --watcher [url]           Add a watcher URL (can be used multiple times)
   --service [service]       Add a service (format: type,endpoint) (can be used multiple times)
   --add-vm [type]           Add a verification method (type can be authentication, assertionMethod, keyAgreement, capabilityInvocation, capabilityDelegation)
   --also-known-as [alias]   Add an alsoKnownAs alias (can be used multiple times)
   --next-key [key]          Add a future update key and derive its nextKeyHash (can be used multiple times)
   --next-key-hash [hash]    Add a derived nextKeyHash directly (can be used multiple times)
-  --witness-file [file]     Path to witness proofs file (optional for resolve, update, deactivate)
+  --witness-file [file]     Path to witness proofs file (optional for resolve, update, migrate, deactivate)
 
   # Options for generate-witness-proof:
   --trusted-log [file]      Witness-owned published DID log (empty for genesis signing)
@@ -86,6 +88,7 @@ Examples:
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --next-key did:key:z6Mk...
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --disable-witnesses --witness-file ./did-witness.json
+  pnpm cli -- migrate --log ./did.jsonl --output ./migrated-did.jsonl --address bücher.example.com
   pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
   pnpm cli -- generate-witness-proof --trusted-log did.jsonl --candidate-log candidate.jsonl --witness-file did-witness.json --witness-did did:key:z6Mk... --witness-secret z3u2... --output witness-proof.json
   pnpm cli -- generate-vm
@@ -419,8 +422,17 @@ export async function handleVerifyProofs(args: string[]) {
 }
 
 export async function handleUpdate(args: string[]) {
+  return runUpdateCommand(args, 'update');
+}
+
+export async function handleMigrate(args: string[]) {
+  return runUpdateCommand(args, 'migrate');
+}
+
+async function runUpdateCommand(args: string[], command: 'update' | 'migrate') {
   const options = parseOptions(args);
   const logFile = options.log as string;
+  const address = options.address as string | undefined;
   const output = options.output as string | undefined;
   const witnessProofs = readWitnessProofsFile(options['witness-file'] as string | undefined);
   const witnesses = options.witness as string[] | undefined;
@@ -435,7 +447,10 @@ export async function handleUpdate(args: string[]) {
   const disableWitnesses = options['disable-witnesses'] !== undefined;
 
   if (!logFile) {
-    throw new CliError('Log file is required for update command');
+    throw new CliError(`Log file is required for ${command} command`);
+  }
+  if (command === 'migrate' && !address) {
+    throw new CliError('Address is required for migrate command (use --address)');
   }
   if (disableWitnesses && (witnesses?.length || witnessThreshold !== undefined)) {
     throw new CliError('--disable-witnesses cannot be combined with --witness or --witness-threshold');
@@ -521,7 +536,7 @@ export async function handleUpdate(args: string[]) {
     }
 
     const crypto = createCustomCrypto(vm);
-    const result = await updateDID({
+    const updateOptions = {
       log,
       signer: crypto,
       verifier: crypto,
@@ -538,17 +553,26 @@ export async function handleUpdate(args: string[]) {
       watchers: watchers ?? undefined,
       nextKeyHashes,
       witnessProofs,
-    });
+    };
+    const result =
+      command === 'migrate' && address
+        ? await migrateDID({ ...updateOptions, address })
+        : await updateDID(updateOptions);
 
+    if (command === 'migrate') {
+      console.log(`Migrated DID: ${result.did}`);
+    }
     if (output) {
       await writeLogToDisk(output, result.log);
-      console.log(`Updated DID log written to ${output}`);
+      console.log(`${command === 'migrate' ? 'Migrated' : 'Updated'} DID log written to ${output}`);
     }
 
     return result;
   } catch (error) {
     if (error instanceof CliError) throw error;
-    throw new CliError(`Error updating DID: ${error instanceof Error ? error.message : String(error)}`);
+    throw new CliError(
+      `Error ${command === 'migrate' ? 'migrating' : 'updating'} DID: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -732,6 +756,9 @@ export async function main(): Promise<number> {
       }
       case 'update':
         await handleUpdate(args);
+        return 0;
+      case 'migrate':
+        await handleMigrate(args);
         return 0;
       case 'deactivate':
         await handleDeactivate(args);

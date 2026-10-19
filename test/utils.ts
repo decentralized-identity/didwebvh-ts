@@ -471,5 +471,5 @@ export async function createUncanonicalisedDID({
     updateDID({ log: created.log, signer, updateKeys, verifier, address, paths });
   const migrate = (address: string, paths?: string[]) =>
     migrateDID({ log: created.log, signer, updateKeys, verifier, address, paths });
-  return { created, scid: entry.parameters.scid!, verifier, signer, updateKeys, update, migrate };
+  return { created, scid: entry.parameters.scid!, authKey, verifier, signer, updateKeys, update, migrate };
 }
