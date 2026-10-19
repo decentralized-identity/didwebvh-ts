@@ -14,6 +14,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
 | Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
 | `did-resolver` v6 integration and DID URL validation | Integration / Behavior | Resolver registration and invalid DID URL handling | [UPGRADE_2.x_to_3.0.md §6](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration) |
+| Strict did:webvh v1.0 identifier validation | Behavior | DID creation, resolution, and URL derivation | [UPGRADE_2.x_to_3.0.md §7](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation) |
 
 ---
 
@@ -87,9 +88,18 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Changed**: `didwebvh-ts` depends on `did-resolver` v6. Applications using `getResolver()` through `did-resolver` must register it with a v6 `Resolver`.
 - **Changed**: With v6, DID Core DID/DID URL syntax is checked by `did-resolver` before the `did:webvh` resolver runs. Syntax errors, including matrix parameters (`;versionId=`) and malformed percent-encoding, surface as `invalidDid`.
 - **Changed**: `invalidDidUrl` now only applies when a syntactically valid query value cannot be decoded for method-level selector processing.
-- **Compatibility**: Applications that continue to use a v5 `Resolver` will not get v6's strict DID URL parsing before dispatch. Malformed DID URLs then reach the did:webvh resolver, which only applies its own identifier and query checks, and matrix-style selectors (`;versionId=`) are ignored rather than rejected. Use v6.
+- **Changed**: `getResolver()` attaches a did:webvh `DIDParser` through the v6 parser hook. Identifiers that fail did:webvh v1.0 constraints (§8) are rejected as `invalidDid` before the DID log is fetched.
+- **Compatibility**: Applications that continue to use a v5 `Resolver` will not get the v6 pre-dispatch `DIDParser` hook or its strict DID URL parsing, and matrix-style selectors (`;versionId=`) are ignored rather than rejected. When the did:webvh resolver is invoked, didwebvh-ts still validates the bare DID internally, including DID Core syntax and did:webvh-specific constraints; this is not equivalent to v6 parsing the complete DID URL before dispatch. Use v6.
 - **Reason**: v6 removes `ParsedDID.params` and owns generic DID URL parsing, so didwebvh-ts no longer duplicates it.
 - **Upgrade**: Upgrade applications' direct `did-resolver` dependency to v6 and handle DID URL syntax errors reported as `invalidDid` → [Full guide](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration)
+
+#### 8. Strict did:webvh v1.0 Identifier Validation
+
+- **Changed**: did:webvh identifiers are validated against DID Core syntax (via `did-resolver`'s `parse`) and the did:webvh v1.0 identifier rules wherever they are parsed: `createDID` addresses, log entry `state.id` values, resolution, and URL derivation.
+- **Changed**: The SCID must be a 46-character base58btc string. A malformed SCID is rejected before the log is validated, so errors such as `SCID multihash algorithm must be SHA-256` are now reported as `must include a valid SCID`.
+- **Changed**: The host must be a fully qualified domain name. Single-label hosts such as `localhost` (with or without a port) are rejected; use a name such as `localhost.example.com` for local testing, or resolve in-memory logs with `resolveDIDFromLog`.
+- **Reason**: Align identifier handling with the did:webvh v1.0 specification and reject invalid identifiers before network access.
+- **Upgrade**: Replace single-label hosts with fully qualified domain names and update any assertions on SCID error messages → [Full guide](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation)
 
 ---
 

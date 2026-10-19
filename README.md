@@ -339,7 +339,7 @@ For complete examples, see the [examples](./examples/) directory.
 
 Resolver failures are surfaced on `didResolutionMetadata`:
 
-- `didResolutionMetadata.error` is one of `"invalidDid"` (the DID or log fails validation), `"invalidDidUrl"` (a query value cannot be decoded for method-level selector processing), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). When resolving through a v6 `did-resolver` `Resolver`, DID URL syntax errors (including matrix parameters such as `;versionId=` and malformed percent-encoding) are rejected as `"invalidDid"` before the method resolver is called. Unknown query parameters are ignored per DID Core extensibility.
+- `didResolutionMetadata.error` is one of `"invalidDid"` (the DID or log fails validation), `"invalidDidUrl"` (a query value cannot be decoded for method-level selector processing), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). When resolving through a v6 `did-resolver` `Resolver`, DID URL syntax errors (including matrix parameters such as `;versionId=` and malformed percent-encoding) are rejected as `"invalidDid"` before the method resolver is called. `getResolver()` also attaches a did:webvh `DIDParser`, so identifiers that break did:webvh v1.0 rules (SCID, fully qualified domain, port, or deployment path) are rejected as `"invalidDid"` before the DID log is fetched. Unknown query parameters are ignored per DID Core extensibility.
 - `didResolutionMetadata.problemDetails` carries RFC9457-style fields (`type`, `title`, `detail`) where available, and `didResolutionMetadata.message` carries the underlying detail string.
 - Local control is an application concern and is not reported in resolution metadata.
 
@@ -371,7 +371,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
   Creates a new DID. Always produces a v1.0 log.
   Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
   Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`).
-  Resolver URL mapping always uses `https://`, including for `localhost` and identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
+  Hosts must be fully qualified domain names; single-label hosts such as `localhost` and IP addresses are rejected. Resolver URL mapping always uses `https://`, including for identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
 - `updateDID(options: UpdateDIDOptions): Promise<UpdateDIDResult>`

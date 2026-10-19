@@ -16,6 +16,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
 4. **Witness signer contract** — signer supplies only signature data through `Signer`
 5. **Witness metadata shape** — always normalized to object form
 6. **did-resolver v6 integration** — upgrade direct `did-resolver` usage and account for DID URL syntax errors rejected before dispatch
+7. **Strict did:webvh identifier validation** — SCID format and fully qualified domain names are enforced, and invalid identifiers are rejected before log retrieval
 
 ---
 
@@ -469,6 +470,12 @@ Version selector behavior remains unchanged: `versionId`, `versionNumber`, and
 `versionTime` are accepted as query parameters, are mutually exclusive, and
 unknown query parameters are ignored.
 
+`getResolver()` also attaches a method-specific `DIDParser` to its `webvh`
+resolver. After did-resolver's generic checks, it applies the did:webvh v1.0
+identifier constraints (see [§7](#7-strict-didwebvh-identifier-validation)),
+and an identifier it rejects is returned as `invalidDid` before the resolver
+fetches a DID log.
+
 ### Migration Steps
 
 1. **Upgrade direct `did-resolver` usage to v6** if your application constructs
@@ -479,6 +486,33 @@ unknown query parameters are ignored.
 3. **Continue using query parameters for version selection.** Supply only one
    of `versionId`, `versionNumber`, or `versionTime`; matrix-style DID
    parameters are not a did:webvh selector mechanism.
+
+---
+
+## 7. Strict did:webvh Identifier Validation
+
+### What Changed
+
+did:webvh identifiers are now validated against DID Core syntax and the
+did:webvh v1.0 identifier rules wherever they are parsed: `createDID`
+addresses, log entry `state.id` values, resolution, and URL derivation.
+
+- The SCID must be a 46-character base58btc string. It is checked before the
+  log is validated, so a malformed SCID now produces `must include a valid
+  SCID` rather than a later log-validation error.
+- The host must be a fully qualified domain name. Single-label hosts such as
+  `localhost` or `localhost:8000` are rejected, as before for IP addresses.
+
+### Migration Steps
+
+1. **Use fully qualified domain names.** Replace single-label hosts in
+   `createDID` addresses and test fixtures, for example `localhost:8000` →
+   `localhost.example.com:8000`. For local testing without DNS or HTTPS,
+   resolve in-memory logs with `resolveDIDFromLog`.
+2. **Use real SCIDs in fixtures.** Placeholder SCIDs such as `scid123` no
+   longer parse; use a 46-character base58btc value.
+3. **Update error assertions** that matched SCID multihash messages for
+   malformed SCIDs.
 
 ---
 
@@ -493,6 +527,7 @@ unknown query parameters are ignored.
 - [ ] Remove null checks for witness metadata
 - [ ] Pass `witness: {}` to `updateDID` where you relied on omitting `witness` to turn witnessing off
 - [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
+- [ ] Replace single-label hosts (e.g. `localhost`) with fully qualified domain names
 
 ---
 
