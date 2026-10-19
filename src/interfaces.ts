@@ -9,10 +9,6 @@ export type DataIntegrityProofPurpose =
   | 'capabilityInvocation'
   | 'capabilityDelegation';
 
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-export type JsonObject = { [key: string]: JsonValue };
-
 export type DataIntegrityProofType = 'DataIntegrityProof';
 export type DataIntegrityCryptosuite = 'eddsa-jcs-2022';
 
@@ -95,12 +91,6 @@ export interface DIDResolutionMeta {
 
 export interface WitnessEntry {
   id: string; // did:key DID
-}
-
-export interface ParsedDidKeyVerificationMethod {
-  did: string;
-  fragment?: string;
-  keyMultibase: string;
 }
 
 export interface WitnessSigningOptions {

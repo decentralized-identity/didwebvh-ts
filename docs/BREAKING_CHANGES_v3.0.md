@@ -10,6 +10,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | Resolution result shape | API | All resolution calls | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
 | Proof/signing API narrowed | API / Security | Proof creation and witness signing | [UPGRADE_2.x_to_3.0.md §3](./UPGRADE_2.x_to_3.0.md#3-public-proof-and-signing-apis) |
 | did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.0.md §3.2](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports) |
+| Internal helper types removed from exports | API | Type imports | [UPGRADE_2.x_to_3.0.md §3.3](./UPGRADE_2.x_to_3.0.md#33-internal-helper-types) |
 | Witness signer contract | Behavior | Witness signing | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract) |
 | Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
 | Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
@@ -47,6 +48,12 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Scope**: Package root imports from `didwebvh-ts`
 - **Reason**: Public API surface tightening
 - **Upgrade**: Replace root imports with app-level did:key parsing or validation logic → [Full guide](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports)
+
+#### 2.2 Internal Helper Types Removed from Exports
+
+- **Removed**: `JsonPrimitive`, `JsonValue`, `JsonObject` and `ParsedDidKeyVerificationMethod` are no longer exported from `didwebvh-ts` or `didwebvh-ts/types`
+- **Reason**: They describe internal canonicalization and did:key parsing details, not the public API
+- **Upgrade**: Define equivalent types in your application → [Full guide](./UPGRADE_2.x_to_3.0.md#33-internal-helper-types)
 
 ---
 

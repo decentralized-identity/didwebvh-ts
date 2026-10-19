@@ -13,6 +13,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
   - Witness signing uses `signWitnessProofEntry`, which validates the candidate log before signing
   - Root parser exports `parseDidKeyDid` and `parseDidKeyVerificationMethod` removed
   - `deriveNextKeyHash` remains exported for pre-rotation `nextKeyHashes`
+  - Internal helper types `JsonPrimitive`, `JsonValue`, `JsonObject` and `ParsedDidKeyVerificationMethod` are no longer exported
 4. **Witness signer contract** — signer supplies only signature data through `Signer`
 5. **Witness metadata shape** — always normalized to object form
 6. **did-resolver v6 integration** — upgrade direct `did-resolver` usage and account for DID URL syntax errors rejected before dispatch
@@ -328,6 +329,18 @@ import { parseDidKeyDid, parseDidKeyVerificationMethod } from 'didwebvh-ts';
   - Reject malformed did:key values
   - Enforce any fragment/body matching your previous call sites relied on
 
+### 3.3 Internal Helper Types
+
+`JsonPrimitive`, `JsonValue`, `JsonObject` and `ParsedDidKeyVerificationMethod`
+are no longer exported from `didwebvh-ts` or `didwebvh-ts/types`. If you
+imported them, define equivalents locally:
+
+```typescript
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
+```
+
 ---
 
 ## 4. Witness Signer Contract
@@ -522,6 +535,7 @@ addresses, log entry `state.id` values, resolution, and URL derivation.
 - [ ] Add `purpose: 'authentication'` to verification methods
 - [ ] Replace witness proof creation with `signWitnessProofEntry`
 - [ ] Replace root imports of `parseDidKeyDid` and `parseDidKeyVerificationMethod`
+- [ ] Define `JsonValue`/`JsonObject`/`JsonPrimitive` or `ParsedDidKeyVerificationMethod` locally if you imported them
 - [ ] Implement the `Signer` interface and supply explicit historical witness proofs
 - [ ] Review service endpoint filtering for exact-id matching
 - [ ] Remove null checks for witness metadata

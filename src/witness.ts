@@ -1,7 +1,6 @@
 import type {
   DataIntegrityProof,
   DIDLogEntry,
-  ParsedDidKeyVerificationMethod,
   Verifier,
   WitnessEntry,
   WitnessParameterResolution,
@@ -140,7 +139,7 @@ export async function countVerifiedWitnessApprovals(
           throw new Error('Invalid witness proof cryptosuite');
         }
 
-        let parsedVerificationMethod: ParsedDidKeyVerificationMethod;
+        let parsedVerificationMethod: ReturnType<typeof parseDidKeyVerificationMethod>;
         try {
           parsedVerificationMethod = parseDidKeyVerificationMethod(proof.verificationMethod);
         } catch {

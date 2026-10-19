@@ -9,7 +9,7 @@ const ENCODED_PORT_SEPARATOR = /%3A/i;
 const SCID_PLACEHOLDER_SUBSTITUTE = '1'.repeat(46);
 const TEMPLATE_PREFIX = `did:${METHOD}:${SCID_PLACEHOLDER}:`;
 
-export interface ParsedDidWebvhIdentifier {
+interface ParsedDidWebvhIdentifier {
   scid: string;
   canonicalHost: string;
   canonicalPort?: number;

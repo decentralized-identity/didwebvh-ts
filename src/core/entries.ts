@@ -21,7 +21,7 @@ import {
 import { deepClone, replaceValueInObject } from '../utils.js';
 import { validateWitnessParameter } from '../witness.js';
 
-export interface PreparedEntry {
+interface PreparedEntry {
   entry: DIDLogEntry;
   resolvedNextKeyHashes?: string[];
 }
