@@ -326,7 +326,7 @@ describe('Witness CLI End-to-End Tests', () => {
       const proc = runCli([
         'create',
         '--address',
-        'localhost:8000',
+        'localhost.example.com:8000',
         '--output',
         logFile,
         '--witness',
@@ -370,7 +370,7 @@ describe('Witness CLI End-to-End Tests', () => {
     const witnessDid = `did:key:${witness.publicKeyMultibase}`;
 
     const trusted = await createDID({
-      address: 'localhost:8000',
+      address: 'localhost.example.com:8000',
       signer: controllerSigner,
       updateKeys: [controller.publicKeyMultibase],
       didDocument: createTestDIDDocument(controller),
@@ -451,7 +451,7 @@ describe('Witness CLI End-to-End Tests', () => {
 
     const witnessDid = `did:key:${witness.publicKeyMultibase}`;
     const genesis = await createDID({
-      address: 'localhost:8000',
+      address: 'localhost.example.com:8000',
       signer: createTestSigner(controller),
       updateKeys: [controller.publicKeyMultibase],
       didDocument: createTestDIDDocument(controller),

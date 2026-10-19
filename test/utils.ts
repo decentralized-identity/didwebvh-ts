@@ -34,6 +34,9 @@ import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats.js';
 import { deepClone, replaceValueInObject } from '../src/utils.js';
 
+/** Syntactically valid 46-character base58btc SCID for tests that don't verify the log. */
+export const MOCK_SCID = '1'.repeat(46);
+
 export type TestVerificationMethod = VerificationMethod & {
   secretKeyMultibase: string;
 };

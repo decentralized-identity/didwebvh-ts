@@ -36,13 +36,13 @@ describe('Strict address input validation and parsing', () => {
   });
 
   test('Accepts pre-encoded host%3Aport without double encoding', async () => {
-    const { doc } = await createFromInput('localhost%3A8000');
-    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000$/);
+    const { doc } = await createFromInput('localhost.example.com%3A8000');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost\.example\.com%3A8000$/);
   });
 
   test('Accepts pre-encoded host%3aport with lowercase separator and canonicalizes output', async () => {
-    const { doc } = await createFromInput('localhost%3a8000');
-    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000$/);
+    const { doc } = await createFromInput('localhost.example.com%3a8000');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost\.example\.com%3A8000$/);
   });
 
   test('Accepts https URL address input', async () => {
@@ -65,8 +65,8 @@ describe('Strict address input validation and parsing', () => {
   });
 
   test('Accepts localhost HTTPS URL with path and port', async () => {
-    const { doc } = await createFromInput('https://localhost:8000/test');
-    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000:test$/);
+    const { doc } = await createFromInput('https://localhost.example.com:8000/test');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost\.example\.com%3A8000:test$/);
   });
 
   test('Accepts canonical did:webvh input with port and path', async () => {

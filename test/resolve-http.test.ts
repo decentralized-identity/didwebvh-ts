@@ -6,6 +6,7 @@ import {
   createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
+  MOCK_SCID,
   TestCryptoImplementation,
   type TestVerificationMethod,
 } from './utils.js';
@@ -199,7 +200,7 @@ describe('resolveDID over HTTPS', () => {
   test.each([
     ['localhost.example.com', [], 'https://localhost.example.com/.well-known/did.jsonl'],
     ['example.com', ['localhost'], 'https://example.com/localhost/did.jsonl'],
-    ['localhost:8000', [], 'https://localhost:8000/.well-known/did.jsonl'],
+    ['localhost.example.com:8000', [], 'https://localhost.example.com:8000/.well-known/did.jsonl'],
   ])('resolves %s with paths %j over HTTPS', async (address, paths, expectedUrl) => {
     const created = await createDID({
       address,
@@ -351,7 +352,7 @@ describe('fetchLogFromIdentifier', () => {
     const entries = [{ versionId: '1-abc' }, { versionId: '2-def' }] as DIDLog;
     const fetchMock = stubFetchResponse(entries.map((entry) => JSON.stringify(entry)).join('\n'));
 
-    const fetched = await fetchLogFromIdentifier('did:webvh:scid123:example.com:dids:issuer');
+    const fetched = await fetchLogFromIdentifier(`did:webvh:${MOCK_SCID}:example.com:dids:issuer`);
 
     expect(fetchMock).toHaveBeenCalledWith('https://example.com/dids/issuer/did.jsonl');
     expect(fetched).toEqual(entries);
@@ -362,7 +363,7 @@ describe('fetchLogFromIdentifier', () => {
     stubFetchFailure(new Error('global fetch should not be called'));
     const customFetch = createFetchMock(entries.map((entry) => JSON.stringify(entry)).join('\n'));
 
-    const fetched = await fetchLogFromIdentifier('did:webvh:scid123:example.com:dids:issuer', customFetch);
+    const fetched = await fetchLogFromIdentifier(`did:webvh:${MOCK_SCID}:example.com:dids:issuer`, customFetch);
 
     expect(customFetch).toHaveBeenCalledWith('https://example.com/dids/issuer/did.jsonl');
     expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -379,7 +380,7 @@ describe('fetchWitnessProofs', () => {
     const proofs = [{ versionId: '1-abc', proof: [] }];
     const fetchMock = stubFetchResponse(JSON.stringify(proofs));
 
-    const result = await fetchWitnessProofs('did:webvh:scid123:example.com');
+    const result = await fetchWitnessProofs(`did:webvh:${MOCK_SCID}:example.com`);
 
     expect(fetchMock).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
     expect(result).toEqual(proofs);
@@ -390,7 +391,7 @@ describe('fetchWitnessProofs', () => {
     stubFetchFailure(new Error('global fetch should not be called'));
     const customFetch = createFetchMock(JSON.stringify(proofs));
 
-    const result = await fetchWitnessProofs('did:webvh:scid123:example.com', customFetch);
+    const result = await fetchWitnessProofs(`did:webvh:${MOCK_SCID}:example.com`, customFetch);
 
     expect(customFetch).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
     expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -400,18 +401,18 @@ describe('fetchWitnessProofs', () => {
   test('returns an empty list when the witness proof file is missing', async () => {
     stubFetchResponse('', { ok: false, status: 404 });
 
-    expect(await fetchWitnessProofs('did:webvh:scid123:example.com')).toEqual([]);
+    expect(await fetchWitnessProofs(`did:webvh:${MOCK_SCID}:example.com`)).toEqual([]);
   });
 
   test('propagates network errors when fetching witness proofs', async () => {
     stubFetchFailure(new Error('connection refused'));
 
-    await expect(fetchWitnessProofs('did:webvh:scid123:example.com')).rejects.toThrow('connection refused');
+    await expect(fetchWitnessProofs(`did:webvh:${MOCK_SCID}:example.com`)).rejects.toThrow('connection refused');
   });
 
   test('rejects non-404 HTTP errors when fetching witness proofs', async () => {
     stubFetchResponse('', { ok: false, status: 503 });
 
-    await expect(fetchWitnessProofs('did:webvh:scid123:example.com')).rejects.toThrow('HTTP error! status: 503');
+    await expect(fetchWitnessProofs(`did:webvh:${MOCK_SCID}:example.com`)).rejects.toThrow('HTTP error! status: 503');
   });
 });
