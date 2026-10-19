@@ -319,6 +319,16 @@ When `witnessProofs` is omitted (`undefined`), `resolveDID`, `resolveDIDFromLog`
 proof fetch. Pass `witnessProofs: []` explicitly to disable network fetching and fail fast when a witnessed log has no locally supplied proofs. Any non-empty
 explicit proof array is verified directly without fetching.
 
+Each of these functions accepts a `fetch` option (`FetchLike`) used for that
+retrieval in place of the global `fetch`; `resolveDID` also uses it for the DID
+log. `getResolver({ fetch })` applies to resolution only, so pass the same
+function to `updateDID` and `deactivateDID`:
+
+```typescript
+const resolver = new Resolver(getResolver({ fetch: appFetch }));
+const result = await updateDID({ log, signer, verifier, fetch: appFetch });
+```
+
 The CLI owns environment variables, `.env` persistence, private-key selection,
 and its local log-file layout. `DID_VERIFICATION_METHODS` is therefore a CLI
 setting and does not alter library resolution behavior.

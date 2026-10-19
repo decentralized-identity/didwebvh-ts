@@ -1600,6 +1600,53 @@ describe('Witness Implementation Tests', async () => {
         fetchSpy.mockRestore();
       }
     });
+
+    test('updateDID and deactivateDID fetch witness proofs with a custom fetch override', async () => {
+      const witnessDid = `did:key:${witness1.publicKeyMultibase}`;
+      const genesisDid = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(authKey),
+        updateKeys: [authKey.publicKeyMultibase!],
+        didDocument: createTestDIDDocument(authKey),
+        witness: { threshold: 1, witnesses: [{ id: witnessDid }] },
+        verifier: testImplementation,
+      });
+      const proofFor = async (versionId: string) => ({
+        versionId,
+        proof: [
+          await createWitnessProof(createWitnessSigner(witness1), versionId, witnessVerificationMethod(witness1)),
+        ],
+      });
+
+      let publishedProofs = [await proofFor(genesisDid.log[0].versionId)];
+      const customFetch = vi.fn(async () => new Response(JSON.stringify(publishedProofs), { status: 200 }));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch should not be called'));
+
+      try {
+        const updatedDid = await updateDID({
+          log: genesisDid.log,
+          signer: createTestSigner(authKey),
+          updateKeys: [authKey.publicKeyMultibase!],
+          verifier: testImplementation,
+          fetch: customFetch,
+        });
+        expect(customFetch).toHaveBeenCalledWith('https://example.com/.well-known/did-witness.json');
+
+        publishedProofs = [await proofFor(updatedDid.log[1].versionId)];
+        const deactivated = await deactivateDID({
+          log: updatedDid.log,
+          signer: createTestSigner(authKey),
+          verifier: testImplementation,
+          fetch: customFetch,
+        });
+
+        expect(deactivated.meta.deactivated).toBe(true);
+        expect(customFetch).toHaveBeenCalledTimes(2);
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
   });
 
   test('Verify witness proofs from did-witness.json', async () => {

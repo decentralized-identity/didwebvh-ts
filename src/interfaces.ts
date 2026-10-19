@@ -210,6 +210,11 @@ export interface UpdateDIDOptions {
   watchers?: string[] | null;
   verifier?: Verifier;
   witnessProofs?: WitnessProofFileEntry[];
+  /**
+   * Override for the network fetch used to retrieve the published witness
+   * proof file when `witnessProofs` is omitted. Defaults to the global fetch.
+   */
+  fetch?: FetchLike;
   address?: string;
   paths?: string[];
 }
@@ -219,6 +224,11 @@ export interface DeactivateDIDOptions {
   signer: Signer;
   verifier?: Verifier;
   witnessProofs?: WitnessProofFileEntry[];
+  /**
+   * Override for the network fetch used to retrieve the published witness
+   * proof file when `witnessProofs` is omitted. Defaults to the global fetch.
+   */
+  fetch?: FetchLike;
 }
 
 export interface ResolutionOptions {

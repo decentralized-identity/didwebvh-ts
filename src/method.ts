@@ -202,7 +202,9 @@ export const updateDID = async (options: UpdateDIDOptions): Promise<UpdateDIDRes
   }
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
+  const lastMeta = (
+    await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs, fetch: options.fetch })
+  ).meta;
   const currentUpdateKeys = options.updateKeys;
   if (lastMeta.deactivated) {
     throw new Error('Cannot update deactivated DID');
@@ -260,7 +262,9 @@ export const deactivateDID = async (
   }
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
+  const lastMeta = (
+    await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs, fetch: options.fetch })
+  ).meta;
   if (lastMeta.deactivated) {
     throw new Error('DID already deactivated');
   }
