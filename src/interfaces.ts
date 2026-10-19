@@ -1,4 +1,4 @@
-import type { DIDDocument, VerificationMethod } from 'did-resolver';
+import type { DIDDocument, DIDDocumentMetadata, DIDResolutionMetadata, VerificationMethod } from 'did-resolver';
 
 export type { DIDDocument, Service, ServiceEndpoint, VerificationMethod } from 'did-resolver';
 
@@ -46,6 +46,15 @@ export interface Verifier {
  */
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
+export interface GetResolverConfig {
+  verifier?: Verifier;
+  /**
+   * Default fetch used to retrieve DID logs and witness proof files. Can be
+   * overridden per resolution via `resolver.resolve(didUrl, { fetch })`.
+   */
+  fetch?: FetchLike;
+}
+
 export interface SignerOptions {
   verificationMethod?: VerificationMethod | null;
   useStaticId?: boolean;
@@ -86,6 +95,24 @@ export interface DIDResolutionMeta {
   watchers?: string[] | null;
   error?: DidResolutionError;
   problemDetails?: ProblemDetails;
+  latestVersionId?: string;
+}
+
+export interface WebvhResolutionMetadata extends DIDResolutionMetadata {
+  problemDetails?: ProblemDetails;
+}
+
+export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
+  versionTime?: string;
+  scid?: string;
+  ttl?: string;
+  updateKeys?: string[];
+  nextKeyHashes?: string[];
+  prerotation?: boolean;
+  portable?: boolean;
+  witness?: DIDResolutionMeta['witness'];
+  watchers?: string[] | null;
+  previousLogEntryHash?: string;
   latestVersionId?: string;
 }
 

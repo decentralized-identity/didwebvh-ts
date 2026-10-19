@@ -1,5 +1,11 @@
-import type { DIDDocument, DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } from 'did-resolver';
-import type { DIDResolutionMeta, DidResolutionError, ProblemDetails } from './interfaces.js';
+import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
+import type {
+  DIDResolutionMeta,
+  DidResolutionError,
+  ProblemDetails,
+  WebvhDocumentMetadata,
+  WebvhResolutionMetadata,
+} from './interfaces.js';
 
 /** A structured, non-throwing validation failure for resolution options. */
 interface ResolutionOptionsError {
@@ -15,24 +21,6 @@ export const WEBVH_ERROR_TYPES = {
   versionIdFormatInvalid: 'https://didwebvh.info/latest/resolution-errors/#versionid-format-invalid',
   versionTimeFormatInvalid: 'https://didwebvh.info/latest/resolution-errors/#versiontime-format-invalid',
 } as const;
-
-export interface WebvhResolutionMetadata extends DIDResolutionMetadata {
-  problemDetails?: ProblemDetails;
-}
-
-export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
-  versionTime?: string;
-  scid?: string;
-  ttl?: string;
-  updateKeys?: string[];
-  nextKeyHashes?: string[];
-  prerotation?: boolean;
-  portable?: boolean;
-  witness?: DIDResolutionMeta['witness'];
-  watchers?: string[] | null;
-  previousLogEntryHash?: string;
-  latestVersionId?: string;
-}
 
 const CONTENT_TYPE = 'application/did+ld+json';
 

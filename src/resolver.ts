@@ -6,20 +6,11 @@ import type {
   Resolvable,
   ResolverRegistry,
 } from 'did-resolver';
-import type { FetchLike, ResolutionOptions, Verifier } from './interfaces.js';
+import type { FetchLike, GetResolverConfig, ResolutionOptions } from './interfaces.js';
 import { resolveDID } from './method.js';
 import { didWebvhParser } from './parser.js';
 import { toErrorResult, validateSingleVersionSelector, WEBVH_ERROR_TYPES } from './resolver-result.js';
 import { defaultVerifier } from './verifier.js';
-
-export interface GetResolverConfig {
-  verifier?: Verifier;
-  /**
-   * Default fetch used to retrieve DID logs and witness proof files. Can be
-   * overridden per resolution via `resolver.resolve(didUrl, { fetch })`.
-   */
-  fetch?: FetchLike;
-}
 
 interface WebvhDidResolutionOptions extends DIDResolutionOptions {
   fetch?: unknown;
