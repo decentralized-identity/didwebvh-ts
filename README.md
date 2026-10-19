@@ -351,6 +351,27 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 
 > **Breaking change (v3.0.0):** resolution returns the standard `DIDResolutionResult` instead of the previous `{ did, doc, meta, controlled }` shape, and the implementation-specific `verificationMethod` resolution selector has been removed. See [Migration Guide](./docs/UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) for upgrade steps.
 
+## Internationalised domain names
+
+`createDID` and `updateDID` accept Unicode domains (U-labels, e.g. `bücher.example`) as raw text or percent-encoded, in any `address` form. The domain is NFC-normalised and converted to its lowercase ASCII form (A-label, `xn--bcher-kva.example`) before the SCID and DID are generated. Unicode path segments are percent-encoded with uppercase hex:
+
+```typescript
+await createDID({ ...options, address: 'jp納豆.例.jp', paths: ['用户'] });
+// did:webvh:<scid>:xn--jp-cd2fp15c.xn--fsq.jp:%E7%94%A8%E6%88%B7
+```
+
+No additional dependency is needed. The conversion uses the runtime's WHATWG `URL`, which is checked once for IDNA support before it is relied on:
+
+| Runtime `URL` | Unicode domains | ASCII / A-label domains |
+| --- | --- | --- |
+| IDNA-aware WHATWG `URL` (Node.js, current browsers) | Converted to A-labels | Supported |
+| Polyfills that map IDNA (e.g. Expo's `URL`) | Converted to A-labels; host validation may be looser than Node.js | Supported |
+| No IDNA support (e.g. bare React Native/Hermes) | Rejected with `This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead` | Supported |
+
+On runtimes without IDNA support, supply the A-label form of the domain. A non-ASCII domain never produces an incorrect DID.
+
+Existing DIDs whose domain is a percent-encoded U-label (e.g. `did:webvh:<scid>:b%C3%BCcher.example.com`) remain valid: they resolve from the A-label HTTPS host and keep their DID string through `updateDID` and `deactivateDID`. DIDs containing raw (unencoded) Unicode are not DID Core-conformant and are rejected.
+
 ## API Reference
 
 ### Core Functions
@@ -370,7 +391,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `createDID(options: CreateDIDOptions): Promise<CreateDIDResult>`
   Creates a new DID. Always produces a v1.0 log.
   Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
-  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`).
+  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`). Every form yields the same canonical DID: lowercase A-label domain, uppercase percent-encoding, and `%3A` before the port. Additional `{SCID}` placeholders may appear in the `address` domain or `paths`. See [Internationalised domain names](#internationalised-domain-names).
   Hosts must be fully qualified domain names; single-label hosts such as `localhost` and IP addresses are rejected. Resolver URL mapping always uses `https://`, including for identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
   URL pathname and `paths` segments are percent-encoded as individual DID path components (for example, `a:b` becomes `a%3Ab`); already-encoded DID address path components are decoded once before canonical encoding.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
@@ -380,6 +401,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
   Accepts an optional replacement `didDocument: DIDDocument`. If omitted, the authenticated previous document state is retained.
   Parameters that are omitted keep their previous values. In particular, omitting `witness` keeps the active witness configuration; pass `witness: {}` (or `null`) to turn witnessing off.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
+  An `address` that canonicalises to the DID's current location is not a move, so existing non-canonical or percent-encoded U-label DIDs are kept unchanged. A move to a different location requires portability and produces a canonical DID. `{SCID}` placeholders are rejected once the SCID exists.
 
 - `deactivateDID(options: DeactivateDIDOptions): Promise<{did: string, doc: DIDDocument, meta: DIDResolutionMeta, log: DIDLog}>`
   Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.

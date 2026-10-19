@@ -18,6 +18,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
 5. **Witness metadata shape** — always normalized to object form
 6. **did-resolver v6 integration** — upgrade direct `did-resolver` usage and account for DID URL syntax errors rejected before dispatch
 7. **Strict did:webvh identifier validation** — SCID format and fully qualified domain names are enforced, and invalid identifiers are rejected before log retrieval
+8. **Canonical DIDs and internationalised domains** — every address form yields one canonical DID, and Unicode domains become A-labels
 
 ---
 
@@ -529,6 +530,52 @@ addresses, log entry `state.id` values, resolution, and URL derivation.
 
 ---
 
+## 8. Canonical DIDs and Internationalised Domains
+
+### What Changed
+
+`createDID` and `updateDID` now emit one canonical DID for a location,
+whatever form the `address` takes:
+
+- Domains are NFC-normalised and converted to lowercase A-labels, so
+  `BÜCHER.example` and `b%C3%BCcher.example` both become
+  `xn--bcher-kva.example`. A `{SCID}` placeholder or embedded SCID keeps its
+  case.
+- Percent-encoding uses uppercase hex, and the port separator is `%3A`.
+- Path segments are percent-encoded to DID Core `idchar`s but otherwise keep
+  their case and are not Unicode-normalised.
+
+The conversion uses the runtime's WHATWG `URL` and needs no extra dependency.
+Runtimes whose `URL` lacks IDNA support (such as bare React Native) reject
+non-ASCII domains with
+`This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead`.
+
+Existing DIDs are not rewritten:
+
+- Percent-encoded U-label DIDs created by 2.x still resolve, fetching from the
+  A-label HTTPS host.
+- `updateDID` keeps the existing DID when the supplied `address` canonicalises
+  to its current location, and `deactivateDID` keeps it too. Only a move to a
+  different location (which requires portability) produces a new, canonical
+  DID.
+
+### Migration Steps
+
+1. **Compare against `createDID`'s output.** If you derive or store DID
+   strings from the input address, use the `did` returned by `createDID`
+   instead; for example, `Example.COM` now yields `example.com`.
+2. **Expect A-label domains in new DIDs.** Code that displays or matches
+   Unicode domains should convert A-labels for display rather than expecting
+   percent-encoded U-labels.
+3. **Use A-label domains on runtimes without IDNA support.** On bare React
+   Native, convert the domain to its `xn--` form before calling `createDID`.
+4. **Stop using `{SCID}` in `updateDID`.** Placeholders are only valid at
+   creation; pass the actual SCID in update addresses and paths.
+5. **Replace raw-Unicode DIDs.** DIDs containing unencoded Unicode were never
+   DID Core-conformant and are now rejected.
+
+---
+
 ## Quick Checklist
 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
@@ -542,6 +589,7 @@ addresses, log entry `state.id` values, resolution, and URL derivation.
 - [ ] Pass `witness: {}` to `updateDID` where you relied on omitting `witness` to turn witnessing off
 - [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
 - [ ] Replace single-label hosts (e.g. `localhost`) with fully qualified domain names
+- [ ] Compare new DIDs against `createDID`'s canonical output; use A-label domains on runtimes without IDNA support
 
 ---
 

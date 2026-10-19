@@ -16,6 +16,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
 | `did-resolver` v6 integration and DID URL validation | Integration / Behavior | Resolver registration and invalid DID URL handling | [UPGRADE_2.x_to_3.0.md §6](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration) |
 | Strict did:webvh v1.0 identifier validation | Behavior | DID creation, resolution, and URL derivation | [UPGRADE_2.x_to_3.0.md §7](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation) |
+| Canonical DIDs and A-label domains | Behavior | `createDID` / `updateDID` output | [UPGRADE_2.x_to_3.0.md §8](./UPGRADE_2.x_to_3.0.md#8-canonical-dids-and-internationalised-domains) |
 
 ---
 
@@ -107,6 +108,16 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Changed**: The host must be a fully qualified domain name. Single-label hosts such as `localhost` (with or without a port) are rejected; use a name such as `localhost.example.com` for local testing, or resolve in-memory logs with `resolveDIDFromLog`.
 - **Reason**: Align identifier handling with the did:webvh v1.0 specification and reject invalid identifiers before network access.
 - **Upgrade**: Replace single-label hosts with fully qualified domain names and update any assertions on SCID error messages → [Full guide](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation)
+
+#### 9. Canonical DIDs and A-label Domains
+
+- **Changed**: `createDID` and `updateDID` emit one canonical DID for a location, whatever form the `address` takes (`host`, `https://...` or `did:webvh:...`). Domains are NFC-normalised and mapped to lowercase A-labels; any `{SCID}` placeholder or embedded SCID keeps its case. Percent-encoding uses uppercase hex, and the port separator is `%3A`. Path segments keep their case and are not Unicode-normalised. For example, `Example.COM` and `did:webvh:{SCID}:%e4%be%8b.jp%3a8443` yield `example.com` and `xn--fsq.jp%3A8443`.
+- **Changed**: Unicode domains produce A-label DIDs. `createDID({ address: 'jp納豆.例.jp', paths: ['用户'] })` emits `did:webvh:<scid>:xn--jp-cd2fp15c.xn--fsq.jp:%E7%94%A8%E6%88%B7`; raw and pre-encoded Unicode input produce the same DID. 2.x emitted percent-encoded U-labels.
+- **Changed**: Conversion uses the runtime's WHATWG `URL`, checked once for IDNA support. On runtimes without it (such as bare React Native), non-ASCII domains are rejected; A-label domains work everywhere.
+- **Compatibility**: Existing percent-encoded U-label DIDs still resolve from the A-label HTTPS host without changing their DID string. `updateDID` treats an `address` that canonicalises to the DID's current location as no move, so existing non-canonical and U-label DIDs are kept unchanged; `deactivateDID` also keeps them.
+- **Changed**: DIDs containing raw (unencoded) Unicode, addresses with unpaired surrogates, and domain labels mixing Unicode with `{SCID}` are rejected. `updateDID` rejects `{SCID}` placeholders once the SCID exists. A percent-encoded `%7BSCID%7D` is literal text, not a placeholder.
+- **Reason**: did:webvh v1.0 requires a single canonical DID per location and DID Core `idchar`-only identifiers.
+- **Upgrade**: Compare DIDs against `createDID`'s output rather than the input address, and use A-label domains on runtimes without IDNA support → [Full guide](./UPGRADE_2.x_to_3.0.md#8-canonical-dids-and-internationalised-domains)
 
 ---
 
