@@ -1,6 +1,14 @@
 import type { DIDDocument, DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } from 'did-resolver';
 import type { DIDResolutionMeta, DidResolutionError, ProblemDetails } from './interfaces.js';
 
+/** A structured, non-throwing validation failure for resolution options. */
+interface ResolutionOptionsError {
+  code: DidResolutionError;
+  detail: string;
+  /** did:webvh registry URI for `problemDetails.type`; falls back to the code's default. */
+  problemType?: string;
+}
+
 /** `problemDetails.type` URIs from the did:webvh resolution-error registry. */
 export const WEBVH_ERROR_TYPES = {
   conflictingResolutionOptions: 'https://didwebvh.info/latest/resolution-errors/#conflicting-resolution-options',
@@ -27,14 +35,6 @@ export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
 }
 
 const CONTENT_TYPE = 'application/did+ld+json';
-
-/** A structured, non-throwing validation failure for resolution options. */
-export interface ResolutionOptionsError {
-  code: DidResolutionError;
-  detail: string;
-  /** did:webvh registry URI for `problemDetails.type`; falls back to the code's default. */
-  problemType?: string;
-}
 
 export function validateSingleVersionSelector(options: {
   versionId?: string;

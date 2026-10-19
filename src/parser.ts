@@ -6,7 +6,7 @@ const DOMAIN_LABEL_PATTERN = /^(?:[A-Za-z0-9-]|%[0-9A-Fa-f]{2})+$/;
 const DNS_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const ENCODED_PORT_SEPARATOR = /%3A/gi;
 
-export interface ParsedDidWebvhIdentifier {
+interface ParsedDidWebvhIdentifier {
   scid: string;
   canonicalHost: string;
   canonicalPort?: number;

@@ -1,5 +1,8 @@
 import { canonicalizeEx } from 'json-canonicalize';
-import type { JsonValue } from '../interfaces.js';
+
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
 
 const sanitizeForCanonicalization = (value: unknown, seen: WeakMap<object, unknown>): unknown => {
   if (value === null) return null;

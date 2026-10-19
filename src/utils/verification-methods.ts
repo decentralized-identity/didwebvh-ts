@@ -1,7 +1,12 @@
 import { type DIDDocument, VerificationRelationship } from 'did-resolver';
 import { DID_KEY_PREFIX } from '../constants.js';
-import type { ParsedDidKeyVerificationMethod } from '../interfaces.js';
 import { multibaseDecode } from './multiformats.js';
+
+interface ParsedDidKeyVerificationMethod {
+  did: string;
+  fragment?: string;
+  keyMultibase: string;
+}
 
 export function assertNoPrivateVerificationMaterial(didDocument: DIDDocument): void {
   const visit = (value: unknown, path: string): void => {
