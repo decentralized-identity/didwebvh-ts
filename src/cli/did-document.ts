@@ -1,7 +1,5 @@
-import { VerificationRelationship } from 'did-resolver';
+import type { VerificationRelationship } from 'did-resolver';
 import type { DIDDocument, VerificationMethod } from '../index.js';
-
-export { VerificationRelationship };
 
 const resolveDocumentId = (id: string, did: string): string => (id.startsWith('#') ? `${did}${id}` : id);
 

@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import { dirname } from 'node:path';
 import { ed25519 } from '@noble/curves/ed25519.js';
+import { VerificationRelationship } from 'did-resolver';
 import type {
   DIDDocument,
   DIDLog,
@@ -28,7 +29,7 @@ import {
   updateDID,
   verifyWitnessProofs,
 } from '../index.js';
-import { addVerificationMethodToDocument, deepClone, type VerificationRelationship } from './did-document.js';
+import { addVerificationMethodToDocument, deepClone } from './did-document.js';
 import {
   type CliSigningKey,
   getVerificationMethodsFromEnv,
@@ -691,11 +692,8 @@ function parseOptions(args: string[]): Record<string, string | string[] | undefi
   return options;
 }
 
-// Add this function to validate VerificationMethodType
 function isValidVerificationMethodType(type: string): type is VerificationRelationship {
-  return ['authentication', 'assertionMethod', 'keyAgreement', 'capabilityInvocation', 'capabilityDelegation'].includes(
-    type
-  );
+  return (Object.values(VerificationRelationship) as string[]).includes(type);
 }
 
 function parseServices(services: string[]): Service[] {
