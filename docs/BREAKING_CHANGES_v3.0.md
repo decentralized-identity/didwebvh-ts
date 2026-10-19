@@ -13,6 +13,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | Witness signer contract | Behavior | Witness signing | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract) |
 | Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
 | Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
+| `did-resolver` v6 integration and DID URL validation | Integration / Behavior | Resolver registration and invalid DID URL handling | [UPGRADE_2.x_to_3.0.md §6](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration) |
 
 ---
 
@@ -78,6 +79,15 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Changed**: Resolving an earlier version with `versionId`, `versionNumber`, or `versionTime` can return a non-null `didDocument` alongside `didResolutionMetadata.error = "invalidDid"` when a later log entry is invalid. The error reports the invalid later entry, not a failure of the selected document.
 - **Witnesses**: The selected version's witness requirements must still be met before its document is returned. Proofs for an invalid log entry do not count.
 - **Upgrade**: Check `didResolutionMetadata.error` even when `didDocument` is non-null; handle or report the invalid later history separately from the selected document → [Full guide](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape)
+
+#### 7. `did-resolver` v6 Integration and DID URL Validation
+
+- **Changed**: `didwebvh-ts` depends on `did-resolver` v6. Applications using `getResolver()` through `did-resolver` must register it with a v6 `Resolver`.
+- **Changed**: With v6, DID Core DID/DID URL syntax is checked by `did-resolver` before the `did:webvh` resolver runs. Syntax errors, including matrix parameters (`;versionId=`) and malformed percent-encoding, surface as `invalidDid`.
+- **Changed**: `invalidDidUrl` now only applies when a syntactically valid query value cannot be decoded for method-level selector processing.
+- **Compatibility**: Applications that continue to use a v5 `Resolver` will not get v6's strict DID URL parsing before dispatch. Malformed DID URLs then reach the did:webvh resolver, which only applies its own identifier and query checks, and matrix-style selectors (`;versionId=`) are ignored rather than rejected. Use v6.
+- **Reason**: v6 removes `ParsedDID.params` and owns generic DID URL parsing, so didwebvh-ts no longer duplicates it.
+- **Upgrade**: Upgrade applications' direct `did-resolver` dependency to v6 and handle DID URL syntax errors reported as `invalidDid` → [Full guide](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration)
 
 ---
 

@@ -15,6 +15,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
   - `deriveNextKeyHash` remains exported for pre-rotation `nextKeyHashes`
 4. **Witness signer contract** — signer supplies only signature data through `Signer`
 5. **Witness metadata shape** — always normalized to object form
+6. **did-resolver v6 integration** — upgrade direct `did-resolver` usage and account for DID URL syntax errors rejected before dispatch
 
 ---
 
@@ -445,6 +446,35 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
 
 ---
 
+## 6. did-resolver v6 Integration
+
+### What Changed
+
+`didwebvh-ts` now depends on `did-resolver` v6. The v6 `Resolver` validates
+generic DID and DID URL syntax before invoking the method resolver, and its
+`ParsedDID` no longer exposes matrix parameters (`params`).
+
+DID URL syntax errors, such as matrix parameters (`;versionId=`) or malformed
+percent-encoding, are returned by did-resolver as `invalidDid` before the
+did:webvh resolver runs. `invalidDidUrl` in didwebvh-ts is reserved for query
+values that cannot be decoded while extracting method-level version selectors.
+Version selector behavior remains unchanged: `versionId`, `versionNumber`, and
+`versionTime` are accepted as query parameters, are mutually exclusive, and
+unknown query parameters are ignored.
+
+### Migration Steps
+
+1. **Upgrade direct `did-resolver` usage to v6** if your application constructs
+   a `Resolver` and registers the `did:webvh` resolver from `didwebvh-ts`.
+2. **Handle DID URL syntax errors as `invalidDid`.** Code that previously
+   expected `invalidDidUrl` or `invalidOptions` for malformed DID URLs or
+   matrix parameters should expect `didResolutionMetadata.error = "invalidDid"`.
+3. **Continue using query parameters for version selection.** Supply only one
+   of `versionId`, `versionNumber`, or `versionTime`; matrix-style DID
+   parameters are not a did:webvh selector mechanism.
+
+---
+
 ## Quick Checklist
 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
@@ -454,6 +484,7 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
 - [ ] Implement the `Signer` interface and supply explicit historical witness proofs
 - [ ] Review service endpoint filtering for exact-id matching
 - [ ] Remove null checks for witness metadata
+- [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
 
 ---
 
