@@ -441,10 +441,12 @@ export async function createUncanonicalisedDID({
   did,
   portable = false,
   alsoKnownAsWeb = false,
+  witness,
 }: {
   did: string;
   portable?: boolean;
   alsoKnownAsWeb?: boolean;
+  witness?: WitnessParameter;
 }) {
   const authKey = await generateTestVerificationMethod();
   const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
@@ -455,6 +457,7 @@ export async function createUncanonicalisedDID({
       address: did,
       portable,
       alsoKnownAsWeb,
+      witness,
       signer,
       updateKeys,
       didDocument: createTestDIDDocument(authKey),

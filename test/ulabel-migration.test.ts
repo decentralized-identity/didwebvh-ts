@@ -1,6 +1,12 @@
 import { describe, expect, test, vi } from 'vitest';
 import { migrateDID, resolveDID, resolveDIDFromLog, updateDID } from '../src/method.js';
-import { createUncanonicalisedDID, MOCK_SCID } from './utils.js';
+import {
+  createTestSigner,
+  createUncanonicalisedDID,
+  createWitnessProof,
+  generateTestVerificationMethod,
+  MOCK_SCID,
+} from './utils.js';
 
 const uLabelDid = 'did:webvh:{SCID}:b%C3%BCcher.example.com%3A8443:users';
 
@@ -71,6 +77,50 @@ describe('migrateDID converts a percent-encoded U-label DID to its A-label form'
     expect(oldResult.didResolutionMetadata.error).toBeUndefined();
     expect(newResult.didResolutionMetadata.error).toBeUndefined();
     expect(newResult.didDocument?.id).toBe(migrated.did);
+  });
+
+  test('fetches witness proofs for the existing log with a custom fetch override', async () => {
+    const witness = await generateTestVerificationMethod();
+    const witnessVm = `did:key:${witness.publicKeyMultibase}#${witness.publicKeyMultibase}`;
+    const witnessSigner = createTestSigner(witness);
+    const { created, signer, updateKeys, verifier } = await createUncanonicalisedDID({
+      did: uLabelDid,
+      portable: true,
+      witness: { threshold: 1, witnesses: [{ id: `did:key:${witness.publicKeyMultibase}` }] },
+    });
+    const genesisProof = await createWitnessProof(
+      async (document, proof) => {
+        if (!proof) {
+          throw new Error('Witness proof template is required');
+        }
+        return { proof: await witnessSigner.sign({ document, proof }) };
+      },
+      created.log[0].versionId,
+      witnessVm
+    );
+    const publishedProofs = [{ versionId: created.log[0].versionId, proof: [genesisProof] }];
+    const customFetch = vi.fn(async () => new Response(JSON.stringify(publishedProofs), { status: 200 }));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch should not be called'));
+
+    try {
+      const migrated = await migrateDID({
+        log: created.log,
+        address: 'bücher.example.com:8443',
+        signer,
+        updateKeys,
+        verifier,
+        fetch: customFetch,
+      });
+
+      expect(customFetch).toHaveBeenCalledExactlyOnceWith(
+        'https://xn--bcher-kva.example.com:8443/users/did-witness.json'
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(migrated.log[1].parameters).not.toHaveProperty('witness');
+      expect(migrated.meta.witness).toEqual(created.log[0].parameters.witness);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   test('verifies the existing log once, like updateDID', async () => {
