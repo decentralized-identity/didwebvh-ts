@@ -59,6 +59,7 @@ Options:
   --portable                Make the DID portable (optional for create)
   --witness [witness]       Add a witness (can be used multiple times)
   --witness-threshold [n]   Set witness threshold (optional, defaults to number of witnesses)
+  --disable-witnesses       Turn off witnessing (update only; the entry itself must still be witnessed)
   --watcher [url]           Add a watcher URL (can be used multiple times)
   --service [service]       Add a service (format: type,endpoint) (can be used multiple times)
   --add-vm [type]           Add a verification method (type can be authentication, assertionMethod, keyAgreement, capabilityInvocation, capabilityDelegation)
@@ -84,8 +85,9 @@ Examples:
   pnpm cli -- verify-proofs --log ./did.jsonl --witness-file ./did-witness.json
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --add-vm keyAgreement --service LinkedDomains,https://example.com
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --next-key did:key:z6Mk...
+  pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --disable-witnesses --witness-file ./did-witness.json
   pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
-  pnpm cli -- generate-witness-proof --trusted-log did.jsonl --candidate-log candidate.jsonl --witness-did did:key:z6Mk... --witness-secret z1A... --output did-witness.json
+  pnpm cli -- generate-witness-proof --trusted-log did.jsonl --candidate-log candidate.jsonl --witness-file did-witness.json --witness-did did:key:z6Mk... --witness-secret z3u2... --output witness-proof.json
   pnpm cli -- generate-vm
 `;
 
@@ -430,9 +432,13 @@ export async function handleUpdate(args: string[]) {
   const alsoKnownAs = options['also-known-as'] as string[] | undefined;
   const updateKey = options['update-key'] as string | undefined;
   const watchers = options.watcher as string[] | undefined;
+  const disableWitnesses = options['disable-witnesses'] !== undefined;
 
   if (!logFile) {
     throw new CliError('Log file is required for update command');
+  }
+  if (disableWitnesses && (witnesses?.length || witnessThreshold !== undefined)) {
+    throw new CliError('--disable-witnesses cannot be combined with --witness or --witness-threshold');
   }
 
   try {
@@ -521,12 +527,14 @@ export async function handleUpdate(args: string[]) {
       verifier: crypto,
       updateKeys: [vmPublicKeyMultibase],
       didDocument: nextDoc,
-      witness: witnesses?.length
-        ? {
-            witnesses: witnesses.map((witness) => ({ id: witness })),
-            threshold: witnessThreshold ?? witnesses.length,
-          }
-        : undefined,
+      witness: disableWitnesses
+        ? {}
+        : witnesses?.length
+          ? {
+              witnesses: witnesses.map((witness) => ({ id: witness })),
+              threshold: witnessThreshold ?? witnesses.length,
+            }
+          : undefined,
       watchers: watchers ?? undefined,
       nextKeyHashes,
       witnessProofs,

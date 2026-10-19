@@ -11,9 +11,9 @@ import {
   TestCryptoImplementation,
 } from '../../../test/utils.js';
 import type { WitnessProofFileEntry } from '../../interfaces.js';
-import { createDID, resolveDIDFromLog, updateDID } from '../../method.js';
+import { createDID, getWitnessRequirements, resolveDIDFromLog, updateDID } from '../../method.js';
 import { deriveNextKeyHash } from '../../utils/crypto.js';
-import { type CliSigningKey, readLogFromDisk, writeLogToDisk } from '../persistence.js';
+import { type CliSigningKey, encodeVerificationMethods, readLogFromDisk, writeLogToDisk } from '../persistence.js';
 
 const REPO_ROOT = process.cwd();
 const TEST_DIR = join(REPO_ROOT, 'test', 'temp-cli-e2e');
@@ -32,11 +32,11 @@ let verifier: TestCryptoImplementation;
 
 // Run a CLI command as a subprocess. --env-file=.env is passed directly to
 // node so that process.env is populated from .env on startup.
-function runCli(args: string[]) {
+function runCli(args: string[], extraEnv: Record<string, string> = {}) {
   const result = spawnSync(process.execPath, ['--env-file=.env', '--import', 'tsx/esm', CLI_ENTRY, ...args], {
     cwd: TEST_DIR,
     encoding: 'utf8',
-    env: process.env,
+    env: { ...process.env, ...extraEnv },
   });
   return { exitCode: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
@@ -484,5 +484,67 @@ describe('Witness CLI End-to-End Tests', () => {
     expect(witnessProofs).toHaveLength(1);
     expect(witnessProofs[0]?.versionId).toBe(genesis.log[0]?.versionId);
     expect(witnessProofs[0]?.proof).toHaveLength(1);
+  });
+
+  describe('update witness configuration', () => {
+    const createWitnessedLog = async (name: string) => {
+      const controller = await generateTestVerificationMethod();
+      const witness = await generateTestVerificationMethod();
+      if (!controller.publicKeyMultibase) {
+        throw new Error('Generated test verification method must contain key material');
+      }
+      const witnessSigner = createTestSigner(witness);
+      const witnessConfig = { threshold: 1, witnesses: [{ id: `did:key:${witness.publicKeyMultibase}` }] };
+      const genesis = await createDID({
+        address: 'example.com',
+        signer: createTestSigner(controller),
+        updateKeys: [controller.publicKeyMultibase],
+        didDocument: createTestDIDDocument(controller),
+        witness: witnessConfig,
+        verifier: createTestVerifier(controller),
+      });
+      const genesisProof = await createWitnessProof(
+        async (document, proof) => {
+          if (!proof) {
+            throw new Error('Witness proof template is required');
+          }
+          return { proof: await witnessSigner.sign({ document, proof }) };
+        },
+        genesis.log[0].versionId,
+        witnessSigner.getVerificationMethodId()
+      );
+      const logFile = join(TEST_DIR, `${name}.jsonl`);
+      const witnessFile = join(TEST_DIR, `${name}-witness.json`);
+      await writeLogToDisk(logFile, genesis.log);
+      fs.writeFileSync(witnessFile, JSON.stringify([{ versionId: genesis.log[0].versionId, proof: [genesisProof] }]));
+      const env = { DID_VERIFICATION_METHODS: encodeVerificationMethods([controller as CliSigningKey]) };
+      return { logFile, witnessFile, env, witnessConfig };
+    };
+
+    test('update without witness options keeps the active witness configuration', async () => {
+      const { logFile, witnessFile, env, witnessConfig } = await createWitnessedLog('witness-retained');
+
+      const proc = runCli(['update', '--log', logFile, '--output', logFile, '--witness-file', witnessFile], env);
+      expect(proc.exitCode, proc.stderr).toBe(0);
+
+      const log = await readLogFromDisk(logFile);
+      expect(log).toHaveLength(2);
+      expect(log[1].parameters).not.toHaveProperty('witness');
+      expect(getWitnessRequirements(log)[1]).toMatchObject(witnessConfig);
+    });
+
+    test('update --disable-witnesses writes an empty witness configuration', async () => {
+      const { logFile, witnessFile, env, witnessConfig } = await createWitnessedLog('witness-disabled');
+
+      const proc = runCli(
+        ['update', '--log', logFile, '--output', logFile, '--witness-file', witnessFile, '--disable-witnesses'],
+        env
+      );
+      expect(proc.exitCode, proc.stderr).toBe(0);
+
+      const log = await readLogFromDisk(logFile);
+      expect(log[1].parameters.witness).toEqual({});
+      expect(getWitnessRequirements(log)[1]).toMatchObject(witnessConfig);
+    });
   });
 });

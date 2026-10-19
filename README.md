@@ -163,6 +163,38 @@ pnpm cli -- deactivate \
 
 When `--witness-file` is omitted, `update` and `deactivate` retain the normal network-fetch behavior. Providing a witness file avoids that fetch; an empty JSON array (`[]`) explicitly disables fetching and fails fast when witnesses are required.
 
+The witness file covers the published log only. The new entry written by `update` or `deactivate` is a candidate that the current witnesses must sign before it is published.
+
+`update` keeps the active witness configuration unless you pass `--witness` (with an optional `--witness-threshold`) to replace it. Pass `--disable-witnesses` to turn witnessing off; it cannot be combined with `--witness` or `--witness-threshold`. The entry that turns witnessing off must still be witnessed by the current witnesses:
+
+```bash
+pnpm cli -- update \
+  --log ./did.jsonl \
+  --output ./updated-did.jsonl \
+  --witness-file ./did-witness.json \
+  --disable-witnesses
+```
+
+Each witness uses `generate-witness-proof` to sign a candidate log. It checks the candidate against the trusted (published) log and the published witness proofs, then writes a witness file containing that witness's proof for the newest entry:
+
+```bash
+pnpm cli -- generate-witness-proof \
+  --trusted-log ./did.jsonl \
+  --candidate-log ./updated-did.jsonl \
+  --witness-file ./did-witness.json \
+  --witness-did did:key:z6Mk... \
+  --witness-secret z3u2... \
+  --output ./witness-proof.json
+```
+
+- `--trusted-log`: the published log. Use an empty file for a genesis candidate.
+- `--candidate-log`: the log produced by `create`, `update` or `deactivate`.
+- `--witness-file`: the published `did-witness.json`. Use `[]` for a genesis candidate.
+- `--witness-did` and `--witness-secret`: the witness's `did:key` DID and its multibase secret key.
+- `--output`: where the witness's proof is written, as a JSON array with one entry.
+
+The controller merges the proofs from each witness into `did-witness.json`, checks them with `verify-proofs` against the candidate log, and publishes the witness file before the new log.
+
 Use `verify-proofs` to inspect a local witness proof file before publishing or updating a DID:
 
 ```bash

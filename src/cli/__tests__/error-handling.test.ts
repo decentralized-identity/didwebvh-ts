@@ -31,6 +31,16 @@ describe('CLI error handling', () => {
     });
   });
 
+  test('update rejects --disable-witnesses combined with witness options', async () => {
+    const message = '--disable-witnesses cannot be combined with --witness or --witness-threshold';
+    await expect(
+      handleUpdate(['--log', 'did.jsonl', '--disable-witnesses', '--witness', 'did:key:z6Mk'])
+    ).rejects.toMatchObject({ name: 'CliError', message });
+    await expect(
+      handleUpdate(['--log', 'did.jsonl', '--witness-threshold', '1', '--disable-witnesses'])
+    ).rejects.toMatchObject({ name: 'CliError', message });
+  });
+
   test('main returns an exit code instead of terminating for an unknown command', async () => {
     const originalArgv = process.argv;
     process.argv = [...originalArgv.slice(0, 2), 'unknown'];
