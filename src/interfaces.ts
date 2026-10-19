@@ -87,7 +87,7 @@ export interface DIDResolutionMeta {
   nextKeyHashes: string[];
   deactivated: boolean;
   witness?: WitnessParameterResolution;
-  watchers?: string[] | null;
+  watchers?: string[];
   error?: DidResolutionError;
   problemDetails?: ProblemDetails;
   latestVersionId?: string;

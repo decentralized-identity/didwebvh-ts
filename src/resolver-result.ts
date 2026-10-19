@@ -21,7 +21,7 @@ export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
   prerotation?: boolean;
   portable?: boolean;
   witness?: DIDResolutionMeta['witness'];
-  watchers?: string[] | null;
+  watchers?: string[];
   previousLogEntryHash?: string;
   latestVersionId?: string;
 }

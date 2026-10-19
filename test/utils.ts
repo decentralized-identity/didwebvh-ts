@@ -79,7 +79,11 @@ export function createTestDIDDocument(
   return doc;
 }
 
-export const createFutureDIDLog = async (authKey: TestVerificationMethod, minutesAhead: number): Promise<DIDLog> => {
+export const createFutureDIDLog = async (
+  authKey: TestVerificationMethod,
+  minutesAhead: number,
+  options: { watchers?: string[] | null | 'omit' } = {}
+): Promise<DIDLog> => {
   const futureCreated = new Date(Date.now() + minutesAhead * 60 * 1000).toISOString();
   const signer = createTestSigner(authKey);
   const rawDoc = createTestDIDDocument(authKey);
@@ -101,6 +105,11 @@ export const createFutureDIDLog = async (authKey: TestVerificationMethod, minute
     },
     state: doc,
   };
+  if (options.watchers === 'omit') {
+    delete initialLogEntry.parameters.watchers;
+  } else if (options.watchers !== undefined) {
+    initialLogEntry.parameters.watchers = options.watchers;
+  }
 
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   const scid = await createSCID(initialLogEntryHash);
@@ -305,6 +314,7 @@ export async function appendV05LogEntry(options: {
   signer: Signer;
   updateKeys?: string[];
   nextKeyHashes?: string[] | null;
+  watchers?: string[] | null;
   method?: string;
   didDocument?: DIDDocument;
   verificationMethods?: VerificationMethod[];
@@ -348,6 +358,9 @@ export async function appendV05LogEntry(options: {
   }
   if (options.nextKeyHashes !== undefined) {
     newParameters[METHOD_PARAMETER_KEYS.nextKeyHashes] = options.nextKeyHashes;
+  }
+  if (options.watchers !== undefined) {
+    newParameters[METHOD_PARAMETER_KEYS.watchers] = options.watchers;
   }
 
   // For non-genesis entries, only include parameters that are explicitly set above

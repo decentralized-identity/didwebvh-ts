@@ -439,7 +439,7 @@ const createInitialResolverContext = (): ResolverContext => {
       nextKeyHashes: [],
       prerotation: false,
       witness: undefined,
-      watchers: null,
+      watchers: [],
     },
     host: '',
     previousVersionTime: undefined,
@@ -525,7 +525,7 @@ const processGenesisEntry = async ({
       : [];
   resolverContext.meta.prerotation = resolverContext.meta.nextKeyHashes.length > 0;
   resolverContext.meta.witness = transitionWitnessState(undefined, parameters);
-  resolverContext.meta.watchers = parameters.watchers ?? null;
+  resolverContext.meta.watchers = parameters.watchers ?? [];
   resolverContext.meta.ttl =
     parameters.ttl !== undefined && parameters.ttl !== null ? String(parameters.ttl) : DEFAULT_TTL_SECONDS;
 
@@ -660,7 +660,7 @@ const processSubsequentEntry = async ({
     validateWitnessParameter(resolverContext.meta.witness);
   }
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.watchers)) {
-    resolverContext.meta.watchers = parameters.watchers ?? null;
+    resolverContext.meta.watchers = parameters.watchers ?? [];
   }
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.ttl)) {
     resolverContext.meta.ttl =
