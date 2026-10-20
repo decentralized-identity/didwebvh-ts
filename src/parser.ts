@@ -30,6 +30,11 @@ interface HostPort {
   port?: number;
 }
 
+interface CanonicalHost {
+  decodedHost: string;
+  canonicalHost: string;
+}
+
 interface UrlAddress {
   rawHost: string;
   port?: number;
@@ -351,11 +356,7 @@ function canonicalPathSegment(value: string, context: string, scid: string): str
  * Decodes a caller-supplied host exactly once, NFC-normalises it and maps it to
  * the canonical A-label form, keeping any SCID (or `{SCID}`) occurrences verbatim.
  */
-function canonicalHostComponent(
-  rawHost: string,
-  context: string,
-  scid: string
-): { decodedHost: string; canonicalHost: string } {
+function canonicalHostComponent(rawHost: string, context: string, scid: string): CanonicalHost {
   const parts = decodeDidComponentParts(rawHost, context, scid).map((part) => part.normalize('NFC'));
   // A SCID that only appears after decoding was percent-encoded by the caller and
   // is literal text, not a placeholder; it cannot be part of a valid domain.
