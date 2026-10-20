@@ -8,7 +8,7 @@ import type {
 } from 'did-resolver';
 import type { FetchLike, ResolutionOptions, Verifier } from './interfaces.js';
 import { resolveDID } from './method.js';
-import { didWebvhParser } from './parser.js';
+import { narrowDidWebvh } from './parser.js';
 import { toErrorResult, validateSingleVersionSelector, WEBVH_ERROR_TYPES } from './resolver-result.js';
 import { defaultVerifier } from './verifier.js';
 
@@ -104,7 +104,17 @@ export function getResolver(config: GetResolverConfig = {}): ResolverRegistry {
     return resolveDID(parsed.did, selector);
   };
 
-  resolve.parser = didWebvhParser;
+  // did-resolver method parser hook: did-resolver has already parsed DID Core
+  // syntax, so the result is only narrowed to did:webvh. Rejecting here yields
+  // `invalidDid` before dispatch, caching or any fetch.
+  resolve.parser = (parsed) => {
+    try {
+      narrowDidWebvh(parsed, 'did:webvh identifier');
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
 
   return { webvh: resolve };
 }

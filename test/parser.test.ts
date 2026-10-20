@@ -1,10 +1,13 @@
+import { type ParsedDID, parse as parseDidUrl } from 'did-resolver';
 import { describe, expect, test } from 'vitest';
 import {
   buildDidLogUrl,
   getBaseUrl,
+  narrowDidWebvh,
   normalizeDidAddress,
   parseCanonicalAddress,
   parseDidWebvhIdentifier,
+  parseDidWebvhTemplate,
 } from '../src/parser.js';
 import { MOCK_SCID } from './utils.js';
 
@@ -199,5 +202,76 @@ describe('did:webvh identifier parsing', () => {
       locationKey: 'example.com%3A8443:tenant:issuer',
       did: `did:webvh:${MOCK_SCID}:example.com%3A8443:tenant:issuer`,
     });
+  });
+
+  test.each([
+    ['an encoded U-label', `did:webvh:${MOCK_SCID}:b%C3%BCcher.example.com:p%c3%a4th`, 'bücher.example.com'],
+    ['a lowercase encoded port separator', `did:webvh:${MOCK_SCID}:example.com%3a8443`, 'example.com'],
+  ])('returns %s exactly as written in the identifier', (_, did, canonicalHost) => {
+    const parsed = parseDidWebvhIdentifier(did, 'resolver input');
+
+    expect(parsed.did).toBe(did);
+    expect(parsed.locationKey).toBe(did.slice(`did:webvh:${MOCK_SCID}:`.length));
+    expect(parsed.didDomainComponent).toBe(parsed.locationKey.split(':')[0]);
+    expect(parsed.canonicalHost).toBe(canonicalHost);
+  });
+
+  test('normalizes an encoded did:webvh template address without re-encoding it', () => {
+    const address = 'did:webvh:{SCID}:b%C3%BCcher.example.com';
+    expect(normalizeDidAddress({ address, scid: '{SCID}', context: 'test' }).did).toBe(address);
+  });
+
+  test('rejects a {SCID} template, which is not a DID', () => {
+    expect(() => parseDidWebvhIdentifier('did:webvh:{SCID}:example.com', 'resolver input')).toThrow(
+      'resolver input must be a valid did:webvh identifier'
+    );
+  });
+
+  test('rejects a DID URL path', () => {
+    expect(() => parseDidWebvhIdentifier(`did:webvh:${MOCK_SCID}:example.com/path`, 'resolver input')).toThrow(
+      'resolver input must not include a DID URL path'
+    );
+  });
+});
+
+describe('did:webvh template parsing', () => {
+  test('restores the {SCID} placeholder in the parsed template', () => {
+    expect(parseDidWebvhTemplate('did:webvh:{SCID}:example.com%3A8443:tenant', 'template')).toEqual({
+      scid: '{SCID}',
+      canonicalHost: 'example.com',
+      canonicalPort: 8443,
+      didDomainComponent: 'example.com%3A8443',
+      paths: ['tenant'],
+      locationKey: 'example.com%3A8443:tenant',
+      did: 'did:webvh:{SCID}:example.com%3A8443:tenant',
+    });
+  });
+
+  test.each([
+    [`did:webvh:${MOCK_SCID}:example.com`, "template must be a did:webvh template starting with 'did:webvh:{SCID}:'"],
+    ['did:webvh:{SCID}:example', 'template must include a valid fully qualified domain'],
+    ['did:webvh:{SCID}:example.com#key-1', 'template must not include query or fragment components'],
+  ])('rejects %s', (template, message) => {
+    expect(() => parseDidWebvhTemplate(template, 'template')).toThrow(message);
+  });
+});
+
+describe('did:webvh narrowing of a did-resolver parse result', () => {
+  test('narrows the did-resolver parse result, ignoring DID URL query and fragment', () => {
+    const parsed = parseDidUrl(`did:webvh:${MOCK_SCID}:example.com?versionNumber=1#key-1`);
+    expect(parsed).not.toBeNull();
+    expect(narrowDidWebvh(parsed as ParsedDID, 'resolver input').did).toBe(`did:webvh:${MOCK_SCID}:example.com`);
+  });
+
+  test('rejects a ParsedDID whose components are inconsistent', () => {
+    const parsed: ParsedDID = {
+      did: `did:webvh:${MOCK_SCID}:example.com`,
+      didUrl: `did:webvh:${MOCK_SCID}:example.com`,
+      method: 'webvh',
+      id: `${MOCK_SCID}:other.example.com`,
+    };
+    expect(() => narrowDidWebvh(parsed, 'resolver input')).toThrow(
+      'resolver input must be a valid did:webvh identifier'
+    );
   });
 });
