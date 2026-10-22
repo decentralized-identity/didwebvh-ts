@@ -56,6 +56,12 @@ describe('mapErrorToCode', () => {
   test('other -> invalidDid', () => {
     expect(mapErrorToCode(new Error('SCID mismatch'))).toBe('invalidDid');
   });
+  test('missing runtime IDNA support -> internalError, not an invalid DID', () => {
+    expect(
+      mapErrorToCode(new Error("This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain"))
+    ).toBe('internalError');
+    expect(mapErrorToCode(new Error("This runtime's URL implementation does not support IDNA"))).toBe('invalidDid');
+  });
   test('validation errors embedding attacker-controlled data are NOT misclassified as notFound', () => {
     // A tampered versionId of "404" must not be treated as a missing document.
     expect(mapErrorToCode(new Error("version '404' in log doesn't match expected '1'"))).toBe('invalidDid');
