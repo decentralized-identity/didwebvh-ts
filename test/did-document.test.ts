@@ -5,14 +5,14 @@ import {
   generateParallelDidWeb,
   validateCreateDidDocument,
 } from '../src/did-document.js';
-import type { DIDDocument, VerificationMethod } from '../src/interfaces.js';
+import type { DIDDocument } from '../src/interfaces.js';
 import { createDID, updateDID } from '../src/method.js';
-import { findVerificationMethod } from '../src/utils/verification-methods.js';
 import {
   createTestDIDDocument,
   createTestSigner,
   createTestVerifier,
   generateTestVerificationMethod,
+  MOCK_SCID,
 } from './utils.js';
 
 describe('didDocument create pass-through', () => {
@@ -220,7 +220,7 @@ describe('didDocument create pass-through', () => {
 
 describe('generateParallelDidWeb', () => {
   test('shared default-service helper adds fragment-form implicit services without mutating the input document', () => {
-    const did = 'did:webvh:zQmExample:example.com:path';
+    const did = `did:webvh:${MOCK_SCID}:example.com:path`;
     const originalDoc = {
       id: did,
       service: [
@@ -450,7 +450,7 @@ describe('generateParallelDidWeb', () => {
   });
 
   test('default-service helper returns original object unchanged when both implicit services already exist', () => {
-    const did = 'did:webvh:zQmExample:example.com:path';
+    const did = `did:webvh:${MOCK_SCID}:example.com:path`;
     const existing: DIDDocument = {
       id: did,
       service: [
@@ -475,7 +475,7 @@ describe('generateParallelDidWeb', () => {
 
   test('adds implicit #files and #whois services to DID with pre-existing #files, preserving custom endpoint', () => {
     // Regression test: verify no duplication when #files already exists
-    const did = 'did:webvh:zQmExample:example.com';
+    const did = `did:webvh:${MOCK_SCID}:example.com`;
     const withPreexistingFiles: DIDDocument = {
       id: did,
       service: [
@@ -501,17 +501,17 @@ describe('generateParallelDidWeb', () => {
   });
 
   test('foreign DID service ids ending with #files/#whois do not suppress implicit services', () => {
-    const did = 'did:webvh:zQmExample:example.com';
+    const did = `did:webvh:${MOCK_SCID}:example.com`;
     const withForeignServices: DIDDocument = {
       id: did,
       service: [
         {
-          id: 'did:webvh:zQmOther:other.example#files',
+          id: `did:webvh:${'2'.repeat(46)}:other.example.com#files`,
           type: 'RelativeRef',
           serviceEndpoint: 'https://other.example/files/',
         },
         {
-          id: 'did:webvh:zQmOther:other.example#whois',
+          id: `did:webvh:${'2'.repeat(46)}:other.example.com#whois`,
           type: 'LinkedVerifiablePresentation',
           serviceEndpoint: 'https://other.example/whois.vp',
         },
@@ -568,23 +568,6 @@ describe('did-document helper branches', () => {
     expect(() =>
       enrichAlsoKnownAs({ id: '{DID}' } as DIDDocument, 'did:example:123', { alsoKnownAsWeb: true })
     ).toThrow("Invalid did:webvh id 'did:example:123'");
-  });
-
-  test('findVerificationMethod resolves from relationship object and returns null when not found', () => {
-    const vm: VerificationMethod = {
-      id: '#rel-vm',
-      type: 'Multikey',
-      controller: 'did:webvh:zQmExample:example.com',
-      publicKeyMultibase: 'z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
-    };
-
-    const doc: DIDDocument = {
-      id: 'did:webvh:zQmExample:example.com',
-      authentication: [vm as unknown as string],
-    };
-
-    expect(findVerificationMethod(doc, '#rel-vm')).toEqual(vm);
-    expect(findVerificationMethod(doc, '#missing')).toBeNull();
   });
 });
 

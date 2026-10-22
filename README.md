@@ -163,6 +163,48 @@ pnpm cli -- deactivate \
 
 When `--witness-file` is omitted, `update` and `deactivate` retain the normal network-fetch behavior. Providing a witness file avoids that fetch; an empty JSON array (`[]`) explicitly disables fetching and fails fast when witnesses are required.
 
+The witness file covers the published log only. The new entry written by `update` or `deactivate` is a candidate that the current witnesses must sign before it is published.
+
+`update` keeps the active witness configuration unless you pass `--witness` (with an optional `--witness-threshold`) to replace it. Pass `--disable-witnesses` to turn witnessing off; it cannot be combined with `--witness` or `--witness-threshold`. The entry that turns witnessing off must still be witnessed by the current witnesses:
+
+```bash
+pnpm cli -- update \
+  --log ./did.jsonl \
+  --output ./updated-did.jsonl \
+  --witness-file ./did-witness.json \
+  --disable-witnesses
+```
+
+Each witness uses `generate-witness-proof` to sign a candidate log. It checks the candidate against the trusted (published) log and the published witness proofs, then writes a witness file containing that witness's proof for the newest entry:
+
+```bash
+pnpm cli -- generate-witness-proof \
+  --trusted-log ./did.jsonl \
+  --candidate-log ./updated-did.jsonl \
+  --witness-file ./did-witness.json \
+  --witness-did did:key:z6Mk... \
+  --witness-secret z3u2... \
+  --output ./witness-proof.json
+```
+
+- `--trusted-log`: the published log. Use an empty file for a genesis candidate.
+- `--candidate-log`: the log produced by `create`, `update` or `deactivate`.
+- `--witness-file`: the published `did-witness.json`. Use `[]` for a genesis candidate.
+- `--witness-did` and `--witness-secret`: the witness's `did:key` DID and its multibase secret key.
+- `--output`: where the witness's proof is written, as a JSON array with one entry.
+
+The controller merges the proofs from each witness into `did-witness.json`, checks them with `verify-proofs` against the candidate log, and publishes the witness file before the new log.
+
+Use `migrate` to move a portable percent-encoded U-label DID to its A-label form (see [Internationalised domain names](#internationalised-domain-names)). It takes the same options as `update`, plus a required `--address` with the U-label form of the DID's current host, port and path, and prints the new DID:
+
+```bash
+pnpm cli -- migrate \
+  --log ./did.jsonl \
+  --output ./migrated-did.jsonl \
+  --address bücher.example.com \
+  --witness-file ./did-witness.json
+```
+
 Use `verify-proofs` to inspect a local witness proof file before publishing or updating a DID:
 
 ```bash
@@ -230,7 +272,7 @@ For this to work, the `didwebvh-ts` package on npmjs.com must have a Trusted Pub
 
 ## Creating a DID Resolver
 
-Resolution follows the standard W3C [`did-resolver`](https://github.com/decentralized-identity/did-resolver) interface. `resolveDID` / `resolveDIDFromLog` return a `DIDResolutionResult` (`{ didResolutionMetadata, didDocument, didDocumentMetadata }`), and `getResolver()` produces a registry entry you can drop into a `did-resolver` `Resolver` alongside `did:web`, `did:ethr`, etc.
+Resolution follows the standard W3C [`did-resolver`](https://github.com/decentralized-identity/did-resolver) interface. `resolveDID` / `resolveDIDFromLog` return a `DIDResolutionResult` (`{ didResolutionMetadata, didDocument, didDocumentMetadata }`), and `getResolver()` produces a registry entry you can drop into a v6 `did-resolver` `Resolver` alongside `did:web`, `did:ethr`, etc. `didwebvh-ts` uses `did-resolver` 6; applications that directly depend on `did-resolver` should use v6 when registering this resolver.
 
 ### Using the did-resolver interface
 
@@ -283,9 +325,19 @@ pipeline as remotely fetched logs. When explicit witness proofs are omitted,
 deterministic URL.
 
 When `witnessProofs` is omitted (`undefined`), `resolveDID`, `resolveDIDFromLog`,
-`updateDID`, and `deactivateDID` use the normal specification-defined witness
+`updateDID`, `deactivateDID`, and `migrateDID` use the normal specification-defined witness
 proof fetch. Pass `witnessProofs: []` explicitly to disable network fetching and fail fast when a witnessed log has no locally supplied proofs. Any non-empty
 explicit proof array is verified directly without fetching.
+
+Each of these functions accepts a `fetch` option (`FetchLike`) used for that
+retrieval in place of the global `fetch`; `resolveDID` also uses it for the DID
+log. `getResolver({ fetch })` applies to resolution only, so pass the same
+function to `updateDID`, `deactivateDID`, and `migrateDID`:
+
+```typescript
+const resolver = new Resolver(getResolver({ fetch: appFetch }));
+const result = await updateDID({ log, signer, verifier, fetch: appFetch });
+```
 
 The CLI owns environment variables, `.env` persistence, private-key selection,
 and its local log-file layout. `DID_VERIFICATION_METHODS` is therefore a CLI
@@ -297,7 +349,7 @@ For complete examples, see the [examples](./examples/) directory.
 
 Resolver failures are surfaced on `didResolutionMetadata`:
 
-- `didResolutionMetadata.error` is one of `"invalidDid"` (the resolved DID or log fails validation), `"invalidDidUrl"` (the DID URL violates `did-url` syntax, e.g. malformed percent-encoding), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). Unknown query parameters are ignored per DID Core extensibility.
+- `didResolutionMetadata.error` is one of `"invalidDid"` (the DID or log fails validation), `"invalidDidUrl"` (a query value cannot be decoded for method-level selector processing), `"invalidOptions"` (conflicting or ill-typed version selectors), `"notFound"`, or `"internalError"` (transport/resolver-side failure). When resolving through a v6 `did-resolver` `Resolver`, DID URL syntax errors (including matrix parameters such as `;versionId=` and malformed percent-encoding) are rejected as `"invalidDid"` before the method resolver is called. `getResolver()` also attaches a did:webvh `DIDParser`, so identifiers that break did:webvh v1.0 rules (SCID, fully qualified domain, port, or deployment path) are rejected as `"invalidDid"` before the DID log is fetched. Unknown query parameters are ignored per DID Core extensibility.
 - `didResolutionMetadata.problemDetails` carries RFC9457-style fields (`type`, `title`, `detail`) where available, and `didResolutionMetadata.message` carries the underlying detail string.
 - Local control is an application concern and is not reported in resolution metadata.
 
@@ -308,6 +360,36 @@ When resolving a requested earlier version (with `versionId`, `versionNumber`, o
 Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, `portable`, `witness`, `watchers`, `previousLogEntryHash`, `latestVersionId`) is returned on `didDocumentMetadata` alongside the standard `versionId`/`created`/`updated`/`deactivated` fields.
 
 > **Breaking change (v3.0.0):** resolution returns the standard `DIDResolutionResult` instead of the previous `{ did, doc, meta, controlled }` shape, and the implementation-specific `verificationMethod` resolution selector has been removed. See [Migration Guide](./docs/UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) for upgrade steps.
+
+## Internationalised domain names
+
+`createDID` and `updateDID` accept Unicode domains (U-labels, e.g. `bücher.example`) as raw text or percent-encoded, in any `address` form. The domain is NFC-normalised and converted to its lowercase ASCII form (A-label, `xn--bcher-kva.example`) before the SCID and DID are generated. Unicode path segments are percent-encoded with uppercase hex:
+
+```typescript
+await createDID({ ...options, address: 'jp納豆.例.jp', paths: ['用户'] });
+// did:webvh:<scid>:xn--jp-cd2fp15c.xn--fsq.jp:%E7%94%A8%E6%88%B7
+```
+
+No additional dependency is needed. The conversion uses the runtime's WHATWG `URL`, which is checked once for IDNA support before it is relied on:
+
+| Runtime `URL` | Unicode domains | ASCII / A-label domains |
+| --- | --- | --- |
+| IDNA-aware WHATWG `URL` (Node.js, current browsers) | Converted to A-labels | Supported |
+| Polyfills that map IDNA (e.g. Expo's `URL`) | Converted to A-labels; host validation may be looser than Node.js | Supported |
+| No IDNA support (e.g. bare React Native/Hermes) | Rejected with `This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead` | Supported |
+
+On runtimes without IDNA support, supply the A-label form of the domain. A non-ASCII domain never produces an incorrect DID.
+
+Existing DIDs whose domain is a percent-encoded U-label (e.g. `did:webvh:<scid>:b%C3%BCcher.example.com`) remain valid: they resolve from the A-label HTTPS host and keep their DID string through `updateDID` and `deactivateDID`. DIDs containing raw (unencoded) Unicode are not DID Core-conformant and are rejected.
+
+A portable percent-encoded U-label DID can be moved to its A-label form with `migrateDID`, which appends a signed update that keeps the SCID and log history:
+
+```typescript
+const { did, log } = await migrateDID({ ...updateOptions, log: existingLog, address: 'bücher.example.com' });
+// did:webvh:<scid>:b%C3%BCcher.example.com -> did:webvh:<scid>:xn--bcher-kva.example.com
+```
+
+The CLI equivalent is `pnpm cli -- migrate --log ./did.jsonl --address bücher.example.com`.
 
 ## API Reference
 
@@ -328,15 +410,20 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
 - `createDID(options: CreateDIDOptions): Promise<CreateDIDResult>`
   Creates a new DID. Always produces a v1.0 log.
   Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
-  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`).
-  Resolver URL mapping always uses `https://`, including for `localhost` and identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
+  Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`). Every form yields the same canonical DID: lowercase A-label domain, uppercase percent-encoding, and `%3A` before the port. Additional `{SCID}` placeholders may appear in the `address` domain or `paths`. See [Internationalised domain names](#internationalised-domain-names).
+  Hosts must be fully qualified domain names; single-label hosts such as `localhost` and IP addresses are rejected. Resolver URL mapping always uses `https://`, including for identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
+  URL pathname and `paths` segments are percent-encoded as individual DID path components (for example, `a:b` becomes `a%3Ab`); already-encoded DID address path components are decoded once before canonical encoding.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
 - `updateDID(options: UpdateDIDOptions): Promise<UpdateDIDResult>`
   Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
   Accepts an optional replacement `didDocument: DIDDocument`. If omitted, the authenticated previous document state is retained.
+  Parameters that are omitted keep their previous values. In particular, omitting `witness` keeps the active witness configuration; pass `witness: {}` (or `null`) to turn witnessing off.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
+  An `address` that canonicalises to the DID's current location is not a move, so existing non-canonical or percent-encoded U-label DIDs are kept unchanged. A move to a different location requires portability and produces a canonical DID. `{SCID}` placeholders are rejected once the SCID exists.
 
+- `migrateDID(options: MigrateDIDOptions): Promise<UpdateDIDResult>`
+  Migrates a portable percent-encoded U-label DID to its A-label form in a signed update, keeping the SCID and log history. Takes the same options as `updateDID` plus a required U-label `address` (raw Unicode or percent-encoded) with the same host, port, and path as the existing DID; A-label addresses and changes of location are rejected. Returns the usual update result with the new A-label `did` and the old DID in `doc.alsoKnownAs`. Self-referential service IDs are updated; when a derived `did:web` alias exists, it is replaced with the A-label alias in both documents. Portability must have been enabled at genesis and still be active; non-portable DIDs need a new DID with a new SCID. Publish the appended log at the A-label HTTPS location before relying on the new DID.
 - `deactivateDID(options: DeactivateDIDOptions): Promise<{did: string, doc: DIDDocument, meta: DIDResolutionMeta, log: DIDLog}>`
   Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
 
@@ -400,10 +487,51 @@ if (requirements.length > 0) {
 await callerPublishesDIDLog(result.log);
 ```
 
-For `updateDID` and `deactivateDID`, omitting `witnessProofs` preserves normal
+For `updateDID`, `deactivateDID`, and `migrateDID`, omitting `witnessProofs` preserves normal
 proof retrieval. Pass `witnessProofs: []` when the caller intentionally wants
 network-free, fail-fast validation; pass an explicit proof array to validate
 against caller-supplied proofs.
+
+`witnessProofs` only covers the already-published log: `updateDID` verifies it
+before appending, then returns the new entry as an unwitnessed proposal. While
+witnessing is active (including when `witness` is omitted from the update), each
+witness checks that proposal against its own copy of the published log and signs
+it with `signWitnessProofEntry`:
+
+```ts
+// DID controller: build the proposal from the published log and witness file.
+const proposal = await updateDID({ ...updateOptions, log: publishedLog, witnessProofs: publishedWitnessFile });
+const proposedVersionId = proposal.log[proposal.log.length - 1].versionId;
+const requirement = getWitnessRequirements(proposal.log).find((r) => r.versionId === proposedVersionId);
+
+if (requirement) {
+  // Application-owned: send proposal.log to each witness in requirement.witnesses.
+  // Each witness signs only if the proposal extends the log it already trusts:
+  const witnessProof = await signWitnessProofEntry({
+    trustedLog: witnessCopyOfPublishedLog,
+    candidateLog: proposal.log,
+    witnessSigner,
+    witnessProofs: publishedWitnessFile,
+  });
+  // Application-owned: witnessProof ({ versionId, proof: [...] }) is returned to the controller.
+
+  // DID controller: merge returned proofs for proposedVersionId into the witness file.
+  const nextWitnessFile = [
+    ...publishedWitnessFile,
+    { versionId: proposedVersionId, proof: collectedProofs.flatMap((p) => p.proof) },
+  ];
+  const { verified } = await verifyWitnessProofs({ log: proposal.log, witnessProofs: nextWitnessFile });
+  if (!verified) {
+    // Keep collecting until requirement.threshold distinct witnesses have approved.
+  }
+
+  await callerPublishesWitnessFile(nextWitnessFile);
+}
+
+await callerPublishesDIDLog(proposal.log);
+```
+
+`deactivateDID` follows the same sequence.
 
 ### Cryptography and Key Helpers
 

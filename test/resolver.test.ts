@@ -7,6 +7,7 @@ import {
   createTestDIDDocument,
   createTestSigner,
   generateTestVerificationMethod,
+  MOCK_SCID,
   TestCryptoImplementation,
   type TestVerificationMethod,
 } from './utils.js';
@@ -209,11 +210,11 @@ describe('getResolver integration', () => {
   });
 
   test('matrix-form version selectors are rejected, not silently ignored', async () => {
-    // Silently dropping `;versionId=` would resolve latest when the caller
-    // asked for a specific version — reject instead.
+    // did-resolver v6 rejects matrix parameters as invalid DID URL syntax
+    // before dispatch, so `;versionId=` can never silently resolve latest.
     serveLog(fullLog);
     const result = await resolver.resolve(`${did};versionId=${v1Id}`);
-    expect(result.didResolutionMetadata.error).toBe('invalidOptions');
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
     expect(result.didDocument).toBeNull();
   });
 
@@ -224,18 +225,33 @@ describe('getResolver integration', () => {
     expect(result.didDocumentMetadata.versionId).toBe(v1Id);
   });
 
-  test('malformed percent-encoding in a query key returns invalidDidUrl', async () => {
+  test('malformed percent-encoding in a query key is rejected by did-resolver', async () => {
     serveLog(fullLog);
     const result = await resolver.resolve(`${did}?%ZZ=1`);
-    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
     expect(result.didDocument).toBeNull();
   });
 
-  test('malformed percent-encoding in a query value returns invalidDidUrl', async () => {
+  test('malformed percent-encoding in a query value is rejected by did-resolver', async () => {
     serveLog(fullLog);
     const result = await resolver.resolve(`${did}?versionId=%E0%A4%A`);
-    expect(result.didResolutionMetadata.error).toBe('invalidDidUrl');
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
     expect(result.didDocument).toBeNull();
+  });
+
+  test.each([
+    ['invalid SCID', `did:webvh:${'0'.repeat(46)}:example.com`],
+    ['invalid domain', `did:webvh:${MOCK_SCID}:example`],
+    ['invalid path segment', `did:webvh:${MOCK_SCID}:example.com:..`],
+  ])('method parser rejects %s before fetching', async (_condition, invalidDid) => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await resolver.resolve(invalidDid);
+    expect(result.didResolutionMetadata.error).toBe('invalidDid');
+    expect(result.didDocument).toBeNull();
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test('not-found DID returns notFound', async () => {

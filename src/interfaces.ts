@@ -9,10 +9,6 @@ export type DataIntegrityProofPurpose =
   | 'capabilityInvocation'
   | 'capabilityDelegation';
 
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-export type JsonObject = { [key: string]: JsonValue };
-
 export type DataIntegrityProofType = 'DataIntegrityProof';
 export type DataIntegrityCryptosuite = 'eddsa-jcs-2022';
 
@@ -64,8 +60,9 @@ export interface ProblemDetails {
 /**
  * Codes surfaced on `didResolutionMetadata.error`.
  *
- * `invalidDid`/`notFound` match DID Core §7.1.2; `invalidDidUrl` is reserved for a
- * DID URL that violates `did-url` syntax (e.g. malformed percent-encoding);
+ * `invalidDid`/`notFound` match DID Core §7.1.2; generic DID URL syntax is
+ * validated by did-resolver before method resolution, while `invalidDidUrl`
+ * covers query values that cannot be decoded for method-level processing;
  * `invalidOptions` covers well-formed URLs carrying invalid resolution options
  * (conflicting or ill-typed version selectors) per the DID Resolution spec's
  * INVALID_OPTIONS; `internalError` covers transport/resolver-side failures.
@@ -86,7 +83,7 @@ export interface DIDResolutionMeta {
   nextKeyHashes: string[];
   deactivated: boolean;
   witness?: WitnessParameterResolution;
-  watchers?: string[] | null;
+  watchers?: string[];
   error?: DidResolutionError;
   problemDetails?: ProblemDetails;
   latestVersionId?: string;
@@ -94,12 +91,6 @@ export interface DIDResolutionMeta {
 
 export interface WitnessEntry {
   id: string; // did:key DID
-}
-
-export interface ParsedDidKeyVerificationMethod {
-  did: string;
-  fragment?: string;
-  keyMultibase: string;
 }
 
 export interface WitnessSigningOptions {
@@ -209,15 +200,27 @@ export interface UpdateDIDOptions {
   watchers?: string[] | null;
   verifier?: Verifier;
   witnessProofs?: WitnessProofFileEntry[];
+  /**
+   * Override for the network fetch used to retrieve the published witness
+   * proof file when `witnessProofs` is omitted. Defaults to the global fetch.
+   */
+  fetch?: FetchLike;
   address?: string;
   paths?: string[];
 }
+
+export type MigrateDIDOptions = UpdateDIDOptions & { address: string };
 
 export interface DeactivateDIDOptions {
   log: DIDLog;
   signer: Signer;
   verifier?: Verifier;
   witnessProofs?: WitnessProofFileEntry[];
+  /**
+   * Override for the network fetch used to retrieve the published witness
+   * proof file when `witnessProofs` is omitted. Defaults to the global fetch.
+   */
+  fetch?: FetchLike;
 }
 
 export interface ResolutionOptions {

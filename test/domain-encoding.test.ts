@@ -36,13 +36,13 @@ describe('Strict address input validation and parsing', () => {
   });
 
   test('Accepts pre-encoded host%3Aport without double encoding', async () => {
-    const { doc } = await createFromInput('localhost%3A8000');
-    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000$/);
+    const { doc } = await createFromInput('localhost.example.com%3A8000');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost\.example\.com%3A8000$/);
   });
 
   test('Accepts pre-encoded host%3aport with lowercase separator and canonicalizes output', async () => {
-    const { doc } = await createFromInput('localhost%3a8000');
-    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000$/);
+    const { doc } = await createFromInput('localhost.example.com%3a8000');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost\.example\.com%3A8000$/);
   });
 
   test('Accepts https URL address input', async () => {
@@ -65,13 +65,24 @@ describe('Strict address input validation and parsing', () => {
   });
 
   test('Accepts localhost HTTPS URL with path and port', async () => {
-    const { doc } = await createFromInput('https://localhost:8000/test');
-    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost%3A8000:test$/);
+    const { doc } = await createFromInput('https://localhost.example.com:8000/test');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:localhost\.example\.com%3A8000:test$/);
   });
 
   test('Accepts canonical did:webvh input with port and path', async () => {
     const { doc } = await createFromInput('did:webvh:{SCID}:example.com%3A8080:custom:path');
     expect(doc.id).toMatch(/^did:webvh:[^:]+:example\.com%3A8080:custom:path$/);
+  });
+
+  test('Canonicalizes a lowercase port separator in a DID template', async () => {
+    const { doc } = await createFromInput('did:webvh:{SCID}:example.com%3a8080:custom');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:example\.com%3A8080:custom$/);
+  });
+
+  test('Keeps colons within URL path segments when creating a DID', async () => {
+    const { did, doc } = await createFromInput('https://example.com/a:b');
+    expect(did).toMatch(/^did:webvh:[^:]+:example\.com:a%3Ab$/);
+    expect(doc.id).toBe(did);
   });
 
   test('Rejects unsupported URL scheme', async () => {

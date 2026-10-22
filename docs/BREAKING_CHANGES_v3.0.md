@@ -10,9 +10,13 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 | Resolution result shape | API | All resolution calls | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
 | Proof/signing API narrowed | API / Security | Proof creation and witness signing | [UPGRADE_2.x_to_3.0.md §3](./UPGRADE_2.x_to_3.0.md#3-public-proof-and-signing-apis) |
 | did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.0.md §3.2](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports) |
+| Internal helper types removed from exports | API | Type imports | [UPGRADE_2.x_to_3.0.md §3.3](./UPGRADE_2.x_to_3.0.md#33-internal-helper-types) |
 | Witness signer contract | Behavior | Witness signing | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract) |
 | Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
 | Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
+| `did-resolver` v6 integration and DID URL validation | Integration / Behavior | Resolver registration and invalid DID URL handling | [UPGRADE_2.x_to_3.0.md §6](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration) |
+| Strict did:webvh v1.0 identifier validation | Behavior | DID creation, resolution, and URL derivation | [UPGRADE_2.x_to_3.0.md §7](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation) |
+| Canonical DIDs and A-label domains | Behavior | `createDID` / `updateDID` output | [UPGRADE_2.x_to_3.0.md §8](./UPGRADE_2.x_to_3.0.md#8-canonical-dids-and-internationalised-domains) |
 
 ---
 
@@ -46,6 +50,12 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Reason**: Public API surface tightening
 - **Upgrade**: Replace root imports with app-level did:key parsing or validation logic → [Full guide](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports)
 
+#### 2.2 Internal Helper Types Removed from Exports
+
+- **Removed**: `JsonPrimitive`, `JsonValue`, `JsonObject` and `ParsedDidKeyVerificationMethod` are no longer exported from `didwebvh-ts` or `didwebvh-ts/types`
+- **Reason**: They describe internal canonicalization and did:key parsing details, not the public API
+- **Upgrade**: Define equivalent types in your application → [Full guide](./UPGRADE_2.x_to_3.0.md#33-internal-helper-types)
+
 ---
 
 ### Behavior Changes (Semantics/Defaults)
@@ -70,14 +80,45 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 
 - **Changed**: Always an object (`{}` or `{ witnesses, threshold }`)
 - **Before**: Could be `null`, `undefined`, or use `witnessThreshold` field
+- **Changed**: `ResolutionMeta.watchers` is `[]` when a log has no watchers; it was `null` in 2.8.0
+- **Changed**: `updateDID` with `witness` omitted keeps the active witness configuration by leaving `witness` out of the new entry's parameters, as did:webvh v1.0 requires. In 2.x, omitting `witness` wrote `witness: {}` and turned witnessing off for later entries. Pass `witness: {}` or `null` to turn witnessing off explicitly.
 - **Reason**: Consistent shape; removes null handling burden
-- **Upgrade**: Remove null checks; update field name references → [Full guide](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape)
+- **Upgrade**: Remove null checks; update field name references; pass `witness: {}` where an update relied on omission to stop witnessing → [Full guide](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape)
 
 #### 6. Historical Resolution Errors
 
 - **Changed**: Resolving an earlier version with `versionId`, `versionNumber`, or `versionTime` can return a non-null `didDocument` alongside `didResolutionMetadata.error = "invalidDid"` when a later log entry is invalid. The error reports the invalid later entry, not a failure of the selected document.
 - **Witnesses**: The selected version's witness requirements must still be met before its document is returned. Proofs for an invalid log entry do not count.
 - **Upgrade**: Check `didResolutionMetadata.error` even when `didDocument` is non-null; handle or report the invalid later history separately from the selected document → [Full guide](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape)
+
+#### 7. `did-resolver` v6 Integration and DID URL Validation
+
+- **Changed**: `didwebvh-ts` depends on `did-resolver` v6. Applications using `getResolver()` through `did-resolver` must register it with a v6 `Resolver`.
+- **Changed**: With v6, DID Core DID/DID URL syntax is checked by `did-resolver` before the `did:webvh` resolver runs. Syntax errors, including matrix parameters (`;versionId=`) and malformed percent-encoding, surface as `invalidDid`.
+- **Changed**: `invalidDidUrl` now only applies when a syntactically valid query value cannot be decoded for method-level selector processing.
+- **Changed**: `getResolver()` attaches a did:webvh `DIDParser` through the v6 parser hook. Identifiers that fail did:webvh v1.0 constraints (§8) are rejected as `invalidDid` before the DID log is fetched.
+- **Compatibility**: Applications that continue to use a v5 `Resolver` will not get the v6 pre-dispatch `DIDParser` hook or its strict DID URL parsing, and matrix-style selectors (`;versionId=`) are ignored rather than rejected. When the did:webvh resolver is invoked, didwebvh-ts still validates the bare DID internally, including DID Core syntax and did:webvh-specific constraints; this is not equivalent to v6 parsing the complete DID URL before dispatch. Use v6.
+- **Reason**: v6 removes `ParsedDID.params` and owns generic DID URL parsing, so didwebvh-ts no longer duplicates it.
+- **Upgrade**: Upgrade applications' direct `did-resolver` dependency to v6 and handle DID URL syntax errors reported as `invalidDid` → [Full guide](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration)
+
+#### 8. Strict did:webvh v1.0 Identifier Validation
+
+- **Changed**: did:webvh identifiers are validated against DID Core syntax (via `did-resolver`'s `parse`) and the did:webvh v1.0 identifier rules wherever they are parsed: `createDID` addresses, log entry `state.id` values, resolution, and URL derivation.
+- **Changed**: The SCID must be a 46-character base58btc string. A malformed SCID is rejected before the log is validated, so errors such as `SCID multihash algorithm must be SHA-256` are now reported as `must include a valid SCID`.
+- **Changed**: The host must be a fully qualified domain name. Single-label hosts such as `localhost` (with or without a port) are rejected; use a name such as `localhost.example.com` for local testing, or resolve in-memory logs with `resolveDIDFromLog`.
+- **Reason**: Align identifier handling with the did:webvh v1.0 specification and reject invalid identifiers before network access.
+- **Upgrade**: Replace single-label hosts with fully qualified domain names and update any assertions on SCID error messages → [Full guide](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation)
+
+#### 9. Canonical DIDs and A-label Domains
+
+- **Changed**: `createDID` and `updateDID` emit one canonical DID for a location, whatever form the `address` takes (`host`, `https://...` or `did:webvh:...`). Domains are NFC-normalised and mapped to lowercase A-labels; any `{SCID}` placeholder or embedded SCID keeps its case. Percent-encoding uses uppercase hex, and the port separator is `%3A`. Path segments keep their case and are not Unicode-normalised. For example, `Example.COM` and `did:webvh:{SCID}:%e4%be%8b.jp%3a8443` yield `example.com` and `xn--fsq.jp%3A8443`.
+- **Changed**: Unicode domains produce A-label DIDs. `createDID({ address: 'jp納豆.例.jp', paths: ['用户'] })` emits `did:webvh:<scid>:xn--jp-cd2fp15c.xn--fsq.jp:%E7%94%A8%E6%88%B7`; raw and pre-encoded Unicode input produce the same DID. 2.x emitted percent-encoded U-labels.
+- **Changed**: Conversion uses the runtime's WHATWG `URL`, checked once for IDNA support. On runtimes without it (such as bare React Native), non-ASCII domains are rejected; A-label domains work everywhere.
+- **Compatibility**: Existing percent-encoded U-label DIDs still resolve from the A-label HTTPS host without changing their DID string. `updateDID` treats an `address` that canonicalises to the DID's current location as no move, so existing non-canonical and U-label DIDs are kept unchanged; `deactivateDID` also keeps them.
+- **Added**: `migrateDID` moves a portable percent-encoded U-label DID to its A-label DID through a signed update, keeping its SCID and history. It requires a U-label `address` with the same host, port, and path, and rejects A-label input and other moves. Non-portable DIDs need a new A-label DID with a new SCID.
+- **Changed**: DIDs containing raw (unencoded) Unicode, addresses with unpaired surrogates, and domain labels mixing Unicode with `{SCID}` are rejected. `updateDID` rejects `{SCID}` placeholders once the SCID exists. A percent-encoded `%7BSCID%7D` is literal text, not a placeholder.
+- **Reason**: did:webvh v1.0 requires a single canonical DID per location and DID Core `idchar`-only identifiers.
+- **Upgrade**: Compare DIDs against `createDID`'s output rather than the input address, and use A-label domains on runtimes without IDNA support → [Full guide](./UPGRADE_2.x_to_3.0.md#8-canonical-dids-and-internationalised-domains)
 
 ---
 

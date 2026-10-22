@@ -20,7 +20,7 @@ const baseMeta: DIDResolutionMeta = {
   nextKeyHashes: [],
   prerotation: false,
   witness: undefined,
-  watchers: null,
+  watchers: [],
 };
 
 describe('validateSingleVersionSelector', () => {

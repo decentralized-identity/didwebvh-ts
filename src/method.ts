@@ -1,5 +1,5 @@
 import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
-import { DEFAULT_TTL_SECONDS, SCID_PLACEHOLDER } from './constants.js';
+import { DEFAULT_TTL_SECONDS, METHOD, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
 import { resolveLog, resolveLogWithWitnessResults, resolveWitnessCandidateRequirement } from './core/resolution.js';
 import { computeWitnessRequirementChecks, toWitnessRequirement } from './core/witness-requirements.js';
@@ -12,6 +12,7 @@ import type {
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
+  MigrateDIDOptions,
   ResolutionOptions,
   UpdateDIDOptions,
   UpdateDIDResult,
@@ -21,6 +22,7 @@ import type {
   WitnessSigningOptions,
   WitnessVerificationResult,
 } from './interfaces.js';
+import { hasNonAscii, normalizeDidAddress, parseCanonicalAddress, parseDidWebvhIdentifier } from './parser.js';
 import { mapErrorToCode, toErrorResult, toResolutionResult, validateSingleVersionSelector } from './resolver-result.js';
 import {
   createDate,
@@ -29,7 +31,7 @@ import {
   validateUtcIso8601NotInFuture,
 } from './utils/iso8601-datetime.js';
 import { normalizeUpdateKeys, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
-import { fetchLogFromIdentifier, normalizeDidAddress, parseDidWebvhIdentifier, requireDidDocumentId } from './utils.js';
+import { fetchLogFromIdentifier, requireDidDocumentId } from './utils.js';
 import { defaultVerifier } from './verifier.js';
 import { resolveWitnessParameter, validateWitnessParameter } from './witness.js';
 
@@ -189,6 +191,67 @@ export const resolveDIDFromLog = async (log: DIDLog, options: ResolutionOptions 
 };
 
 /**
+ * Migrates a portable DID with a percent-encoded U-label domain to its A-label form
+ * by appending a signed update that retains the SCID and log history.
+ *
+ * @param options DID update options with a U-label `address` at the DID's current location.
+ * @returns The migrated DID, resolved document, and updated DID log.
+ */
+export const migrateDID = async (options: MigrateDIDOptions): Promise<UpdateDIDResult> => {
+  if (options.updateKeys !== undefined) {
+    options = { ...options, updateKeys: normalizeUpdateKeys(options.updateKeys) };
+  }
+  const lastMeta = (
+    await resolveLog(options.log, {
+      verifier: options.verifier,
+      witnessProofs: options.witnessProofs,
+      fetch: options.fetch,
+    })
+  ).meta;
+  const lastEntry = options.log[options.log.length - 1];
+  const lastDid = requireDidDocumentId(lastEntry.state.id);
+  const previous = parseDidWebvhIdentifier(lastDid, 'last entry state.id');
+  if (!hasNonAscii(previous.canonicalHost)) {
+    throw new Error('migrateDID requires a percent-encoded U-label DID');
+  }
+  if (!lastMeta.portable) {
+    throw new Error('Cannot migrate DID: portability is disabled');
+  }
+  if (!options.address) {
+    throw new Error('migrateDID requires a U-label address');
+  }
+  if (options.address.startsWith(`did:${METHOD}:`)) {
+    const inputDid = parseDidWebvhIdentifier(options.address, 'migration address');
+    if (inputDid.scid !== previous.scid) {
+      throw new Error('Migration address must retain the existing SCID');
+    }
+  }
+  const input = parseCanonicalAddress(options.address, { scid: previous.scid });
+  if (!hasNonAscii(input.decodedHost)) {
+    throw new Error('migrateDID requires a U-label address, not an A-label address');
+  }
+  const canonicalPrevious = normalizeDidAddress({
+    address: lastDid,
+    scid: previous.scid,
+    context: 'migrateDID previous DID',
+  });
+  const candidate = normalizeDidAddress({
+    address: options.address,
+    scid: previous.scid,
+    paths: options.paths,
+    fallbackPaths: previous.paths ?? [],
+    context: 'migrateDID address',
+  });
+  if (candidate.did !== canonicalPrevious.did) {
+    throw new Error('Migration address must have the same host, port and path as the existing DID');
+  }
+  if (options.didDocument?.id && options.didDocument.id !== lastDid && options.didDocument.id !== candidate.did) {
+    throw new Error('Migration DID document id must match the existing or A-label DID');
+  }
+  return appendUpdateEntry(options, lastMeta, candidate.did);
+};
+
+/**
  * Updates an existing DID log with a new entry.
  * Supplied updateKeys are normalized from Ed25519 multikeys or did:key identifiers
  * to bare multikeys before preparation, including pre-rotation hash checks.
@@ -200,9 +263,28 @@ export const updateDID = async (options: UpdateDIDOptions): Promise<UpdateDIDRes
   if (options.updateKeys !== undefined) {
     options = { ...options, updateKeys: normalizeUpdateKeys(options.updateKeys) };
   }
+  const lastMeta = (
+    await resolveLog(options.log, {
+      verifier: options.verifier,
+      witnessProofs: options.witnessProofs,
+      fetch: options.fetch,
+    })
+  ).meta;
+  return appendUpdateEntry(options, lastMeta);
+};
+
+/**
+ * Signs and appends an update entry to a log whose current state has already been
+ * resolved and verified as `lastMeta`. `nextDid`, when supplied, is a pre-validated
+ * identity that replaces `options.address` resolution.
+ */
+const appendUpdateEntry = async (
+  options: UpdateDIDOptions,
+  lastMeta: DIDResolutionMeta,
+  nextDid?: string
+): Promise<UpdateDIDResult> => {
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
   const currentUpdateKeys = options.updateKeys;
   if (lastMeta.deactivated) {
     throw new Error('Cannot update deactivated DID');
@@ -223,6 +305,7 @@ export const updateDID = async (options: UpdateDIDOptions): Promise<UpdateDIDRes
     log,
     versionNumber,
     createdDate,
+    nextDid,
   });
 
   const meta = mergeMetaFromEntry({
@@ -260,7 +343,9 @@ export const deactivateDID = async (
   }
   const log = options.log;
   const lastEntry = log[log.length - 1];
-  const lastMeta = (await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs })).meta;
+  const lastMeta = (
+    await resolveLog(log, { verifier: options.verifier, witnessProofs: options.witnessProofs, fetch: options.fetch })
+  ).meta;
   if (lastMeta.deactivated) {
     throw new Error('DID already deactivated');
   }

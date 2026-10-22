@@ -8,6 +8,7 @@ export {
   createDID,
   deactivateDID,
   getWitnessRequirements,
+  migrateDID,
   resolveDID,
   resolveDIDFromLog,
   signWitnessProofEntry,
@@ -16,7 +17,7 @@ export {
 } from './method.js';
 export type { GetResolverConfig } from './resolver.js';
 export { getResolver } from './resolver.js';
-export type { ResolutionOptionsError, WebvhDocumentMetadata, WebvhResolutionMetadata } from './resolver-result.js';
+export type { WebvhDocumentMetadata, WebvhResolutionMetadata } from './resolver-result.js';
 export { WEBVH_ERROR_TYPES } from './resolver-result.js';
 export { deriveNextKeyHash } from './utils/crypto.js';
 export { MultibaseEncoding, multibaseDecode, multibaseEncode } from './utils/multiformats.js';

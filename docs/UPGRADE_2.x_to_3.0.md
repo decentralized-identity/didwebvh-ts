@@ -13,8 +13,12 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
   - Witness signing uses `signWitnessProofEntry`, which validates the candidate log before signing
   - Root parser exports `parseDidKeyDid` and `parseDidKeyVerificationMethod` removed
   - `deriveNextKeyHash` remains exported for pre-rotation `nextKeyHashes`
+  - Internal helper types `JsonPrimitive`, `JsonValue`, `JsonObject` and `ParsedDidKeyVerificationMethod` are no longer exported
 4. **Witness signer contract** — signer supplies only signature data through `Signer`
 5. **Witness metadata shape** — always normalized to object form
+6. **did-resolver v6 integration** — upgrade direct `did-resolver` usage and account for DID URL syntax errors rejected before dispatch
+7. **Strict did:webvh identifier validation** — SCID format and fully qualified domain names are enforced, and invalid identifiers are rejected before log retrieval
+8. **Canonical DIDs and internationalised domains** — every address form yields one canonical DID, and Unicode domains become A-labels
 
 ---
 
@@ -326,6 +330,18 @@ import { parseDidKeyDid, parseDidKeyVerificationMethod } from 'didwebvh-ts';
   - Reject malformed did:key values
   - Enforce any fragment/body matching your previous call sites relied on
 
+### 3.3 Internal Helper Types
+
+`JsonPrimitive`, `JsonValue`, `JsonObject` and `ParsedDidKeyVerificationMethod`
+are no longer exported from `didwebvh-ts` or `didwebvh-ts/types`. If you
+imported them, define equivalents locally:
+
+```typescript
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
+```
+
 ---
 
 ## 4. Witness Signer Contract
@@ -443,6 +459,151 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
    }
    ```
 
+4. **Turn witnessing off explicitly**. In 2.x, calling `updateDID` without
+   `witness` wrote `witness: {}` and turned witnessing off. In 3.0.0, as
+   did:webvh v1.0 requires, an omitted `witness` is left out of the new entry
+   and the active witness configuration stays in effect, so later entries
+   still need witness proofs. To stop witnessing, pass `witness: {}` (or
+   `null`); that entry must itself still be witnessed.
+
+---
+
+## 6. did-resolver v6 Integration
+
+### What Changed
+
+`didwebvh-ts` now depends on `did-resolver` v6. The v6 `Resolver` validates
+generic DID and DID URL syntax before invoking the method resolver, and its
+`ParsedDID` no longer exposes matrix parameters (`params`).
+
+DID URL syntax errors, such as matrix parameters (`;versionId=`) or malformed
+percent-encoding, are returned by did-resolver as `invalidDid` before the
+did:webvh resolver runs. `invalidDidUrl` in didwebvh-ts is reserved for query
+values that cannot be decoded while extracting method-level version selectors.
+Version selector behavior remains unchanged: `versionId`, `versionNumber`, and
+`versionTime` are accepted as query parameters, are mutually exclusive, and
+unknown query parameters are ignored.
+
+`getResolver()` also attaches a method-specific `DIDParser` to its `webvh`
+resolver. After did-resolver's generic checks, it applies the did:webvh v1.0
+identifier constraints (see [§7](#7-strict-didwebvh-identifier-validation)),
+and an identifier it rejects is returned as `invalidDid` before the resolver
+fetches a DID log.
+
+### Migration Steps
+
+1. **Upgrade direct `did-resolver` usage to v6** if your application constructs
+   a `Resolver` and registers the `did:webvh` resolver from `didwebvh-ts`.
+2. **Handle DID URL syntax errors as `invalidDid`.** Code that previously
+   expected `invalidDidUrl` or `invalidOptions` for malformed DID URLs or
+   matrix parameters should expect `didResolutionMetadata.error = "invalidDid"`.
+3. **Continue using query parameters for version selection.** Supply only one
+   of `versionId`, `versionNumber`, or `versionTime`; matrix-style DID
+   parameters are not a did:webvh selector mechanism.
+
+---
+
+## 7. Strict did:webvh Identifier Validation
+
+### What Changed
+
+did:webvh identifiers are now validated against DID Core syntax and the
+did:webvh v1.0 identifier rules wherever they are parsed: `createDID`
+addresses, log entry `state.id` values, resolution, and URL derivation.
+
+- The SCID must be a 46-character base58btc string. It is checked before the
+  log is validated, so a malformed SCID now produces `must include a valid
+  SCID` rather than a later log-validation error.
+- The host must be a fully qualified domain name. Single-label hosts such as
+  `localhost` or `localhost:8000` are rejected, as before for IP addresses.
+
+### Migration Steps
+
+1. **Use fully qualified domain names.** Replace single-label hosts in
+   `createDID` addresses and test fixtures, for example `localhost:8000` →
+   `localhost.example.com:8000`. For local testing without DNS or HTTPS,
+   resolve in-memory logs with `resolveDIDFromLog`.
+2. **Use real SCIDs in fixtures.** Placeholder SCIDs such as `scid123` no
+   longer parse; use a 46-character base58btc value.
+3. **Update error assertions** that matched SCID multihash messages for
+   malformed SCIDs.
+
+---
+
+## 8. Canonical DIDs and Internationalised Domains
+
+### What Changed
+
+`createDID` and `updateDID` now emit one canonical DID for a location,
+whatever form the `address` takes:
+
+- Domains are NFC-normalised and converted to lowercase A-labels, so
+  `BÜCHER.example` and `b%C3%BCcher.example` both become
+  `xn--bcher-kva.example`. A `{SCID}` placeholder or embedded SCID keeps its
+  case.
+- Percent-encoding uses uppercase hex, and the port separator is `%3A`.
+- Path segments are percent-encoded to DID Core `idchar`s but otherwise keep
+  their case and are not Unicode-normalised.
+
+The conversion uses the runtime's WHATWG `URL` and needs no extra dependency.
+Runtimes whose `URL` lacks IDNA support (such as bare React Native) reject
+non-ASCII domains with
+`This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead`.
+
+Existing DIDs are not rewritten:
+
+- Percent-encoded U-label DIDs created by 2.x still resolve, fetching from the
+  A-label HTTPS host.
+- `updateDID` keeps the existing DID when the supplied `address` canonicalises
+  to its current location, and `deactivateDID` keeps it too. Only a move to a
+  different location (which requires portability) produces a new, canonical
+  DID.
+- The new `migrateDID` explicitly moves a portable percent-encoded U-label DID
+  to its A-label form.
+
+### Migration Steps
+
+1. **Compare against `createDID`'s output.** If you derive or store DID
+   strings from the input address, use the `did` returned by `createDID`
+   instead; for example, `Example.COM` now yields `example.com`.
+2. **Expect A-label domains in new DIDs.** Code that displays or matches
+   Unicode domains should convert A-labels for display rather than expecting
+   percent-encoded U-labels.
+3. **Use A-label domains on runtimes without IDNA support.** On bare React
+   Native, convert the domain to its `xn--` form before calling `createDID`.
+4. **Stop using `{SCID}` in `updateDID`.** Placeholders are only valid at
+   creation; pass the actual SCID in update addresses and paths.
+5. **Replace raw-Unicode DIDs.** DIDs containing unencoded Unicode were never
+   DID Core-conformant and are now rejected.
+6. **Migrate portable U-label DIDs explicitly, if desired.** `updateDID` keeps
+   an existing percent-encoded U-label DID when given an address for the same
+   location. To change it to the A-label form, call `migrateDID` with the usual
+   update options and a raw or percent-encoded U-label `address` at the **same
+   host, port, and path**:
+
+   ```typescript
+   const { did, log } = await migrateDID({
+     log: existingLog,
+     signer,
+     verifier,
+     address: 'bücher.example.com',
+   });
+   // did:webvh:<scid>:b%C3%BCcher.example.com -> did:webvh:<scid>:xn--bcher-kva.example.com
+   ```
+
+   An A-label address or any change of location is rejected. The signed update
+   keeps the SCID and history, adds the old DID to `alsoKnownAs`, and returns
+   the new DID as `did`. Publish the appended log at the A-label HTTPS location
+   before relying on the migrated DID. Portability must have been enabled at
+   genesis and still be active; for non-portable DIDs, create a new A-label DID
+   with a new SCID and announce the replacement. The migrated log still
+   contains its original U-label genesis entry, which resolvers continue to
+   verify.
+
+   From the CLI, run `pnpm cli -- migrate --log ./did.jsonl --output
+   ./migrated-did.jsonl --address bücher.example.com`, which takes the same
+   options as `update`.
+
 ---
 
 ## Quick Checklist
@@ -451,9 +612,15 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
 - [ ] Add `purpose: 'authentication'` to verification methods
 - [ ] Replace witness proof creation with `signWitnessProofEntry`
 - [ ] Replace root imports of `parseDidKeyDid` and `parseDidKeyVerificationMethod`
+- [ ] Define `JsonValue`/`JsonObject`/`JsonPrimitive` or `ParsedDidKeyVerificationMethod` locally if you imported them
 - [ ] Implement the `Signer` interface and supply explicit historical witness proofs
 - [ ] Review service endpoint filtering for exact-id matching
 - [ ] Remove null checks for witness metadata
+- [ ] Pass `witness: {}` to `updateDID` where you relied on omitting `witness` to turn witnessing off
+- [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
+- [ ] Replace single-label hosts (e.g. `localhost`) with fully qualified domain names
+- [ ] Compare new DIDs against `createDID`'s canonical output; use A-label domains on runtimes without IDNA support
+- [ ] Optionally migrate portable percent-encoded U-label DIDs to A-label DIDs with `migrateDID`
 
 ---
 

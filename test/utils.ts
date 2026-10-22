@@ -1,4 +1,5 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
+import { expect } from 'vitest';
 import {
   DID_PLACEHOLDER,
   METHOD,
@@ -6,6 +7,7 @@ import {
   METHOD_PROTOCOL_V0_5,
   SCID_PLACEHOLDER,
 } from '../src/constants.js';
+import { prepareGenesisEntry } from '../src/core/entries.js';
 import {
   AbstractCrypto,
   createDataIntegrityProofTemplate,
@@ -28,10 +30,15 @@ import type {
   Verifier,
   WitnessParameter,
 } from '../src/interfaces.js';
+import { createDID, migrateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
+import { normalizeDidAddress } from '../src/parser.js';
 import { createSCID, deriveHash } from '../src/utils/crypto.js';
 import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats.js';
-import { deepClone, normalizeDidAddress, replaceValueInObject } from '../src/utils.js';
+import { deepClone, replaceValueInObject } from '../src/utils.js';
+
+/** Syntactically valid 46-character base58btc SCID for tests that don't verify the log. */
+export const MOCK_SCID = '1'.repeat(46);
 
 export type TestVerificationMethod = VerificationMethod & {
   secretKeyMultibase: string;
@@ -79,7 +86,11 @@ export function createTestDIDDocument(
   return doc;
 }
 
-export const createFutureDIDLog = async (authKey: TestVerificationMethod, minutesAhead: number): Promise<DIDLog> => {
+export const createFutureDIDLog = async (
+  authKey: TestVerificationMethod,
+  minutesAhead: number,
+  options: { watchers?: string[] | null | 'omit' } = {}
+): Promise<DIDLog> => {
   const futureCreated = new Date(Date.now() + minutesAhead * 60 * 1000).toISOString();
   const signer = createTestSigner(authKey);
   const rawDoc = createTestDIDDocument(authKey);
@@ -101,6 +112,11 @@ export const createFutureDIDLog = async (authKey: TestVerificationMethod, minute
     },
     state: doc,
   };
+  if (options.watchers === 'omit') {
+    delete initialLogEntry.parameters.watchers;
+  } else if (options.watchers !== undefined) {
+    initialLogEntry.parameters.watchers = options.watchers;
+  }
 
   const initialLogEntryHash = await deriveHash(initialLogEntry);
   const scid = await createSCID(initialLogEntryHash);
@@ -305,6 +321,7 @@ export async function appendV05LogEntry(options: {
   signer: Signer;
   updateKeys?: string[];
   nextKeyHashes?: string[] | null;
+  watchers?: string[] | null;
   method?: string;
   didDocument?: DIDDocument;
   verificationMethods?: VerificationMethod[];
@@ -349,6 +366,9 @@ export async function appendV05LogEntry(options: {
   if (options.nextKeyHashes !== undefined) {
     newParameters[METHOD_PARAMETER_KEYS.nextKeyHashes] = options.nextKeyHashes;
   }
+  if (options.watchers !== undefined) {
+    newParameters[METHOD_PARAMETER_KEYS.watchers] = options.watchers;
+  }
 
   // For non-genesis entries, only include parameters that are explicitly set above
   // Do NOT copy portable, witness, watchers, deactivated - these are only in genesis
@@ -382,4 +402,74 @@ export async function appendV05LogEntry(options: {
   };
 
   return [...options.log, entry];
+}
+
+export async function createAndResolve(address: string, paths?: string[]) {
+  const authKey = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+  const created = await createDID({
+    address,
+    paths,
+    signer: createTestSigner(authKey),
+    updateKeys: [authKey.publicKeyMultibase!],
+    didDocument: createTestDIDDocument(authKey),
+    verifier,
+  });
+  const resolved = await resolveDIDFromLog(created.log, { verifier });
+  return { created, resolved };
+}
+
+export function expectRoundTrip(
+  { created, resolved }: Awaited<ReturnType<typeof createAndResolve>>,
+  expectedDid: (scid: string) => string
+) {
+  const scid = created.log[0].parameters.scid!;
+  expect(created.did).toBe(expectedDid(scid));
+  expect(created.doc.id).toBe(created.did);
+  expect(created.did).not.toContain('{SCID}');
+  expect(resolved.didResolutionMetadata.error).toBeUndefined();
+  expect(resolved.didDocument?.id).toBe(created.did);
+  expect(resolved.didDocumentMetadata.versionId).toBe(created.log[0].versionId);
+}
+
+/**
+ * Creates a signed genesis log for `did` exactly as written, bypassing createDID's
+ * address canonicalisation. Simulates logs written by earlier releases or other
+ * implementations (e.g. non-canonical hex, uppercase hosts, percent-encoded U-labels).
+ */
+export async function createUncanonicalisedDID({
+  did,
+  portable = false,
+  alsoKnownAsWeb = false,
+  witness,
+}: {
+  did: string;
+  portable?: boolean;
+  alsoKnownAsWeb?: boolean;
+  witness?: WitnessParameter;
+}) {
+  const authKey = await generateTestVerificationMethod();
+  const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
+  const signer = createTestSigner(authKey);
+  const updateKeys = [authKey.publicKeyMultibase!];
+  const { entry } = await prepareGenesisEntry({
+    options: {
+      address: did,
+      portable,
+      alsoKnownAsWeb,
+      witness,
+      signer,
+      updateKeys,
+      didDocument: createTestDIDDocument(authKey),
+      verifier,
+    },
+    did,
+    createdDate: createDate(),
+  });
+  const created = { did: entry.state.id!, doc: entry.state, log: [entry] as DIDLog };
+  const update = (address?: string, paths?: string[]) =>
+    updateDID({ log: created.log, signer, updateKeys, verifier, address, paths });
+  const migrate = (address: string, paths?: string[]) =>
+    migrateDID({ log: created.log, signer, updateKeys, verifier, address, paths });
+  return { created, scid: entry.parameters.scid!, authKey, verifier, signer, updateKeys, update, migrate };
 }

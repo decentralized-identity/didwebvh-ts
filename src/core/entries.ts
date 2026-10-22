@@ -1,8 +1,13 @@
-import type { DIDDocument } from 'did-resolver';
+import { type DIDDocument, VerificationRelationship } from 'did-resolver';
 import { assertValidNextKeyHashes, documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
-import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER, VERIFICATION_RELATIONSHIPS } from '../constants.js';
+import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
-import { enrichAlsoKnownAs, replaceCreateDidPlaceholders, validateCreateDidDocument } from '../did-document.js';
+import {
+  deriveDidWebAlias,
+  enrichAlsoKnownAs,
+  replaceCreateDidPlaceholders,
+  validateCreateDidDocument,
+} from '../did-document.js';
 import type {
   CreateDIDOptions,
   DeactivateDIDOptions,
@@ -12,15 +17,16 @@ import type {
   UpdateDIDOptions,
   WitnessParameterResolution,
 } from '../interfaces.js';
+import { normalizeDidAddress, parseDidWebvhIdentifier } from '../parser.js';
 import { createSCID, deriveHash } from '../utils/crypto.js';
 import {
   assertNoPrivateVerificationMaterial,
   assertValidAuthoredVerificationMethods,
 } from '../utils/verification-methods.js';
-import { deepClone, normalizeDidAddress, parseDidWebvhIdentifier, replaceValueInObject } from '../utils.js';
+import { deepClone, replaceValueInObject } from '../utils.js';
 import { validateWitnessParameter } from '../witness.js';
 
-export interface PreparedEntry {
+interface PreparedEntry {
   entry: DIDLogEntry;
   resolvedNextKeyHashes?: string[];
 }
@@ -30,12 +36,21 @@ const resolveNextDidContext = ({
   lastEntryDid,
   parsedLastEntryDid,
   portable,
+  nextDid,
 }: {
   options: UpdateDIDOptions;
   lastEntryDid: string;
   parsedLastEntryDid: ReturnType<typeof parseDidWebvhIdentifier>;
   portable: boolean;
+  nextDid?: string;
 }): { did: string } => {
+  if (nextDid !== undefined) {
+    if (nextDid !== lastEntryDid && !portable) {
+      throw new Error('Cannot move DID: portability is disabled');
+    }
+    return { did: nextDid };
+  }
+
   const requestedAddress = options.address;
   if (!requestedAddress) {
     return {
@@ -50,7 +65,14 @@ const resolveNextDidContext = ({
     fallbackPaths: parsedLastEntryDid.paths ?? [],
     context: 'updateDID path segments',
   });
-  const did = normalizedAddress.did;
+  // An uncanonicalised DID (e.g. a percent-encoded U-label domain) canonicalises to a different
+  // string; re-supplying its current location is not a move, so keep the DID as-is.
+  const canonicalLastEntryDid = normalizeDidAddress({
+    address: lastEntryDid,
+    scid: parsedLastEntryDid.scid,
+    context: 'updateDID previous DID',
+  }).did;
+  const did = normalizedAddress.did === canonicalLastEntryDid ? lastEntryDid : normalizedAddress.did;
 
   if (did !== lastEntryDid && !portable) {
     throw new Error('Cannot move DID: portability is disabled');
@@ -201,6 +223,7 @@ export async function prepareUpdateEntry({
   log,
   versionNumber,
   createdDate,
+  nextDid: requestedNextDid,
 }: {
   options: UpdateDIDOptions;
   lastEntry: DIDLogEntry;
@@ -208,6 +231,8 @@ export async function prepareUpdateEntry({
   log: DIDLog;
   versionNumber: number;
   createdDate: string;
+  /** Pre-validated next DID that bypasses `options.address` resolution (used by `migrateDID`). */
+  nextDid?: string;
 }): Promise<PreparedEntry> {
   const currentUpdateKeys = options.updateKeys;
   const lastEntryDid = lastEntry.state.id;
@@ -222,12 +247,16 @@ export async function prepareUpdateEntry({
       ? assertValidNextKeyHashes(options.nextKeyHashes)
       : (lastMeta.nextKeyHashes ?? []);
   const witnessInput = options.witness;
-  const witness: Record<string, unknown> = witnessInput?.witnesses?.length
-    ? {
-        witnesses: witnessInput.witnesses,
-        threshold: witnessInput.threshold ?? 0,
-      }
-    : {};
+  // An omitted witness is left out of the entry so the previous value is retained (v1.0 §witness).
+  const witness: Record<string, unknown> | undefined =
+    witnessInput === undefined
+      ? undefined
+      : witnessInput?.witnesses?.length
+        ? {
+            witnesses: witnessInput.witnesses,
+            threshold: witnessInput.threshold ?? 0,
+          }
+        : {};
 
   if (options.portable === true) {
     throw new Error(
@@ -246,7 +275,9 @@ export async function prepareUpdateEntry({
   if (options.portable === false) {
     params.portable = false;
   }
-  params.witness = witness;
+  if (witness !== undefined) {
+    params.witness = witness;
+  }
   params.watchers = watchersValue ?? [];
 
   if (witness && 'witnesses' in witness && Array.isArray(witness.witnesses) && witness.witnesses.length) {
@@ -262,6 +293,7 @@ export async function prepareUpdateEntry({
     lastEntryDid,
     parsedLastEntryDid,
     portable: lastMeta.portable,
+    nextDid: requestedNextDid,
   });
 
   let doc: DIDDocument;
@@ -279,6 +311,8 @@ export async function prepareUpdateEntry({
 
   if (nextDid !== lastEntryDid) {
     doc.id = nextDid;
+    const rewriteSelfReference = (value: string): string =>
+      value.startsWith(`${lastEntryDid}#`) ? `${nextDid}${value.slice(lastEntryDid.length)}` : value;
 
     // Rewrite self-referential top-level controller
     if (typeof doc.controller === 'string') {
@@ -296,31 +330,28 @@ export async function prepareUpdateEntry({
         if (updated.controller === lastEntryDid) {
           updated.controller = nextDid;
         }
-        if (typeof updated.id === 'string' && updated.id.startsWith(`${lastEntryDid}#`)) {
-          updated.id = `${nextDid}#${updated.id.slice(lastEntryDid.length + 1)}`;
+        if (typeof updated.id === 'string') {
+          updated.id = rewriteSelfReference(updated.id);
         }
         return updated;
       });
     }
 
     // Rewrite self-referential verification methods in relationships
-    for (const rel of VERIFICATION_RELATIONSHIPS) {
+    for (const rel of Object.values(VerificationRelationship)) {
       const relArray = doc[rel as keyof DIDDocument];
       if (Array.isArray(relArray)) {
         (doc as Record<string, unknown>)[rel] = relArray.map((item) => {
           if (typeof item === 'string') {
-            if (item.startsWith(`${lastEntryDid}#`)) {
-              return `${nextDid}#${item.slice(lastEntryDid.length + 1)}`;
-            }
-            return item;
+            return rewriteSelfReference(item);
           }
           if (typeof item === 'object' && item !== null) {
             const updated = { ...(item as Record<string, unknown>) };
             if (updated.controller === lastEntryDid) {
               updated.controller = nextDid;
             }
-            if (typeof updated.id === 'string' && updated.id.startsWith(`${lastEntryDid}#`)) {
-              updated.id = `${nextDid}#${updated.id.slice(lastEntryDid.length + 1)}`;
+            if (typeof updated.id === 'string') {
+              updated.id = rewriteSelfReference(updated.id);
             }
             return updated;
           }
@@ -329,7 +360,25 @@ export async function prepareUpdateEntry({
       }
     }
 
+    if (Array.isArray(doc.service)) {
+      doc.service = doc.service.map((service) => ({
+        ...service,
+        id: rewriteSelfReference(service.id),
+      }));
+    }
+
     const aliases = Array.isArray(doc.alsoKnownAs) ? [...doc.alsoKnownAs] : [];
+    if (requestedNextDid !== undefined) {
+      const oldWebAlias = deriveDidWebAlias(lastEntryDid);
+      const newWebAlias = deriveDidWebAlias(nextDid);
+      const oldAliasIndex = aliases.indexOf(oldWebAlias);
+      if (oldAliasIndex !== -1 && oldWebAlias !== newWebAlias) {
+        aliases.splice(oldAliasIndex, 1);
+        if (!aliases.includes(newWebAlias)) {
+          aliases.splice(oldAliasIndex, 0, newWebAlias);
+        }
+      }
+    }
     if (!aliases.includes(lastEntryDid)) {
       aliases.push(lastEntryDid);
     }
