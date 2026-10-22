@@ -195,6 +195,11 @@ describe('Portability', () => {
     const updateDocument: DIDDocument = {
       ...created.doc,
       controller: [originalDid, externalDid],
+      service: [
+        { id: `${originalDid}#svc`, type: 'LinkedDomains', serviceEndpoint: 'https://example.com' },
+        { id: `${externalDid}#svc`, type: 'LinkedDomains', serviceEndpoint: 'https://example.org' },
+        { id: '#local', type: 'LinkedDomains', serviceEndpoint: 'https://example.net' },
+      ],
       authentication: [
         `${originalDid}#${publicKeyMultibase.slice(-8)}`,
         `${externalDid}#key-1`,
@@ -226,6 +231,7 @@ describe('Portability', () => {
       { ...embeddedSelfReference, id: `${movedDid}#embedded`, controller: movedDid },
       embeddedExternalReference,
     ]);
+    expect(movedDoc.service?.map((service) => service.id)).toEqual([`${movedDid}#svc`, `${externalDid}#svc`, '#local']);
     expect(movedDoc.alsoKnownAs?.filter((alias) => alias === originalDid)).toHaveLength(1);
   });
 

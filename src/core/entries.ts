@@ -2,7 +2,12 @@ import { type DIDDocument, VerificationRelationship } from 'did-resolver';
 import { assertValidNextKeyHashes, documentStateIsValid, newKeysAreInNextKeys } from '../assertions.js';
 import { DID_PLACEHOLDER, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants.js';
 import { createDataIntegrityProofTemplate, signDataIntegrityProof } from '../cryptography.js';
-import { enrichAlsoKnownAs, replaceCreateDidPlaceholders, validateCreateDidDocument } from '../did-document.js';
+import {
+  deriveDidWebAlias,
+  enrichAlsoKnownAs,
+  replaceCreateDidPlaceholders,
+  validateCreateDidDocument,
+} from '../did-document.js';
 import type {
   CreateDIDOptions,
   DeactivateDIDOptions,
@@ -306,6 +311,8 @@ export async function prepareUpdateEntry({
 
   if (nextDid !== lastEntryDid) {
     doc.id = nextDid;
+    const rewriteSelfReference = (value: string): string =>
+      value.startsWith(`${lastEntryDid}#`) ? `${nextDid}${value.slice(lastEntryDid.length)}` : value;
 
     // Rewrite self-referential top-level controller
     if (typeof doc.controller === 'string') {
@@ -323,8 +330,8 @@ export async function prepareUpdateEntry({
         if (updated.controller === lastEntryDid) {
           updated.controller = nextDid;
         }
-        if (typeof updated.id === 'string' && updated.id.startsWith(`${lastEntryDid}#`)) {
-          updated.id = `${nextDid}#${updated.id.slice(lastEntryDid.length + 1)}`;
+        if (typeof updated.id === 'string') {
+          updated.id = rewriteSelfReference(updated.id);
         }
         return updated;
       });
@@ -336,18 +343,15 @@ export async function prepareUpdateEntry({
       if (Array.isArray(relArray)) {
         (doc as Record<string, unknown>)[rel] = relArray.map((item) => {
           if (typeof item === 'string') {
-            if (item.startsWith(`${lastEntryDid}#`)) {
-              return `${nextDid}#${item.slice(lastEntryDid.length + 1)}`;
-            }
-            return item;
+            return rewriteSelfReference(item);
           }
           if (typeof item === 'object' && item !== null) {
             const updated = { ...(item as Record<string, unknown>) };
             if (updated.controller === lastEntryDid) {
               updated.controller = nextDid;
             }
-            if (typeof updated.id === 'string' && updated.id.startsWith(`${lastEntryDid}#`)) {
-              updated.id = `${nextDid}#${updated.id.slice(lastEntryDid.length + 1)}`;
+            if (typeof updated.id === 'string') {
+              updated.id = rewriteSelfReference(updated.id);
             }
             return updated;
           }
@@ -356,7 +360,25 @@ export async function prepareUpdateEntry({
       }
     }
 
+    if (Array.isArray(doc.service)) {
+      doc.service = doc.service.map((service) => ({
+        ...service,
+        id: rewriteSelfReference(service.id),
+      }));
+    }
+
     const aliases = Array.isArray(doc.alsoKnownAs) ? [...doc.alsoKnownAs] : [];
+    if (requestedNextDid !== undefined) {
+      const oldWebAlias = deriveDidWebAlias(lastEntryDid);
+      const newWebAlias = deriveDidWebAlias(nextDid);
+      const oldAliasIndex = aliases.indexOf(oldWebAlias);
+      if (oldAliasIndex !== -1 && oldWebAlias !== newWebAlias) {
+        aliases.splice(oldAliasIndex, 1);
+        if (!aliases.includes(newWebAlias)) {
+          aliases.splice(oldAliasIndex, 0, newWebAlias);
+        }
+      }
+    }
     if (!aliases.includes(lastEntryDid)) {
       aliases.push(lastEntryDid);
     }

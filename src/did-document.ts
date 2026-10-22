@@ -12,6 +12,14 @@ import { deepClone, replaceValueInObject } from './utils.js';
 
 type ServiceIdStyle = 'absolute' | 'fragment';
 
+export function deriveDidWebAlias(did: string): string {
+  const parts = did.split(':');
+  if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
+    throw new Error(`Invalid did:webvh id '${did}'`);
+  }
+  return `did:web:${parts.slice(3).join(':')}`;
+}
+
 export function validateCreateDidDocument(didDocument: DIDDocument): void {
   if (!didDocument || typeof didDocument !== 'object') {
     throw new Error('didDocument must be an object');
@@ -37,11 +45,7 @@ export function enrichAlsoKnownAs(doc: DIDDocument, did: string, opts: { alsoKno
   };
 
   if (opts.alsoKnownAsWeb) {
-    const parts = did.split(':');
-    if (parts.length < 4 || parts[0] !== 'did' || parts[1] !== 'webvh') {
-      throw new Error(`Invalid did:webvh id '${did}'`);
-    }
-    addAlias(`did:web:${parts.slice(3).join(':')}`);
+    addAlias(deriveDidWebAlias(did));
   }
 
   if (aliases.length === 0) {
@@ -111,7 +115,7 @@ export function generateParallelDidWeb(didwebvhDid: string, didwebvhDoc: DIDDocu
   webDoc = replaceValueInObject(webDoc, scidPrefix, 'did:web:');
 
   const webDid = webDoc.id as string;
-  const aliases = (Array.isArray(webDoc.alsoKnownAs) ? [...webDoc.alsoKnownAs] : []).filter(
+  const aliases = (Array.isArray(didwebvhDoc.alsoKnownAs) ? [...didwebvhDoc.alsoKnownAs] : []).filter(
     (alias: string) => alias !== webDid
   );
 

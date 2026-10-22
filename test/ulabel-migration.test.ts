@@ -30,9 +30,13 @@ describe('migrateDID converts a percent-encoded U-label DID to its A-label form'
       expect(migrated.did).toBe(`did:webvh:${scid}:xn--bcher-kva.example.com%3A8443:users`);
       expect(migrated.doc.id).toBe(migrated.did);
       expect(migrated.doc.alsoKnownAs).toContain(created.did);
+      expect(migrated.doc.alsoKnownAs).toContain('did:web:xn--bcher-kva.example.com%3A8443:users');
+      expect(migrated.doc.alsoKnownAs).not.toContain('did:web:b%C3%BCcher.example.com%3A8443:users');
       expect(migrated.log[0]).toEqual(created.log[0]);
       expect(migrated.log[1].parameters.scid).toBeUndefined();
       expect(migrated.webDoc?.id).toBe('did:web:xn--bcher-kva.example.com%3A8443:users');
+      expect(migrated.webDoc?.alsoKnownAs).toContain(created.did);
+      expect(migrated.webDoc?.alsoKnownAs).not.toContain('did:web:b%C3%BCcher.example.com%3A8443:users');
       expect((await resolveDIDFromLog(migrated.log, { verifier })).didDocument?.id).toBe(migrated.did);
       // An ordinary update with the same address does not migrate.
       expect((await update(address)).did).toBe(created.did);
@@ -49,16 +53,35 @@ describe('migrateDID converts a percent-encoded U-label DID to its A-label form'
     const { created, scid, signer, updateKeys, verifier } = await createUncanonicalisedDID({
       did: uLabelDid,
       portable: true,
+      alsoKnownAsWeb: true,
     });
+    const authoredDoc = {
+      ...created.doc,
+      alsoKnownAs: [...(created.doc.alsoKnownAs ?? []), 'did:example:external'],
+      service: [
+        { id: `${created.did}#svc`, type: 'LinkedDomains', serviceEndpoint: 'https://example.com' },
+        { id: 'did:example:external#svc', type: 'LinkedDomains', serviceEndpoint: 'https://example.org' },
+        { id: '#local', type: 'LinkedDomains', serviceEndpoint: 'https://example.net' },
+      ],
+    };
     const migrated = await migrateDID({
       log: created.log,
       address: 'bücher.example.com:8443',
       signer,
       updateKeys,
       verifier,
-      didDocument: created.doc,
+      didDocument: authoredDoc,
     });
     expect(migrated.doc.id).toBe(`did:webvh:${scid}:xn--bcher-kva.example.com%3A8443:users`);
+    expect(migrated.doc.service?.map((service) => service.id)).toEqual([
+      `${migrated.did}#svc`,
+      'did:example:external#svc',
+      '#local',
+    ]);
+    expect(migrated.webDoc?.service?.[0]?.id).toBe('did:web:xn--bcher-kva.example.com%3A8443:users#svc');
+    expect(migrated.doc.alsoKnownAs).toContain('did:example:external');
+    expect(migrated.doc.alsoKnownAs).toContain('did:web:xn--bcher-kva.example.com%3A8443:users');
+    expect(migrated.doc.alsoKnownAs).not.toContain('did:web:b%C3%BCcher.example.com%3A8443:users');
   });
 
   test('both old and new DIDs resolve through the same A-label endpoint after publication', async () => {
