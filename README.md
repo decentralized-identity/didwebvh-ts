@@ -372,6 +372,7 @@ Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, 
   Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
   Accepts `address` (`host`, `host:port`, `https://...`, or `did:webvh:...`).
   Hosts must be fully qualified domain names; single-label hosts such as `localhost` and IP addresses are rejected. Resolver URL mapping always uses `https://`, including for identifiers with `localhost` in a hostname or path. For local testing without HTTPS, use `resolveDIDFromLog` with an in-memory log.
+  URL pathname and `paths` segments are percent-encoded as individual DID path components (for example, `a:b` becomes `a%3Ab`); DID address path components already in encoded form are preserved.
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
 - `updateDID(options: UpdateDIDOptions): Promise<UpdateDIDResult>`

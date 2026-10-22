@@ -74,6 +74,17 @@ describe('Strict address input validation and parsing', () => {
     expect(doc.id).toMatch(/^did:webvh:[^:]+:example\.com%3A8080:custom:path$/);
   });
 
+  test('Canonicalizes a lowercase port separator in a DID template', async () => {
+    const { doc } = await createFromInput('did:webvh:{SCID}:example.com%3a8080:custom');
+    expect(doc.id).toMatch(/^did:webvh:[^:]+:example\.com%3A8080:custom$/);
+  });
+
+  test('Keeps colons within URL path segments when creating a DID', async () => {
+    const { did, doc } = await createFromInput('https://example.com/a:b');
+    expect(did).toMatch(/^did:webvh:[^:]+:example\.com:a%3Ab$/);
+    expect(doc.id).toBe(did);
+  });
+
   test('Rejects unsupported URL scheme', async () => {
     await expect(createFromInput('ftp://example.com')).rejects.toThrow();
   });

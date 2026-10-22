@@ -280,7 +280,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
       ? parseDidWebvhTemplate(input, 'did:webvh identifier')
       : parseDidWebvhIdentifier(input, 'did:webvh identifier');
     return {
-      didDomainComponent: parsedDid.didDomainComponent,
+      didDomainComponent: parsedDid.didDomainComponent.replace(ENCODED_PORT_SEPARATOR, '%3A'),
       paths: parsedDid.paths,
     };
   }
@@ -312,7 +312,7 @@ export function parseCanonicalAddress(input: string): ParsedAddress {
 
     return {
       didDomainComponent: formatDomainComponent(host, port),
-      paths: pathParts.length > 0 ? pathParts : undefined,
+      paths: pathParts.length > 0 ? pathParts.map(encodeDidPathSegment) : undefined,
     };
   }
 
@@ -354,7 +354,8 @@ export function normalizeDidAddress({
   const resolvedPaths = [...(parsed.paths ?? [])];
 
   if (paths !== undefined) {
-    resolvedPaths.push(...paths);
+    validateMethodSpecificPathSegments(paths, context);
+    resolvedPaths.push(...paths.map(encodeDidPathSegment));
   } else if (resolvedPaths.length === 0 && fallbackPaths !== undefined) {
     resolvedPaths.push(...fallbackPaths);
   }
@@ -390,6 +391,10 @@ function encodeUrlPathSegment(segment: string): string {
     /[!'()*]/g,
     (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
   );
+}
+
+function encodeDidPathSegment(segment: string): string {
+  return encodeUrlPathSegment(segment).replace(/~/g, '%7E');
 }
 
 function getBaseUrlFromParsedDid(parsedDid: ParsedDidWebvhIdentifier): string {

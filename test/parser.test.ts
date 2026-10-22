@@ -109,6 +109,38 @@ describe('Canonical address parsing', () => {
     expect(emptyPathsSuppressFallback.did).toBe(`did:webvh:${MOCK_SCID}:example.com`);
   });
 
+  test.each([
+    [`did:webvh:${MOCK_SCID}:example.com%3a8080:custom`, MOCK_SCID],
+    ['did:webvh:{SCID}:example.com%3a8080:custom', '{SCID}'],
+  ])('canonicalizes lowercase port separators in DID and template addresses', (address, scid) => {
+    const normalized = normalizeDidAddress({ address, scid, context: 'test' });
+    expect(normalized.did).toBe(`did:webvh:${scid}:example.com%3A8080:custom`);
+    expect(parseDidWebvhIdentifier(`did:webvh:${MOCK_SCID}:example.com%3a8080:custom`, 'test').did).toContain(
+      'example.com%3a8080:custom'
+    );
+  });
+
+  test.each([
+    ['https://example.com/a:b', 'a%3Ab', 'a%3Ab'],
+    ['https://example.com/a%3ab', 'a%3Ab', 'a%3Ab'],
+    ['https://example.com/~user/a b', '%7Euser:a%20b', '~user/a%20b'],
+  ])('encodes URL path segments without changing their boundaries in %s', (address, didPath, urlPath) => {
+    const normalized = normalizeDidAddress({ address, scid: MOCK_SCID, context: 'test' });
+    expect(normalized.did).toBe(`did:webvh:${MOCK_SCID}:example.com:${didPath}`);
+    expect(buildDidLogUrl(normalized.did)).toBe(`https://example.com/${urlPath}/did.jsonl`);
+  });
+
+  test('encodes supplied path segments once and preserves existing DID paths', () => {
+    const normalized = normalizeDidAddress({
+      address: `did:webvh:${MOCK_SCID}:example.com:a%7eb`,
+      scid: MOCK_SCID,
+      paths: ['a:b', 'a%3ab', '~user', 'a b'],
+      context: 'test',
+    });
+    expect(normalized.did).toBe(`did:webvh:${MOCK_SCID}:example.com:a%7eb:a%3Ab:a%3Ab:%7Euser:a%20b`);
+    expect(buildDidLogUrl(normalized.did)).toBe('https://example.com/a~b/a%3Ab/a%3Ab/~user/a%20b/did.jsonl');
+  });
+
   test('rejects did:webvh with a missing domain segment', () => {
     expect(() => parseCanonicalAddress(`did:webvh:${MOCK_SCID}`)).toThrow(
       'did:webvh identifier must include SCID and domain segments'
