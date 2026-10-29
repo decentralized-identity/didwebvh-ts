@@ -3,6 +3,10 @@ import { describe, expect, test } from 'vitest';
 import pkg from '../package.json';
 
 describe('package scripts', () => {
+  test('CLI bin path is normalized for npm publication', () => {
+    expect(pkg.bin.didwebvh).toBe('dist/cli/didwebvh.js');
+  });
+
   test('dev starts the resolver without waiting for a debugger', () => {
     expect(pkg.scripts.dev).toBe('tsx --watch ./examples/elysia-resolver.ts');
     expect(pkg.scripts.dev).not.toContain('--inspect');

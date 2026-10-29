@@ -20,7 +20,7 @@ function createDistPackageJson() {
     browser: './browser/index.js',
     types: './types/index.d.ts',
     bin: {
-      didwebvh: './cli/didwebvh.js',
+      didwebvh: 'cli/didwebvh.js',
     },
     files: ['cjs', 'esm', 'browser', 'cli', 'types'],
     exports: {
