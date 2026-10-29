@@ -32,13 +32,16 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Validate release tag + permissions
         env:
           TAG_NAME: ${{ github.event.release.tag_name }}
           REPO: ${{ github.repository }}
           ACTOR: ${{ github.actor }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: tsx scripts/validate-release.ts
+        run: pnpm exec tsx scripts/validate-release.ts
 
       - name: Prepare version
         env:
@@ -47,10 +50,7 @@ jobs:
           set -euo pipefail
           VERSION="${TAG_NAME#v}"
           echo "Publishing version ${VERSION}"
-          npm version --no-git-tag-version "${VERSION}"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          npm version --no-git-tag-version --allow-same-version "${VERSION}"
 
       - name: Test
         run: pnpm test
