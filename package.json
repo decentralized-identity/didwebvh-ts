@@ -58,7 +58,7 @@
     "json-canonicalize": "^3.0.1"
   },
   "bin": {
-    "didwebvh": "./dist/cli/didwebvh.js"
+    "didwebvh": "dist/cli/didwebvh.js"
   },
   "exports": {
     ".": {
