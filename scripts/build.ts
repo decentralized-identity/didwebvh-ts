@@ -3,6 +3,7 @@ import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from 
 import { mkdir } from 'node:fs/promises';
 import { build as esbuild } from 'esbuild';
 import pkg from '../package.json' with { type: 'json' };
+import { reactNativeIdnaPlugin } from './react-native-idna-plugin.js';
 
 async function ensureDir(dir: string) {
   await mkdir(dir, { recursive: true });
@@ -22,7 +23,7 @@ function createDistPackageJson() {
     bin: {
       didwebvh: 'cli/didwebvh.js',
     },
-    files: ['cjs', 'esm', 'browser', 'cli', 'types'],
+    files: ['cjs', 'esm', 'browser', 'react-native', 'cli', 'types'],
     exports: {
       '.': {
         types: './types/index.d.ts',
@@ -30,6 +31,12 @@ function createDistPackageJson() {
         browser: './browser/index.js',
         import: './esm/index.js',
         require: './cjs/index.cjs',
+      },
+      './react-native': {
+        types: './types/react-native/index.d.ts',
+        'react-native': './react-native/index.cjs',
+        import: './react-native/index.js',
+        require: './react-native/index.cjs',
       },
       './types': {
         types: './types/types.d.ts',
@@ -63,6 +70,7 @@ ${readme}
 This package includes:
 - \`node/\` - Node.js ESM bundle
 - \`browser/\` - Browser ESM bundle
+- \`react-native/\` - Opt-in injectable IDNA bundles
 - \`cli/\` - Command-line interface
 - \`types/\` - TypeScript type declarations
 `;
@@ -105,6 +113,23 @@ async function buildRuntime() {
       global: 'globalThis',
     },
   });
+}
+
+async function buildReactNative() {
+  for (const [format, outfile] of [
+    ['cjs', 'dist/react-native/index.cjs'],
+    ['esm', 'dist/react-native/index.js'],
+  ] as const) {
+    await esbuild({
+      entryPoints: ['src/react-native/index.ts'],
+      bundle: true,
+      format,
+      platform: 'neutral',
+      outfile,
+      sourcemap: true,
+      plugins: [reactNativeIdnaPlugin],
+    });
+  }
 }
 
 async function buildCli() {
@@ -152,11 +177,13 @@ async function build() {
     ensureDir('./dist/cjs'),
     ensureDir('./dist/esm'),
     ensureDir('./dist/browser'),
+    ensureDir('./dist/react-native'),
     ensureDir('./dist/cli'),
     ensureDir('./dist/types'),
   ]);
 
   await buildRuntime();
+  await buildReactNative();
   await buildCli();
   await buildDeclarations();
 
@@ -169,7 +196,7 @@ async function build() {
   createDistReadme();
 
   // Verify output directories exist and have content
-  const dirs = ['cjs', 'esm', 'browser', 'cli', 'types'].map((dir) => `dist/${dir}`);
+  const dirs = ['cjs', 'esm', 'browser', 'react-native', 'cli', 'types'].map((dir) => `dist/${dir}`);
   for (const dir of dirs) {
     if (!existsSync(dir)) {
       console.error(`Missing output directory: ${dir}`);

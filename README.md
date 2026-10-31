@@ -370,17 +370,49 @@ await createDID({ ...options, address: 'jp納豆.例.jp', paths: ['用户'] });
 // did:webvh:<scid>:xn--jp-cd2fp15c.xn--fsq.jp:%E7%94%A8%E6%88%B7
 ```
 
-No additional dependency is needed. The conversion uses the runtime's WHATWG `URL`, which is checked once for IDNA support before it is relied on:
+Choose the entry point based on the runtime's IDNA support, not just its operating system:
+
+| Consumer | Import | IDNA behavior |
+| --- | --- | --- |
+| Browser (including iOS Safari) | `didwebvh-ts` | Uses the browser's IDNA-aware `URL`; no setup needed |
+| Node.js | `didwebvh-ts` | Uses Node's `URL`; no setup needed |
+| React Native on iOS or Android with an IDNA-aware `URL` polyfill | `didwebvh-ts` | Uses the polyfill's `URL`; no converter setup needed |
+| React Native on iOS or Android without IDNA-aware `URL` | `didwebvh-ts/react-native` | Set a converter for Unicode domains and legacy U-label DIDs |
+
+The root `didwebvh-ts` import remains URL-only even when a React Native bundler selects its `react-native` condition. Only the explicit `/react-native` import exposes `setDomainToASCII`. Do not mix DID operations from the two entry points: configuring one does not configure the other. The `/react-native` entry point also uses `URL` when no converter is set.
+
+No additional dependency is needed on runtimes with an IDNA-aware WHATWG `URL`. The runtime's `URL` is checked once for IDNA support before it is relied on:
 
 | Runtime `URL` | Unicode domains | ASCII / A-label domains |
 | --- | --- | --- |
 | IDNA-aware WHATWG `URL` (Node.js, current browsers) | Converted to A-labels | Supported |
 | Polyfills that map IDNA (e.g. Expo's `URL`) | Converted to A-labels; host validation may be looser than Node.js | Supported |
-| No IDNA support (e.g. bare React Native/Hermes) | Rejected with `This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead` | Supported |
+| No IDNA support (e.g. bare React Native/Hermes) | Requires the opt-in `didwebvh-ts/react-native` entry point and an injected converter; otherwise rejected with `This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain` | Supported |
 
-On runtimes without IDNA support, supply the A-label form of the domain. A non-ASCII domain never produces an incorrect DID.
+On runtimes without IDNA support, supply the A-label form of the domain when creating a DID, or use the opt-in React Native entry point with an IDNA converter of your choice. Import all DID operations from that entry point:
 
-Existing DIDs whose domain is a percent-encoded U-label (e.g. `did:webvh:<scid>:b%C3%BCcher.example.com`) remain valid: they resolve from the A-label HTTPS host and keep their DID string through `updateDID` and `deactivateDID`. DIDs containing raw (unencoded) Unicode are not DID Core-conformant and are rejected.
+```typescript
+import { setDomainToASCII, resolveDIDFromLog } from 'didwebvh-ts/react-native';
+import * as tr46 from 'tr46'; // Install separately: npm install tr46@^7
+
+setDomainToASCII((host) => {
+  const ascii = tr46.toASCII(host, {
+    checkHyphens: false,
+    checkBidi: true,
+    checkJoiners: true,
+    useSTD3ASCIIRules: false,
+    transitionalProcessing: false,
+    verifyDNSLength: false,
+    ignoreInvalidPunycode: false,
+  });
+  if (ascii === null) throw new Error('Invalid IDN hostname');
+  return ascii;
+});
+```
+
+For TypeScript projects using `tr46`, also install its declarations with `npm install -D @types/tr46`. The converter receives an NFC-normalised Unicode host; the library validates its ASCII output as a DNS name. ASCII/A-label domains do not invoke it. Call `setDomainToASCII(undefined)` to restore the runtime `URL` behavior. Configure the converter before using the React Native entry point's DID operations. `tr46` is not a library dependency and is excluded from its bundles; install it only where needed. A non-ASCII domain never produces an incorrect DID.
+
+Existing DIDs whose domain is a percent-encoded U-label (e.g. `did:webvh:<scid>:b%C3%BCcher.example.com`) remain valid. With runtime IDNA or a converter injected into the React Native entry point, they resolve from the A-label HTTPS host and keep their DID string through `updateDID` and `deactivateDID`. Without either, even offline resolution returns `internalError`, and updates and deactivation throw a runtime-IDNA error because implicit service URLs require an A-label host. Supplying an A-label address does not make an existing U-label DID resolvable on that runtime; configure a converter or migrate a portable DID on an IDNA-capable runtime. DIDs containing raw (unencoded) Unicode are not DID Core-conformant and are rejected.
 
 A portable percent-encoded U-label DID can be moved to its A-label form with `migrateDID`, which appends a signed update that keeps the SCID and log history:
 

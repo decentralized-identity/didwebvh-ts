@@ -25,7 +25,7 @@ import type {
   WitnessRequirement,
 } from '../interfaces.js';
 import { parseDidWebvhIdentifier } from '../parser.js';
-import { buildProblemDetails } from '../resolver-result.js';
+import { buildProblemDetails, mapErrorToCode } from '../resolver-result.js';
 import { deriveHash } from '../utils/crypto.js';
 import { MAX_FUTURE_SKEW_MS, parseUtcIso8601VersionTime } from '../utils/iso8601-datetime.js';
 import {
@@ -195,7 +195,7 @@ export const resolveLogWithWitnessResults = async (
   } catch (e) {
     // Stage 3: preserve a captured historical result when possible.
     const resolvedSnapshot = resolverContext.resolvedSnapshot;
-    if (!resolvedSnapshot) {
+    if (!resolvedSnapshot || mapErrorToCode(e) === 'internalError') {
       throw e;
     }
 

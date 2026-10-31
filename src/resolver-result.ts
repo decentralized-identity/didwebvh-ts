@@ -72,6 +72,7 @@ export function mapErrorToCode(error: unknown): DidResolutionError {
   // reported as a document-validation failure. (404 is handled above as
   // notFound.) Everything else that reaches here is a validation failure.
   if (
+    message === "This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain" ||
     /HTTP error! status: [45]\d\d\b/.test(message) ||
     /fetch failed/i.test(message) ||
     /\b(ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN)\b/.test(message) ||
