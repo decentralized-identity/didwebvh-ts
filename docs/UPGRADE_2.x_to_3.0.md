@@ -545,15 +545,30 @@ whatever form the `address` takes:
 - Path segments are percent-encoded to DID Core `idchar`s but otherwise keep
   their case and are not Unicode-normalised.
 
-The conversion uses the runtime's WHATWG `URL` and needs no extra dependency.
-Runtimes whose `URL` lacks IDNA support (such as bare React Native) reject
-non-ASCII domains with
-`This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead`.
+The default `didwebvh-ts` import uses the runtime's WHATWG `URL` and needs no
+extra dependency. Choose the entry point based on IDNA support:
+
+| Consumer | Import | Setup |
+| --- | --- | --- |
+| Browser (including iOS Safari) or Node.js | `didwebvh-ts` | None; their `URL` handles IDNA |
+| React Native on iOS or Android with an IDNA-aware `URL` polyfill | `didwebvh-ts` | None; the polyfill handles IDNA |
+| React Native on iOS or Android without IDNA-aware `URL` | `didwebvh-ts/react-native` | Call `setDomainToASCII` with an app-supplied converter for Unicode domains and existing U-label DIDs |
+
+The root import stays URL-only even when a React Native bundler selects its
+`react-native` condition. The opt-in entry point falls back to `URL` if no
+converter is set. Without IDNA support, non-ASCII domains fail with
+`This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain`.
+Import the setter and all DID operations from the same `/react-native` entry
+point; its converter does not configure the default import. See the
+[README example](../README.md#internationalised-domain-names) for a `tr46`
+adapter or supply another IDNA provider.
 
 Existing DIDs are not rewritten:
 
 - Percent-encoded U-label DIDs created by 2.x still resolve, fetching from the
-  A-label HTTPS host.
+  A-label HTTPS host when runtime IDNA or an opt-in converter is available.
+  Without either, even offline resolution returns `internalError`; update and
+  deactivation throw because implicit service URLs need an A-label host.
 - `updateDID` keeps the existing DID when the supplied `address` canonicalises
   to its current location, and `deactivateDID` keeps it too. Only a move to a
   different location (which requires portability) produces a new, canonical
@@ -569,8 +584,11 @@ Existing DIDs are not rewritten:
 2. **Expect A-label domains in new DIDs.** Code that displays or matches
    Unicode domains should convert A-labels for display rather than expecting
    percent-encoded U-labels.
-3. **Use A-label domains on runtimes without IDNA support.** On bare React
-   Native, convert the domain to its `xn--` form before calling `createDID`.
+3. **Configure IDNA where needed.** On bare React Native, either supply an
+   `xn--` A-label domain before calling `createDID`, or import DID operations
+   and `setDomainToASCII` from `didwebvh-ts/react-native` and configure a
+   converter before using them. An A-label address alone cannot make a
+   historical percent-encoded U-label DID resolvable without IDNA support.
 4. **Stop using `{SCID}` in `updateDID`.** Placeholders are only valid at
    creation; pass the actual SCID in update addresses and paths.
 5. **Replace raw-Unicode DIDs.** DIDs containing unencoded Unicode were never
@@ -619,7 +637,7 @@ Existing DIDs are not rewritten:
 - [ ] Pass `witness: {}` to `updateDID` where you relied on omitting `witness` to turn witnessing off
 - [ ] Upgrade direct `did-resolver` usage to v6 when registering `getResolver()`
 - [ ] Replace single-label hosts (e.g. `localhost`) with fully qualified domain names
-- [ ] Compare new DIDs against `createDID`'s canonical output; use A-label domains on runtimes without IDNA support
+- [ ] Compare new DIDs against `createDID`'s canonical output; on runtimes without IDNA support use A-label domains or the opt-in React Native entry point with a converter
 - [ ] Optionally migrate portable percent-encoded U-label DIDs to A-label DIDs with `migrateDID`
 
 ---

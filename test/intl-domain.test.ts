@@ -153,8 +153,39 @@ describe('runtimes whose URL does not support IDNA', () => {
     );
 
     expect(() => parser.parseCanonicalAddress('bücher.example')).toThrow(
-      "This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead"
+      "This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain"
     );
     expect(parser.parseCanonicalAddress('xn--bcher-kva.example').didDomainComponent).toBe('xn--bcher-kva.example');
+  });
+
+  test('legacy U-label logs fail offline resolution, update, and deactivation without runtime IDNA support', async () => {
+    const { created, signer, updateKeys, verifier } = await createUncanonicalisedDID({
+      did: 'did:webvh:{SCID}:b%C3%BCcher.example.com',
+    });
+    vi.resetModules();
+    const method = await import('../src/method.js');
+    const RealURL = URL;
+    vi.stubGlobal(
+      'URL',
+      class extends RealURL {
+        override get hostname() {
+          return super.hostname.replace(/^xn--/, '');
+        }
+      }
+    );
+    const fetch = vi.fn();
+    const idnaError = "This runtime's URL implementation does not support IDNA";
+
+    const result = await method.resolveDIDFromLog(created.log, { verifier, fetch });
+    expect(result.didDocument).toBeNull();
+    expect(result.didResolutionMetadata.error).toBe('internalError');
+    expect(result.didResolutionMetadata.problemDetails?.detail).toContain(idnaError);
+    await expect(method.updateDID({ log: created.log, signer, updateKeys, verifier, fetch })).rejects.toThrow(
+      idnaError
+    );
+    await expect(method.deactivateDID({ log: created.log, signer, updateKeys, verifier, fetch })).rejects.toThrow(
+      idnaError
+    );
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

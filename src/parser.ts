@@ -1,5 +1,6 @@
 import { type ParsedDID, parse as parseDidUrl } from 'did-resolver';
 import { METHOD, SCID_PLACEHOLDER } from './constants.js';
+import { urlToASCII } from './idna.js';
 
 const SCID_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{46}$/;
 const DOMAIN_LABEL_PATTERN = /^(?:[A-Za-z0-9-]|%[0-9A-Fa-f]{2})+$/;
@@ -73,31 +74,6 @@ function parsePort(rawPort: string): number | undefined {
   if (!/^\d{1,5}$/.test(rawPort)) return undefined;
   const port = Number(rawPort);
   return port >= 1 && port <= 65535 ? port : undefined;
-}
-
-let urlSupportsIdna: boolean | undefined;
-
-/**
- * Converts a Unicode host to its A-label form using the runtime's WHATWG URL
- * implementation. Runtimes whose URL cannot apply IDNA (e.g. bare React Native)
- * are detected once and rejected rather than producing a wrong host.
- */
-function urlToASCII(host: string): string {
-  try {
-    urlSupportsIdna ??=
-      new URL('https://faß.de').hostname === 'xn--fa-hia.de' &&
-      new URL('https://BÜCHER.example').hostname === 'xn--bcher-kva.example';
-  } catch {
-    urlSupportsIdna = false;
-  }
-  if (!urlSupportsIdna) {
-    throw new Error("This runtime's URL implementation does not support IDNA; use an A-label (xn--) domain instead");
-  }
-  try {
-    return new URL(`https://${host}`).hostname;
-  } catch {
-    throw new Error('Host must be a valid fully qualified domain');
-  }
 }
 
 export const hasNonAscii = (value: string): boolean => /[\u0080-\u{10FFFF}]/u.test(value);
