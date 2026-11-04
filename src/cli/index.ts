@@ -68,6 +68,8 @@ Options:
   --also-known-as [alias]   Add an alsoKnownAs alias (can be used multiple times)
   --next-key [key]          Add a future update key and derive its nextKeyHash (can be used multiple times)
   --next-key-hash [hash]    Add a derived nextKeyHash directly (can be used multiple times)
+  --disable-prerotation     Turn off pre-rotation by writing an empty nextKeyHashes (update; required before deactivate while pre-rotation is active)
+  --update-key [key]        Multikey of the .env verification method to sign with and set as the update key (update and migrate)
   --witness-file [file]     Path to witness proofs file (optional for resolve, update, migrate, deactivate)
 
   # Options for generate-witness-proof:
@@ -89,6 +91,8 @@ Examples:
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --next-key did:key:z6Mk...
   pnpm cli -- update --log ./did.jsonl --output ./updated-did.jsonl --disable-witnesses --witness-file ./did-witness.json
   pnpm cli -- migrate --log ./did.jsonl --output ./migrated-did.jsonl --address bücher.example.com
+  pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
+  pnpm cli -- update --log ./did.jsonl --output ./did.jsonl --disable-prerotation
   pnpm cli -- deactivate --log ./did.jsonl --output ./deactivated-did.jsonl
   pnpm cli -- generate-witness-proof --trusted-log did.jsonl --candidate-log candidate.jsonl --witness-file did-witness.json --witness-did did:key:z6Mk... --witness-secret z3u2... --output witness-proof.json
   pnpm cli -- generate-vm
@@ -215,6 +219,21 @@ async function deriveNextKeyHashesFromOptions(
   ];
 
   return nextKeyHashes.length ? nextKeyHashes : undefined;
+}
+
+async function findPrerotationKey(
+  verificationMethods: CliSigningKey[],
+  nextKeyHashes: string[]
+): Promise<CliSigningKey | undefined> {
+  for (const verificationMethod of verificationMethods) {
+    if (
+      verificationMethod.publicKeyMultibase &&
+      nextKeyHashes.includes(await deriveNextKeyHash(verificationMethod.publicKeyMultibase))
+    ) {
+      return verificationMethod;
+    }
+  }
+  return undefined;
 }
 
 async function resolveControlledDidFromEnv(did: string): Promise<DIDLog | undefined> {
@@ -445,6 +464,7 @@ async function runUpdateCommand(args: string[], command: 'update' | 'migrate') {
   const updateKey = options['update-key'] as string | undefined;
   const watchers = options.watcher as string[] | undefined;
   const disableWitnesses = options['disable-witnesses'] !== undefined;
+  const disablePrerotation = options['disable-prerotation'] !== undefined;
 
   if (!logFile) {
     throw new CliError(`Log file is required for ${command} command`);
@@ -455,9 +475,12 @@ async function runUpdateCommand(args: string[], command: 'update' | 'migrate') {
   if (disableWitnesses && (witnesses?.length || witnessThreshold !== undefined)) {
     throw new CliError('--disable-witnesses cannot be combined with --witness or --witness-threshold');
   }
+  if (disablePrerotation && (options['next-key'] !== undefined || options['next-key-hash'] !== undefined)) {
+    throw new CliError('--disable-prerotation cannot be combined with --next-key or --next-key-hash');
+  }
 
   try {
-    const nextKeyHashes = await deriveNextKeyHashesFromOptions(options);
+    const nextKeyHashes = disablePrerotation ? [] : await deriveNextKeyHashesFromOptions(options);
     const log = await readLogFromDisk(logFile);
     const updateResolution = await resolveDIDFromLog(log, {
       verifier: createCustomCrypto(),
@@ -479,6 +502,12 @@ async function runUpdateCommand(args: string[], command: 'update' | 'migrate') {
       vm = envVMs.find((candidateVm) => candidateVm.publicKeyMultibase === updateKey);
       if (!vm) {
         throw new Error(`No verification method found for update key: ${updateKey}`);
+      }
+    } else if (meta.prerotation) {
+      // Under pre-rotation only a key committed in nextKeyHashes can sign the next entry.
+      vm = await findPrerotationKey(envVMs, meta.nextKeyHashes ?? []);
+      if (!vm) {
+        throw new Error('Pre-rotation is active and no key in .env matches the committed nextKeyHashes');
       }
     } else {
       vm = envVMs.find((candidateVm) => candidateVm.controller === did);
@@ -597,6 +626,11 @@ export async function handleDeactivate(args: string[]) {
       throw new Error(`Resolution failed: ${deactivateResolution.didResolutionMetadata.error}`);
     }
     const meta = deactivateResolution.didDocumentMetadata;
+    if (meta.prerotation) {
+      throw new CliError(
+        'Cannot deactivate while pre-rotation is active; run update --disable-prerotation first, then deactivate'
+      );
+    }
 
     // Get the verification method from environment
     const vms = await getVerificationMethodsFromEnv();
