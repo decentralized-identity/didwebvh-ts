@@ -306,7 +306,7 @@ test('Omitted nextKeyHashes inherits previous pre-rotation state', async () => {
   expect(meta.nextKeyHashes).toEqual([nextKeyHash]);
 });
 
-test('deactivateDID with pre-rotation active produces a resolvable deactivated log', async () => {
+test('deactivateDID refuses while pre-rotation is active and succeeds after updateDID stops it', async () => {
   const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
   const { log: log1 } = await createDID({
     address: 'example.com',
@@ -317,22 +317,39 @@ test('deactivateDID with pre-rotation active produces a resolvable deactivated l
     verifier: testImplementation,
   });
 
-  const deactivated = await deactivateDID({
+  await expect(
+    deactivateDID({
+      log: log1,
+      signer: createTestSigner(authKey2),
+      updateKeys: [authKey2.publicKeyMultibase!],
+      verifier: testImplementation,
+    })
+  ).rejects.toThrow('Cannot deactivate while pre-rotation is active');
+
+  const { log: log2 } = await updateDID({
     log: log1,
     signer: createTestSigner(authKey2),
     updateKeys: [authKey2.publicKeyMultibase!],
+    nextKeyHashes: [],
+    verifier: testImplementation,
+  });
+
+  const deactivated = await deactivateDID({
+    log: log2,
+    signer: createTestSigner(authKey2),
     verifier: testImplementation,
   });
 
   expect(deactivated.meta.deactivated).toBe(true);
-  expect(deactivated.log[1].parameters.updateKeys).toEqual([authKey2.publicKeyMultibase!]);
-  expect(deactivated.log[1].parameters.nextKeyHashes).toEqual([]);
+  expect(deactivated.log[2].parameters.updateKeys).toEqual([]);
+  expect(deactivated.log[2].parameters.nextKeyHashes).toEqual([]);
 
   const { didDocumentMetadata: meta } = await resolveDIDFromLog(deactivated.log, {
     verifier: testImplementation,
   });
   expect(meta.deactivated).toBe(true);
   expect(meta.prerotation).toBe(false);
+  expect(meta.updateKeys).toEqual([]);
 });
 
 test('Historical versionId on a deactivated log keeps historical document and reports deactivated=true', async () => {
@@ -371,6 +388,7 @@ test('Historical versionId on a deactivated log keeps historical document and re
     signer: createTestSigner(authKey),
     verifier,
   });
+  expect(deactivated.log.at(-1)?.parameters.updateKeys).toEqual([]);
 
   const historical = await resolveDIDFromLog(deactivated.log, {
     versionId: updated1.meta.versionId,
@@ -381,47 +399,6 @@ test('Historical versionId on a deactivated log keeps historical document and re
   expect(historical.didDocumentMetadata.versionId).toBe(updated1.meta.versionId);
   expect(historical.didDocumentMetadata.versionTime).toBe(updated1.meta.versionTime);
   expect(historical.didDocumentMetadata.deactivated).toBe(true);
-});
-
-test('deactivateDID rejects keys that are not in the prior nextKeyHashes', async () => {
-  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
-  const { log: log1 } = await createDID({
-    address: 'example.com',
-    signer: createTestSigner(authKey1),
-    updateKeys: [authKey1.publicKeyMultibase!],
-    didDocument: createTestDIDDocument(authKey1),
-    nextKeyHashes: [nextKeyHash],
-    verifier: testImplementation,
-  });
-
-  await expect(
-    deactivateDID({
-      log: log1,
-      signer: createTestSigner(authKey3),
-      updateKeys: [authKey3.publicKeyMultibase!],
-      verifier: testImplementation,
-    })
-  ).rejects.toThrow('Invalid update key');
-});
-
-test('deactivateDID omitting updateKeys is rejected while pre-rotation is active', async () => {
-  const nextKeyHash = await deriveNextKeyHash(authKey2.publicKeyMultibase!);
-  const { log: log1 } = await createDID({
-    address: 'example.com',
-    signer: createTestSigner(authKey1),
-    updateKeys: [authKey1.publicKeyMultibase!],
-    didDocument: createTestDIDDocument(authKey1),
-    nextKeyHashes: [nextKeyHash],
-    verifier: testImplementation,
-  });
-
-  await expect(
-    deactivateDID({
-      log: log1,
-      signer: createTestSigner(authKey1),
-      verifier: testImplementation,
-    })
-  ).rejects.toThrow('updateKeys must be provided while pre-rotation is active');
 });
 
 test('Omitted updateKeys is rejected while pre-rotation is active', async () => {

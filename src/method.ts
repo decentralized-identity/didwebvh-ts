@@ -1,4 +1,4 @@
-import type { DIDDocument, DIDResolutionResult } from 'did-resolver';
+import type { DIDResolutionResult } from 'did-resolver';
 import { DEFAULT_TTL_SECONDS, METHOD, SCID_PLACEHOLDER } from './constants.js';
 import { prepareDeactivationEntry, prepareGenesisEntry, prepareUpdateEntry } from './core/entries.js';
 import { resolveLog, resolveLogWithWitnessResults, resolveWitnessCandidateRequirement } from './core/resolution.js';
@@ -9,6 +9,7 @@ import type {
   CreateDIDOptions,
   CreateDIDResult,
   DeactivateDIDOptions,
+  DeactivateDIDResult,
   DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
@@ -328,16 +329,19 @@ const appendUpdateEntry = async (
 };
 
 /**
- * Deactivates an existing DID by appending a deactivation entry.
+ * Deactivates an existing DID by appending a deactivation entry, which writes
+ * `updateKeys: []` unless the caller supplies `updateKeys`.
  * Supplied updateKeys are normalized from Ed25519 multikeys or did:key identifiers
- * to bare multikeys before preparation, including pre-rotation hash checks.
+ * to bare multikeys before preparation.
+ *
+ * A DID with pre-rotation active is refused: an entry under pre-rotation must
+ * carry the pre-committed keys, so it cannot also empty `updateKeys`. Call
+ * `updateDID` with `nextKeyHashes: []` first, then deactivate.
  *
  * @param options DID deactivation options.
  * @returns The deactivated DID result and updated DID log.
  */
-export const deactivateDID = async (
-  options: DeactivateDIDOptions & { updateKeys?: string[] }
-): Promise<{ did: string; doc: DIDDocument; meta: DIDResolutionMeta; log: DIDLog }> => {
+export const deactivateDID = async (options: DeactivateDIDOptions): Promise<DeactivateDIDResult> => {
   if (options.updateKeys !== undefined) {
     options = { ...options, updateKeys: normalizeUpdateKeys(options.updateKeys) };
   }
@@ -349,8 +353,10 @@ export const deactivateDID = async (
   if (lastMeta.deactivated) {
     throw new Error('DID already deactivated');
   }
-  if (lastMeta.prerotation && options.updateKeys === undefined) {
-    throw new Error('updateKeys must be provided while pre-rotation is active');
+  if (lastMeta.prerotation) {
+    throw new Error(
+      'Cannot deactivate while pre-rotation is active; call updateDID with nextKeyHashes: [] first, then deactivate'
+    );
   }
   const versionNumber = log.length + 1;
   const createdDate = createNextVersionTime(lastMeta.updated, undefined, createDate);

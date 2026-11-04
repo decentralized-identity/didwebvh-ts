@@ -157,6 +157,13 @@ export interface UpdateDIDResult {
   webDoc?: DIDDocument;
 }
 
+export interface DeactivateDIDResult {
+  did: string;
+  doc: DIDDocument;
+  meta: DIDResolutionMeta;
+  log: DIDLog;
+}
+
 export interface CreateDIDOptions {
   address?: string;
   signer: Signer;
@@ -214,6 +221,11 @@ export type MigrateDIDOptions = UpdateDIDOptions & { address: string };
 export interface DeactivateDIDOptions {
   log: DIDLog;
   signer: Signer;
+  /**
+   * `updateKeys` written to the deactivation entry. Defaults to `[]`, so the
+   * deactivated DID lists no keys that could authorize a later entry.
+   */
+  updateKeys?: string[];
   verifier?: Verifier;
   witnessProofs?: WitnessProofFileEntry[];
   /**

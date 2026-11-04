@@ -418,21 +418,16 @@ export async function prepareDeactivationEntry({
   versionNumber,
   createdDate,
 }: {
-  options: DeactivateDIDOptions & { updateKeys?: string[] };
+  options: DeactivateDIDOptions;
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
   log: DIDLog;
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
-  if (lastMeta.prerotation) {
-    await newKeysAreInNextKeys(options.updateKeys ?? [], lastMeta.nextKeyHashes ?? []);
-  }
-
   const params = {
     ...(shouldInjectMethodParameter(log) ? { method: METHOD_PROTOCOL_V1_0 } : {}),
-    updateKeys: options.updateKeys ?? lastMeta.updateKeys,
-    // Close the rotation: a deactivated DID carries no dangling key commitment.
+    updateKeys: options.updateKeys ?? [],
     nextKeyHashes: [],
     deactivated: true,
   };
@@ -444,19 +439,14 @@ export async function prepareDeactivationEntry({
     state: lastEntry.state,
   };
 
-  // Under active pre-rotation the resolver verifies this entry against its own
-  // updateKeys, so sign and validate with the pre-committed keys.
-  const keysToVerify = lastMeta.prerotation ? options.updateKeys : lastMeta.updateKeys;
-  if (!keysToVerify) {
-    throw new Error('updateKeys could not be determined for deactivation verification');
-  }
-
+  // deactivateDID refuses while pre-rotation is active, so the previous
+  // entry's updateKeys always authorize this entry.
   const entry = await finalizeNonGenesisEntry({
     logEntry,
     versionNumber,
     created: createdDate,
     signer: options.signer,
-    updateKeys: keysToVerify,
+    updateKeys: lastMeta.updateKeys,
     witness: lastMeta.witness,
     verifier: options.verifier,
   });
