@@ -1,14 +1,38 @@
 {
-  "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/security/multikey/v1"],
-  "id": "did:web:localhost%3A8000",
-  "controller": "did:web:localhost%3A8000",
-  "assertionMethod": ["did:web:localhost%3A8000#4P6GVTpQ"],
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/multikey/v1"
+  ],
+  "id": "did:web:example.com",
+  "controller": "did:web:example.com",
   "verificationMethod": [
     {
-      "id": "did:web:localhost%3A8000#4P6GVTpQ",
-      "controller": "did:web:localhost%3A8000",
+      "id": "did:web:example.com#key-1",
       "type": "Multikey",
-      "publicKeyMultibase": "z6MkvDJLghkVAzigMw3jZGQ5qMTDnb3iprMqDiyR4P6GVTpQ"
+      "controller": "did:web:example.com",
+      "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX"
+    }
+  ],
+  "authentication": [
+    "did:web:example.com#key-1"
+  ],
+  "assertionMethod": [
+    "did:web:example.com#key-1"
+  ],
+  "alsoKnownAs": [
+    "did:webvh:QmQagJa1J4ocr2zkcrrWhyxKGpY2CYLDQv28zdHsEvMffM:example.com"
+  ],
+  "service": [
+    {
+      "id": "#files",
+      "type": "relativeRef",
+      "serviceEndpoint": "https://example.com/"
+    },
+    {
+      "@context": "https://identity.foundation/linked-vp/contexts/v1",
+      "id": "#whois",
+      "type": "LinkedVerifiablePresentation",
+      "serviceEndpoint": "https://example.com/whois.vp"
     }
   ]
 }
