@@ -5,6 +5,7 @@ test/logs
 node_modules
 claude_chats
 *.jsonl
+!test/fixtures/**/did.jsonl
 did.json
 dist/
 coverage/

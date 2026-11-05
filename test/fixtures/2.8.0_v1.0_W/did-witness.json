@@ -1,0 +1,65 @@
+[
+  {
+    "versionId": "1-QmdpdNoL9TsKMXG7VxzhKrwVvhBWEoPFM7hJh4x46Dpxwe",
+    "proof": [
+      {
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": "did:key:z6MkoJt7TEmeQrk6f7MrwspRExt9uWNtdAfUHNb2Srf4fsMh#z6MkoJt7TEmeQrk6f7MrwspRExt9uWNtdAfUHNb2Srf4fsMh",
+        "created": "2026-05-01T00:00:00Z",
+        "proofPurpose": "assertionMethod",
+        "proofValue": "z26rVFMwtX2RECoDTgPzseyjCpSo4YzWCQs7RzDrFYiRja9CKLvwTKwWqvTP9CcP4R6cgZZ9zuQhtCodqhbpsAW7m"
+      },
+      {
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": "did:key:z6MkpUGKA7QdBtX7JeF7YEJTyp91yGK33FdoApX5if2ahTk8#z6MkpUGKA7QdBtX7JeF7YEJTyp91yGK33FdoApX5if2ahTk8",
+        "created": "2026-05-01T00:00:00Z",
+        "proofPurpose": "assertionMethod",
+        "proofValue": "z4SkAkUHszsHJ9TfAQxdWVj8ENVvFxVLiKxsFdszWtPBB15BaRTdMdHTjh4iJzBcghf5oMxrEGrzzpoqgqKJZHmAj"
+      }
+    ]
+  },
+  {
+    "versionId": "2-QmPKumXA9KLGsjLyuQP1ZgWPzUfiGR9DUPvNZ9HbZ9XqnQ",
+    "proof": [
+      {
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": "did:key:z6MkoJt7TEmeQrk6f7MrwspRExt9uWNtdAfUHNb2Srf4fsMh#z6MkoJt7TEmeQrk6f7MrwspRExt9uWNtdAfUHNb2Srf4fsMh",
+        "created": "2026-05-02T00:00:00Z",
+        "proofPurpose": "assertionMethod",
+        "proofValue": "z2vSbh6CFcNftYWkgsFcM9bXAW6gmYo1VBpAkKrmvQ3zXwaV9oFmks4AqZBcZor9JgFWfHfKzHgjVyaRGT1ajTaAG"
+      },
+      {
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": "did:key:z6MkpUGKA7QdBtX7JeF7YEJTyp91yGK33FdoApX5if2ahTk8#z6MkpUGKA7QdBtX7JeF7YEJTyp91yGK33FdoApX5if2ahTk8",
+        "created": "2026-05-02T00:00:00Z",
+        "proofPurpose": "assertionMethod",
+        "proofValue": "z2qtHxdEk54qTyuHuC2Dd9YWmUEsxFJScobD5RA9nvusq4SnQdxzUgiM9BbxYedrj17HyU4bGgdd3Qnr2f9qJUGMP"
+      }
+    ]
+  },
+  {
+    "versionId": "3-QmXuieVSeZvmWxvSpJSQ89ScBHAi4UoW59iaHoUaXwc9Xh",
+    "proof": [
+      {
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": "did:key:z6MkoJt7TEmeQrk6f7MrwspRExt9uWNtdAfUHNb2Srf4fsMh#z6MkoJt7TEmeQrk6f7MrwspRExt9uWNtdAfUHNb2Srf4fsMh",
+        "created": "2026-05-03T00:00:00Z",
+        "proofPurpose": "assertionMethod",
+        "proofValue": "z3gYi4a373ufw4tbKoT6ipiSs1VhkfU1VWAvp1ayq7P2XU1V7rtKqxLkH2GN6YJ4meekLCEf6PAGoGUaPYHLFehe6"
+      },
+      {
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": "did:key:z6MkpUGKA7QdBtX7JeF7YEJTyp91yGK33FdoApX5if2ahTk8#z6MkpUGKA7QdBtX7JeF7YEJTyp91yGK33FdoApX5if2ahTk8",
+        "created": "2026-05-03T00:00:00Z",
+        "proofPurpose": "assertionMethod",
+        "proofValue": "zNDPzgmzntf7zzLvv9aZZRbsKwNDmzkcHC6kFJ6cN75TiFFxCJcpvKU3rmGNLvmp9ND7gR8pUvuAZ8L6W9CnpsGK"
+      }
+    ]
+  }
+]
