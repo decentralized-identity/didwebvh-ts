@@ -239,6 +239,7 @@ export async function appendRawLogEntry(options: {
   nextKeyHashes?: string[] | null;
   watchers?: string[] | null;
   method?: string;
+  witness?: unknown;
   extraParameters?: Record<string, unknown>;
   didDocument?: DIDDocument;
   verificationMethods?: VerificationMethod[];
@@ -286,10 +287,13 @@ export async function appendRawLogEntry(options: {
   if (options.watchers !== undefined) {
     newParameters[METHOD_PARAMETER_KEYS.watchers] = options.watchers;
   }
+  if (options.witness !== undefined) {
+    newParameters[METHOD_PARAMETER_KEYS.witness] = options.witness;
+  }
   Object.assign(newParameters, options.extraParameters);
 
   // For non-genesis entries, only include parameters that are explicitly set above
-  // Do NOT copy portable, witness, watchers, deactivated - these are only in genesis
+  // Do NOT copy portable, watchers, deactivated - these are only in genesis
   // (The resolver will carry them forward from previous entries)
 
   const entryWithoutProof = {

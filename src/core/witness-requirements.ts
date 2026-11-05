@@ -7,7 +7,7 @@ import type {
   WitnessRequirement,
 } from '../interfaces.js';
 import { deepClone, parseAndValidateVersionId } from '../utils.js';
-import { hasActiveWitnessRequirement, normalizeWitnessThreshold, validateWitnessParameter } from '../witness.js';
+import { hasActiveWitnessRequirement, validateWitnessParameter } from '../witness.js';
 
 export interface RequiredWitnessCheck {
   targetVersionId: string;
@@ -29,7 +29,7 @@ export interface WitnessCheckResult extends RequiredWitnessCheck {
 
 /**
  * Maps a required-witness check to the public `WitnessRequirement` shape,
- * normalizing the threshold and defensively cloning the witness list.
+ * defensively cloning the witness list.
  *
  * Shared by every call site that surfaces a `RequiredWitnessCheck` (or a
  * `WitnessCheckResult`, which extends it) as a public `WitnessRequirement`.
@@ -37,7 +37,7 @@ export interface WitnessCheckResult extends RequiredWitnessCheck {
 export const toWitnessRequirement = (check: RequiredWitnessCheck): WitnessRequirement => ({
   versionId: check.targetVersionId,
   versionNumber: check.targetVersionNumber,
-  threshold: normalizeWitnessThreshold(check.witness.threshold),
+  threshold: check.witness.threshold ?? 0,
   witnesses: deepClone(check.witness.witnesses ?? []),
 });
 

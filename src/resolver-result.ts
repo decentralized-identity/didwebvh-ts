@@ -1,5 +1,5 @@
 import type { DIDDocument, DIDDocumentMetadata, DIDResolutionMetadata, DIDResolutionResult } from 'did-resolver';
-import type { DIDResolutionMeta, DidResolutionError, ProblemDetails } from './interfaces.js';
+import type { DIDResolutionMeta, DidResolutionError, ProblemDetails, WitnessEntry } from './interfaces.js';
 
 /** A structured, non-throwing validation failure for resolution options. */
 interface ResolutionOptionsError {
@@ -28,7 +28,8 @@ export interface WebvhDocumentMetadata extends DIDDocumentMetadata {
   nextKeyHashes?: string[];
   prerotation?: boolean;
   portable?: boolean;
-  witness?: DIDResolutionMeta['witness'];
+  /** did:webvh v1.0 requires metadata `threshold` as a string containing the integer. */
+  witness?: { witnesses?: WitnessEntry[]; threshold?: string };
   watchers?: string[];
   previousLogEntryHash?: string;
   latestVersionId?: string;
@@ -140,8 +141,13 @@ export function toResolutionResult(core: {
 }): DIDResolutionResult {
   const { meta } = core;
   // Split meta into the standard documentMetadata + the resolutionMetadata extras.
-  const { error, problemDetails, ...documentMeta } = meta;
+  const { error, problemDetails, witness, ...documentMeta } = meta;
   const didDocumentMetadata: WebvhDocumentMetadata = { ...documentMeta };
+  if (witness) {
+    // Only the resolution result carries the string form; log entries and writer meta keep numbers.
+    const { threshold, ...rest } = witness;
+    didDocumentMetadata.witness = threshold === undefined ? rest : { ...rest, threshold: String(threshold) };
+  }
 
   if (error) {
     const didResolutionMetadata: WebvhResolutionMetadata = { error };

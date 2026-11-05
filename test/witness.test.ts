@@ -100,7 +100,7 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
     });
 
-    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(2);
+    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe('2');
     expect(resolved.didDocument?.id).toBe(initialDID.did);
   });
 
@@ -149,7 +149,7 @@ describe('Witness Implementation Tests', async () => {
       verifier: testImplementation,
       witnessProofs,
     });
-    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(2);
+    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe('2');
     expect(updatedDID.log).toHaveLength(2);
     expect(resolved.didDocumentMetadata?.witness?.witnesses).toHaveLength(2);
 
@@ -438,7 +438,7 @@ describe('Witness Implementation Tests', async () => {
       witnessProofs: [...witnessProofs, ...newWitnessProofs],
     });
     expect(resolved.didDocumentMetadata?.witness?.witnesses).toHaveLength(1);
-    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe(1);
+    expect(resolved.didDocumentMetadata?.witness?.threshold).toBe('1');
 
     // getWitnessRequirements agrees: the replacing entry (v2) is governed by the
     // previous list (witness1 + witness2), not the new one.
@@ -588,7 +588,10 @@ describe('Witness Implementation Tests', async () => {
     const allWitnessProofs = [...v2Proofs, await proofsFor(v3VersionId)];
     const resolved = await resolveDIDFromLog(v3.log, { verifier: testImplementation, witnessProofs: allWitnessProofs });
     expect(resolved.didResolutionMetadata.error).toBeUndefined();
-    expect(resolved.didDocumentMetadata.witness).toEqual(initialDID.meta.witness);
+    expect(resolved.didDocumentMetadata.witness).toEqual({
+      ...initialDID.meta.witness,
+      threshold: String(initialDID.meta.witness?.threshold),
+    });
     await expectResolverRequirementsToMatch(v3.log, allWitnessProofs);
   });
 

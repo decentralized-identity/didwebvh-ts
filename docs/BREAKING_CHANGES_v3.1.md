@@ -20,6 +20,7 @@ This document summarizes breaking changes in the 3.1.0 release. For detailed upg
 | Deactivation empties `updateKeys` and refuses under pre-rotation | Behavior / API | `deactivateDID` and CLI `deactivate` | [§10](#10-deactivation) |
 | did:webvh:0.5 logs rejected | Behavior | Resolution, witness checks and every writer | [UPGRADE_2.x_to_3.x.md §9](./UPGRADE_2.x_to_3.x.md#9-didwebvh05-removed) |
 | Witness-list replacements judged by the previous list | Behavior | Logs with witness replacements written by 2.7.3 and 2.7.4 | [UPGRADE_2.x_to_3.x.md §10](./UPGRADE_2.x_to_3.x.md#10-witness-list-replacements) |
+| Witness threshold validated as an integer and returned as a string in metadata | Behavior / API | Witness configuration and metadata access | [UPGRADE_2.x_to_3.x.md §11](./UPGRADE_2.x_to_3.x.md#11-witness-threshold) |
 
 ---
 
@@ -145,6 +146,14 @@ This document summarizes breaking changes in the 3.1.0 release. For detailed upg
 
 - **Changed**: An entry that replaces the witness list is approved by the witness list in force before it, as did:webvh v1.0 requires. 2.7.3 and 2.7.4 judged a replacement entry against the new list, so logs those releases wrote with a witness replacement cannot satisfy the rule and are rejected. This has been the behaviour since 2.8.0, whose release notes did not mention the rejection.
 - **Upgrade**: Such a log cannot be repaired in place, because the replacement entry's witness proofs are fixed. Re-issue the DID with `createDID` → [Full guide](./UPGRADE_2.x_to_3.x.md#10-witness-list-replacements)
+
+#### 13. Witness Threshold
+
+- **Changed**: A witness `threshold` must be a JSON integer between 1 and the number of witnesses, in log entries and in writer `witness` options. Strings and fractions such as `"2"`, `"2abc"` or `2.7`, previously parsed as 2, are rejected.
+- **Changed**: `didDocumentMetadata.witness.threshold` is a string containing the integer, like `ttl`. Log entries, writer `meta` and `WitnessRequirement.threshold` keep numbers.
+- **Changed**: `WitnessParameterResolution.threshold` is typed `number`; `WebvhDocumentMetadata.witness.threshold` is typed `string`.
+- **Reason**: did:webvh v1.0 requires `threshold` to be an integer in log entries and a string in DID metadata, because DID Resolution metadata may not contain integers.
+- **Upgrade**: Parse the metadata threshold before comparing it, and pass integer thresholds to writers → [Full guide](./UPGRADE_2.x_to_3.x.md#11-witness-threshold)
 
 ---
 

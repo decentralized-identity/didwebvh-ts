@@ -31,7 +31,7 @@ import {
   replaceValueInObject,
   requireDidDocumentId,
 } from '../utils.js';
-import { countVerifiedWitnessApprovals, normalizeWitnessThreshold, validateWitnessParameter } from '../witness.js';
+import { countVerifiedWitnessApprovals, validateWitnessParameter } from '../witness.js';
 import {
   getRequiredWitnessForEntry,
   type RequiredWitnessCheck,
@@ -714,8 +714,7 @@ const evaluateRequiredWitnessChecks = async ({
     });
 
     const { approvals, rejectedProofs } = await countVerifiedWitnessApprovals(candidateProofs, check.witness, verifier);
-    const threshold = normalizeWitnessThreshold(check.witness.threshold);
-    const satisfied = approvals >= threshold;
+    const satisfied = approvals >= (check.witness.threshold ?? 0);
     computedChecks.push({
       ...check,
       approvals,

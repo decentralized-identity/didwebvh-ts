@@ -21,6 +21,7 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
 8. **Canonical DIDs and internationalised domains** — every address form yields one canonical DID, and Unicode domains become A-labels
 9. **did:webvh:0.5 removed (3.1.0)** — v0.5 logs are rejected; re-issue v0.5 DIDs as did:webvh:1.0
 10. **Witness-list replacements** — a replacement entry is approved by the previous witness list; 2.7.3 and 2.7.4 replacement logs are rejected
+11. **Witness threshold (3.1.0)** — must be a JSON integer, and is a string in resolution metadata
 
 ---
 
@@ -449,6 +450,8 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
    const threshold = result.didDocumentMetadata.witness.threshold;
    ```
 
+   From 3.1.0, `didDocumentMetadata.witness.threshold` is a string, so parse it before comparing: `Number(result.didDocumentMetadata.witness.threshold)`. See [§11](#11-witness-threshold).
+
 3. **Handle empty witness**:
 
    ```typescript
@@ -648,6 +651,26 @@ The replacement entry's witness proofs cannot be changed after publication, so s
 
 ---
 
+## 11. Witness Threshold
+
+### What Changed
+
+In 3.1.0, a witness `threshold` must be a JSON integer between 1 and the number of witnesses, in log entries and in the `witness` option of `createDID` and `updateDID`. Strings and fractions such as `"2"`, `"2abc"` or `2.7` are rejected with `Witness threshold must be an integer`; earlier releases parsed all three as 2.
+
+`didDocumentMetadata.witness.threshold` is a string containing the integer, as did:webvh v1.0 requires for DID metadata, in the same way as `ttl`. Log entries, the `meta` returned by `createDID`, `updateDID`, `deactivateDID` and `migrateDID`, and `WitnessRequirement.threshold` keep numbers. `WitnessParameterResolution.threshold` is now typed `number`.
+
+### Migration Steps
+
+1. Parse the metadata threshold before comparing it:
+
+   ```typescript
+   const threshold = Number(result.didDocumentMetadata.witness?.threshold ?? 0);
+   ```
+
+2. Pass `threshold` to writers as a number, not a string.
+
+---
+
 ## Quick Checklist
 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
@@ -665,6 +688,7 @@ The replacement entry's witness proofs cannot be changed after publication, so s
 - [ ] Optionally migrate portable percent-encoded U-label DIDs to A-label DIDs with `migrateDID`
 - [ ] Re-issue any did:webvh:0.5 DID as did:webvh:1.0 with `createDID`
 - [ ] Re-issue any DID whose log has a witness-list replacement written by 2.7.3 or 2.7.4
+- [ ] Parse `didDocumentMetadata.witness.threshold` as a string, and pass only integer `threshold` values to writers
 
 ---
 
