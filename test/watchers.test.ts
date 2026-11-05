@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { createDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import {
-  appendV05LogEntry,
+  appendRawLogEntry,
   createFutureDIDLog,
   createTestDIDDocument,
   createTestSigner,
@@ -98,7 +98,7 @@ describe('Watcher Handling', () => {
     const authKey = await generateTestVerificationMethod();
     const verifier = new TestCryptoImplementation({ verificationMethod: authKey });
     const genesis = await createFutureDIDLog(authKey, 0, { watchers: ['https://watcher.example.com'] });
-    const log = await appendV05LogEntry({
+    const log = await appendRawLogEntry({
       log: genesis,
       signer: createTestSigner(authKey),
       watchers: null,

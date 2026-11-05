@@ -21,7 +21,6 @@ import { MultibaseEncoding, multibaseEncode } from '../src/utils/multiformats.js
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from '../src/utils/verification-methods.js';
 import { countVerifiedWitnessApprovals, countWitnessApprovals, validateWitnessParameter } from '../src/witness.js';
 import {
-  buildV05Genesis,
   createTestDIDDocument,
   createTestSigner,
   createTestVerifier,
@@ -2520,7 +2519,7 @@ describe('Witness Implementation Tests', async () => {
     };
   };
 
-  test('Resolves DID with legacy witnesses/witnessThreshold format in incremental entry', async () => {
+  test('Rejects top-level witnesses/witnessThreshold parameters, which did:webvh:1.0 does not define', async () => {
     const witnessKey = await generateTestVerificationMethod();
     const witnessId = `did:key:${witnessKey.publicKeyMultibase}`;
     const witnessVmId = `${witnessId}#${witnessKey.publicKeyMultibase}`;
@@ -2558,36 +2557,21 @@ describe('Witness Implementation Tests', async () => {
     const signedProof = await signer.sign({ document: { ...baseEntry, versionId }, proof: proofTemplate });
     const v2Entry = { ...baseEntry, versionId, proof: [{ ...proofTemplate, proofValue: signedProof.proofValue }] };
 
-    const legacyLog = [noWitnessDID.log[0], v2Entry] as DIDLog;
+    const topLevelWitnessLog = [noWitnessDID.log[0], v2Entry] as DIDLog;
     const witnessSignerFn = createWitnessSigner(witnessKey);
     const witnessProof = await createWitnessProof(witnessSignerFn, versionId, witnessVmId);
 
-    const resolved = await resolveDIDFromLog(legacyLog, {
+    const resolved = await resolveDIDFromLog(topLevelWitnessLog, {
       verifier: testImplementation,
       witnessProofs: [{ versionId, proof: [witnessProof] }],
     });
 
-    expect(resolved.didDocumentMetadata.witness?.witnesses).toHaveLength(1);
-    expect(resolved.didDocumentMetadata.witness?.witnesses?.[0].id).toBe(witnessId);
-    expect(resolved.didDocumentMetadata.witness?.threshold).toBe(1);
-  });
-
-  test('Genesis with witness: null normalizes to empty witness on resolution', async () => {
-    const log = await buildV05Genesis({
-      address: 'example.com',
-      signer: createTestSigner(authKey),
-      updateKeys: [authKey.publicKeyMultibase!],
-      didDocument: createTestDIDDocument(authKey),
-      witness: null,
-      verifier: createTestVerifier(authKey),
-    });
-
-    const resolved = await resolveDIDFromLog(log, {
-      verifier: testImplementation,
-    });
-
-    // Verify witness: null is normalized to empty object on resolution
-    expect(resolved.didDocumentMetadata.witness).toEqual({});
+    expect(resolved.didDocument).toBeNull();
+    expect(resolved.didResolutionMetadata.error).toBe('invalidDid');
+    expect(resolved.didResolutionMetadata.message).toContain("version '2' has unsupported parameter 'witnesses'");
+    expect(() => getWitnessRequirements(topLevelWitnessLog)).toThrow(
+      "version '2' has unsupported parameter 'witnesses'"
+    );
   });
 
   test('V1.0 genesis with witness: null normalizes to {} in metadata', async () => {
@@ -2605,7 +2589,7 @@ describe('Witness Implementation Tests', async () => {
     expect(result.meta.witness).toEqual({});
   });
 
-  test('V1.0 genesis with legacy witness format normalizes consistently', async () => {
+  test('createDID records the witness configuration in writer meta', async () => {
     const witness1 = await generateTestVerificationMethod();
     const witness2 = await generateTestVerificationMethod();
     const witnessId1 = `did:key:${witness1.publicKeyMultibase}`;
@@ -2623,7 +2607,6 @@ describe('Witness Implementation Tests', async () => {
       },
     });
 
-    // Verify legacy format is normalized consistently
     expect(result.meta.witness?.witnesses).toHaveLength(2);
     expect(result.meta.witness?.threshold).toBe(1);
     expect(result.meta.witness?.witnesses?.[0].id).toBe(witnessId1);

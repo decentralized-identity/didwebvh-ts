@@ -18,6 +18,8 @@ This document summarizes breaking changes in the 3.1.0 release. For detailed upg
 | Strict did:webvh v1.0 identifier validation | Behavior | DID creation, resolution, and URL derivation | [UPGRADE_2.x_to_3.x.md §7](./UPGRADE_2.x_to_3.x.md#7-strict-didwebvh-identifier-validation) |
 | Canonical DIDs and A-label domains | Behavior | `createDID` / `updateDID` output | [UPGRADE_2.x_to_3.x.md §8](./UPGRADE_2.x_to_3.x.md#8-canonical-dids-and-internationalised-domains) |
 | Deactivation empties `updateKeys` and refuses under pre-rotation | Behavior / API | `deactivateDID` and CLI `deactivate` | [§10](#10-deactivation) |
+| did:webvh:0.5 logs rejected | Behavior | Resolution, witness checks and every writer | [UPGRADE_2.x_to_3.x.md §9](./UPGRADE_2.x_to_3.x.md#9-didwebvh05-removed) |
+| Witness-list replacements judged by the previous list | Behavior | Logs with witness replacements written by 2.7.3 and 2.7.4 | [UPGRADE_2.x_to_3.x.md §10](./UPGRADE_2.x_to_3.x.md#10-witness-list-replacements) |
 
 ---
 
@@ -129,6 +131,20 @@ This document summarizes breaking changes in the 3.1.0 release. For detailed upg
 - **Added**: CLI `update --disable-prerotation`. While pre-rotation is active, CLI `update` signs with the `.env` key whose hash is in `nextKeyHashes`, and CLI `deactivate` refuses. Previously CLI `deactivate` failed for any DID with pre-rotation active.
 - **Reason**: did:webvh v1.0 says a deactivating controller should set `updateKeys` to `[]`, and that a DID using pre-rotation needs two entries to reach that state: one to stop pre-rotation, one to deactivate.
 - **Upgrade**: To deactivate a DID with pre-rotation active, call `updateDID` with the pre-committed keys as `updateKeys` and `nextKeyHashes: []`, then call `deactivateDID`. With the CLI, run `update --disable-prerotation`, then `deactivate`. For a witnessed DID, have the update witnessed and publish it before deactivating. Pass `updateKeys` to `deactivateDID` only if the deactivated DID must keep listing keys.
+
+#### 11. did:webvh:0.5 Removed
+
+- **Removed**: A log whose genesis entry declares `did:webvh:0.5` is rejected as `invalidDid` with `did:webvh:0.5 is not supported; re-issue this DID as did:webvh:1.0`. Resolution, `getWitnessRequirements`, `verifyWitnessProofs`, `updateDID`, `deactivateDID`, `migrateDID` and `signWitnessProofEntry` all reject it. Writers no longer add a `method` parameter when appending to a v0.5 log.
+- **Changed**: A `method` parameter on a later entry must be `did:webvh:1.0`; any other value is rejected.
+- **Changed**: A log entry whose `parameters` holds any property did:webvh:1.0 does not define is rejected, as the specification requires. The defined parameters are `method`, `scid`, `updateKeys`, `nextKeyHashes`, `portable`, `witness`, `watchers`, `deactivated` and `ttl`; earlier releases ignored any others, and read top-level `witnesses` and `witnessThreshold` as a witness configuration.
+- **Background**: Multi-entry v0.5 logs written by any 2.x release already failed to resolve, because 2.x v0.5 writers hashed update entries over the `{SCID}` placeholder instead of the predecessor `versionId` the v0.5 specification requires. didwebvh-py has accepted only `did:webvh:1.0` since May 2025.
+- **Reason**: did:webvh v1.0 lists `did:webvh:1.0` as the only acceptable `method` value and requires resolvers to reject values they do not support.
+- **Upgrade**: A v0.5 identifier cannot be kept, because its SCID binds the genesis `method` value. Re-issue the DID as `did:webvh:1.0` with `createDID` → [Full guide](./UPGRADE_2.x_to_3.x.md#9-didwebvh05-removed)
+
+#### 12. Witness-List Replacements
+
+- **Changed**: An entry that replaces the witness list is approved by the witness list in force before it, as did:webvh v1.0 requires. 2.7.3 and 2.7.4 judged a replacement entry against the new list, so logs those releases wrote with a witness replacement cannot satisfy the rule and are rejected. This has been the behaviour since 2.8.0, whose release notes did not mention the rejection.
+- **Upgrade**: Such a log cannot be repaired in place, because the replacement entry's witness proofs are fixed. Re-issue the DID with `createDID` → [Full guide](./UPGRADE_2.x_to_3.x.md#10-witness-list-replacements)
 
 ---
 

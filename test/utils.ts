@@ -1,12 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { expect } from 'vitest';
-import {
-  DID_PLACEHOLDER,
-  METHOD,
-  METHOD_PARAMETER_KEYS,
-  METHOD_PROTOCOL_V0_5,
-  SCID_PLACEHOLDER,
-} from '../src/constants.js';
+import { DID_PLACEHOLDER, METHOD, METHOD_PARAMETER_KEYS, SCID_PLACEHOLDER } from '../src/constants.js';
 import { prepareGenesisEntry } from '../src/core/entries.js';
 import {
   AbstractCrypto,
@@ -31,7 +25,6 @@ import type {
   WitnessParameter,
 } from '../src/interfaces.js';
 import { createDID, migrateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
-import { normalizeDidAddress } from '../src/parser.js';
 import { createSCID, deriveHash } from '../src/utils/crypto.js';
 import { createDate, createNextVersionTime } from '../src/utils/iso8601-datetime.js';
 import { MultibaseEncoding, multibaseDecode, multibaseEncode } from '../src/utils/multiformats.js';
@@ -235,94 +228,18 @@ export function asPublicVerificationMethods(...verificationMethods: TestVerifica
   });
 }
 
-// Helper to construct a v0.5 genesis entry using the same algorithm as v1.0 createDID
-export async function buildV05Genesis(options: {
-  address: string;
-  signer: Signer;
-  updateKeys: string[];
-  didDocument?: DIDDocument;
-  verificationMethods?: VerificationMethod[];
-  nextKeyHashes?: string[] | null;
-  portable?: boolean;
-  witness?: WitnessParameter | null;
-  versionTime?: string;
-  verifier: Verifier;
-}): Promise<DIDLog> {
-  const now = options.versionTime ?? new Date().toISOString();
-  const normalizedAddress = normalizeDidAddress({
-    address: options.address,
-    scid: SCID_PLACEHOLDER,
-    paths: undefined,
-    context: 'buildV05Genesis',
-  });
-
-  const rawDoc: DIDDocument =
-    options.didDocument ??
-    (options.verificationMethods && options.verificationMethods.length > 0
-      ? {
-          '@context': ['https://www.w3.org/ns/did/v1'],
-          id: normalizedAddress.did,
-          controller: normalizedAddress.did,
-          verificationMethod: options.verificationMethods.map((vm) => ({
-            ...vm,
-            id: vm.id.replaceAll('{DID}', normalizedAddress.did),
-            controller: (vm.controller ?? normalizedAddress.did).replaceAll('{DID}', normalizedAddress.did),
-          })),
-          authentication: options.verificationMethods.map((vm) => vm.id.replaceAll('{DID}', normalizedAddress.did)),
-          assertionMethod: options.verificationMethods.map((vm) => vm.id.replaceAll('{DID}', normalizedAddress.did)),
-        }
-      : createTestDIDDocument(options.updateKeys[0]));
-
-  const doc = replaceValueInObject(deepClone(rawDoc), DID_PLACEHOLDER, normalizedAddress.did) as DIDDocument;
-
-  const initialLogEntry: DIDLogEntry = {
-    versionId: SCID_PLACEHOLDER,
-    versionTime: now,
-    // v0.5 spec uses null (not undefined/[]) to represent inactive nextKeyHashes
-    parameters: {
-      method: METHOD_PROTOCOL_V0_5,
-      scid: SCID_PLACEHOLDER,
-      updateKeys: options.updateKeys,
-      portable: options.portable ?? false,
-      nextKeyHashes: options.nextKeyHashes ?? null,
-      watchers: [],
-      witness: options.witness ?? {},
-      deactivated: false,
-    } as DIDLogEntry['parameters'],
-    state: doc,
-  };
-
-  const initialLogEntryHash = await deriveHash(initialLogEntry);
-  const scid = await createSCID(initialLogEntryHash);
-  const did = `did:${METHOD}:${scid}:${normalizedAddress.locationKey}`;
-  const prelimEntry = replaceCreateDidPlaceholders(initialLogEntry, scid, did);
-  const logEntryHash2 = await deriveHash(prelimEntry);
-  prelimEntry.versionId = `1-${logEntryHash2}`;
-
-  const proofTemplate = {
-    type: 'DataIntegrityProof' as const,
-    cryptosuite: 'eddsa-jcs-2022' as const,
-    verificationMethod: options.signer.getVerificationMethodId(),
-    created: now,
-    proofPurpose: 'assertionMethod' as const,
-  };
-
-  const signedProof = await options.signer.sign({ document: prelimEntry, proof: proofTemplate });
-  prelimEntry.proof = [{ ...proofTemplate, proofValue: signedProof.proofValue }];
-
-  return [prelimEntry];
-}
-
-// Helper to append a spec-compliant signed v0.5 entry to an existing log.
+// Appends a signed entry with exactly the given parameters, for logs the library writers never produce,
+// such as a re-declared method or a deprecated null.
 // Pass an explicit versionTime for deterministic fixtures; it must be strictly greater than
 // the previous entry's versionTime.
-export async function appendV05LogEntry(options: {
+export async function appendRawLogEntry(options: {
   log: DIDLog;
   signer: Signer;
   updateKeys?: string[];
   nextKeyHashes?: string[] | null;
   watchers?: string[] | null;
   method?: string;
+  extraParameters?: Record<string, unknown>;
   didDocument?: DIDDocument;
   verificationMethods?: VerificationMethod[];
   versionTime?: string;
@@ -369,6 +286,7 @@ export async function appendV05LogEntry(options: {
   if (options.watchers !== undefined) {
     newParameters[METHOD_PARAMETER_KEYS.watchers] = options.watchers;
   }
+  Object.assign(newParameters, options.extraParameters);
 
   // For non-genesis entries, only include parameters that are explicitly set above
   // Do NOT copy portable, witness, watchers, deactivated - these are only in genesis

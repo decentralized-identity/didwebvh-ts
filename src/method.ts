@@ -34,10 +34,9 @@ import {
 import { normalizeUpdateKeys, parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
 import { fetchLogFromIdentifier, requireDidDocumentId } from './utils.js';
 import { defaultVerifier } from './verifier.js';
-import { resolveWitnessParameter, validateWitnessParameter } from './witness.js';
+import { validateWitnessParameter } from './witness.js';
 
 const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
-  const resolvedWitness = resolveWitnessParameter(entry.parameters);
   return {
     versionId: entry.versionId,
     versionTime: entry.versionTime,
@@ -52,7 +51,8 @@ const buildMetaFromEntry = (entry: DIDLogEntry): DIDResolutionMeta => {
     portable: entry.parameters.portable ?? false,
     nextKeyHashes: entry.parameters.nextKeyHashes ?? [],
     prerotation: (entry.parameters.nextKeyHashes?.length ?? 0) > 0,
-    witness: resolvedWitness ?? {},
+    // A deprecated null witness clears witnessing, like {}.
+    witness: entry.parameters.witness ?? {},
     watchers: entry.parameters.watchers ?? [],
     deactivated: entry.parameters.deactivated ?? false,
   };
@@ -303,7 +303,6 @@ const appendUpdateEntry = async (
     options,
     lastEntry,
     lastMeta,
-    log,
     versionNumber,
     createdDate,
     nextDid,
@@ -365,7 +364,6 @@ export const deactivateDID = async (options: DeactivateDIDOptions): Promise<Deac
     options,
     lastEntry,
     lastMeta,
-    log,
     versionNumber,
     createdDate,
   });

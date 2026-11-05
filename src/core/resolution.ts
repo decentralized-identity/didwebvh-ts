@@ -1,18 +1,14 @@
 import type { DIDDocument } from 'did-resolver';
 import {
+  assertDefinedParameters,
+  assertSupportedGenesis,
   assertValidNextKeyHashes,
   documentStateIsValid,
   hashChainIsValid,
   newKeysAreInNextKeys,
   scidIsFromHash,
 } from '../assertions.js';
-import {
-  DEFAULT_TTL_SECONDS,
-  METHOD_PARAMETER_KEYS,
-  METHOD_PROTOCOL_V0_5,
-  METHOD_PROTOCOL_V1_0,
-  SCID_PLACEHOLDER,
-} from '../constants.js';
+import { DEFAULT_TTL_SECONDS, METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V1_0, SCID_PLACEHOLDER } from '../constants.js';
 import { addDefaultDidWebvhServices } from '../did-document.js';
 import type {
   DIDLog,
@@ -78,11 +74,6 @@ interface ParsedResolutionEntryContext {
   currentVersionTime: Date;
   parsedStateDid: ReturnType<typeof parseDidWebvhIdentifier>;
 }
-
-// Supported initial methods for resolution
-const SUPPORTED_INITIAL_METHODS = new Set([METHOD_PROTOCOL_V0_5, METHOD_PROTOCOL_V1_0]);
-const isSupportedInitialMethod = (m: string | undefined): m is string =>
-  m !== undefined && SUPPORTED_INITIAL_METHODS.has(m);
 
 type InternalResolutionOptions = ResolutionOptions & {
   requestedDid?: string;
@@ -171,11 +162,7 @@ export const resolveLogWithWitnessResults = async (
   if (logEntries.length === 0) {
     throw new Error(`Log identity binding check failed: no entries to process`);
   }
-  const protocol = logEntries[0]?.parameters?.method;
-  if (!isSupportedInitialMethod(protocol)) {
-    throw new Error(`'${protocol}' is not a supported method version.`);
-  }
-  const initialMethod = protocol;
+  assertSupportedGenesis(logEntries);
   const resolverContext = createInitialResolverContext();
   const hasExplicitHistoricalSelector =
     options.versionNumber !== undefined || options.versionId !== undefined || options.versionTime !== undefined;
@@ -188,7 +175,6 @@ export const resolveLogWithWitnessResults = async (
     await processResolvedLogEntries({
       resolverContext,
       logEntries,
-      initialMethod,
       options,
     });
     logTraversalSucceeded = true;
@@ -309,17 +295,12 @@ const markResolvedSnapshotDeactivated = ({
 const processResolvedLogEntries = async ({
   resolverContext,
   logEntries,
-  initialMethod,
   options,
 }: {
   resolverContext: ResolverContext;
   logEntries: DIDLog;
-  initialMethod: string;
   options: InternalResolutionOptions;
 }): Promise<void> => {
-  let activeMethod = initialMethod; // mutable; changes only on a single permitted upgrade
-  let transitionOccurred = false;
-
   // Process each log entry in order and update resolution context.
   for (let entryIndex = 0; entryIndex < logEntries.length; entryIndex++) {
     if (resolverContext.meta.deactivated) {
@@ -342,28 +323,15 @@ const processResolvedLogEntries = async ({
     resolverContext.previousVersionTime = entryContext.currentVersionTime;
     resolverContext.meta.updated = versionTime;
 
-    // Apply method-version transition state machine before parameter processing for non-genesis entries
-    if (version !== '1') {
-      if (hasOwn(parameters, METHOD_PARAMETER_KEYS.method)) {
-        const entryMethod = parameters.method as string;
-        if (entryMethod === activeMethod) {
-          // Same-version re-declaration is a no-op for interop with lenient writers.
-        } else {
-          if (transitionOccurred) {
-            throw new Error(`version '${version}' attempts a second method-version transition; only one is permitted`);
-          }
-          if (entryMethod !== METHOD_PROTOCOL_V1_0 || activeMethod !== METHOD_PROTOCOL_V0_5) {
-            // Reject downgrades, unknown targets, and any non-0.5→1.0 transition.
-            throw new Error(
-              `version '${version}' has unsupported or downgraded method '${entryMethod}'; ` +
-                `expected '${activeMethod}'`
-            );
-          }
-          // Valid 0.5 → 1.0 transition.
-          activeMethod = METHOD_PROTOCOL_V1_0;
-          transitionOccurred = true;
-        }
-      }
+    // Later entries may re-declare the method, but only as did:webvh:1.0.
+    if (
+      version !== '1' &&
+      hasOwn(parameters, METHOD_PARAMETER_KEYS.method) &&
+      parameters.method !== METHOD_PROTOCOL_V1_0
+    ) {
+      throw new Error(
+        `version '${version}' has unsupported method '${String(parameters.method)}'; expected '${METHOD_PROTOCOL_V1_0}'`
+      );
     }
 
     const resolvedEntryDoc =
@@ -461,6 +429,7 @@ const validateAndParseLogEntry = ({
 }): ParsedResolutionEntryContext => {
   const { versionId, versionTime } = entry;
   const { version, versionNumber, entryHash } = parseAndValidateVersionId(versionId, expectedVersionNumber);
+  assertDefinedParameters(entry.parameters, version);
 
   if (!versionTime) {
     throw new Error(`version '${version}' is missing versionTime`);
@@ -641,8 +610,7 @@ const processSubsequentEntry = async ({
   if (parameters.deactivated === true) {
     resolverContext.meta.deactivated = true;
   }
-  // v0.5-specific nextKeyHashes truthiness: empty array clears prerotation
-  // v1.0: explicit empty array also clears prerotation
+  // An explicit empty array, or a deprecated null, clears prerotation.
   if (hasOwn(parameters, METHOD_PARAMETER_KEYS.nextKeyHashes)) {
     const nextKeyHashes =
       parameters.nextKeyHashes !== undefined && parameters.nextKeyHashes !== null

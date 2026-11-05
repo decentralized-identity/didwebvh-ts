@@ -11,7 +11,6 @@ import {
 import type {
   CreateDIDOptions,
   DeactivateDIDOptions,
-  DIDLog,
   DIDLogEntry,
   DIDResolutionMeta,
   UpdateDIDOptions,
@@ -132,17 +131,6 @@ const finalizeNonGenesisEntry = async ({
   return entry;
 };
 
-function shouldInjectMethodParameter(log: DIDLog): boolean {
-  const genesisMethod = log[0].parameters.method as string | undefined;
-  // Fast path: only v0.5 genesis can transition to v1.0
-  if (genesisMethod !== 'did:webvh:0.5') {
-    return false;
-  }
-  // Check if already transitioned
-  const hasAlreadyTransitioned = log.slice(1).some((entry) => entry.parameters.method === METHOD_PROTOCOL_V1_0);
-  return !hasAlreadyTransitioned;
-}
-
 export async function prepareGenesisEntry({
   options,
   did,
@@ -220,7 +208,6 @@ export async function prepareUpdateEntry({
   options,
   lastEntry,
   lastMeta,
-  log,
   versionNumber,
   createdDate,
   nextDid: requestedNextDid,
@@ -228,7 +215,6 @@ export async function prepareUpdateEntry({
   options: UpdateDIDOptions;
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
-  log: DIDLog;
   versionNumber: number;
   createdDate: string;
   /** Pre-validated next DID that bypasses `options.address` resolution (used by `migrateDID`). */
@@ -264,7 +250,7 @@ export async function prepareUpdateEntry({
     );
   }
 
-  const params: Record<string, unknown> = shouldInjectMethodParameter(log) ? { method: METHOD_PROTOCOL_V1_0 } : {};
+  const params: Record<string, unknown> = {};
 
   if (options.updateKeys !== undefined || lastMeta.prerotation) {
     params.updateKeys = options.updateKeys ?? lastMeta.updateKeys;
@@ -414,19 +400,16 @@ export async function prepareDeactivationEntry({
   options,
   lastEntry,
   lastMeta,
-  log,
   versionNumber,
   createdDate,
 }: {
   options: DeactivateDIDOptions;
   lastEntry: DIDLogEntry;
   lastMeta: DIDResolutionMeta;
-  log: DIDLog;
   versionNumber: number;
   createdDate: string;
 }): Promise<PreparedEntry> {
   const params = {
-    ...(shouldInjectMethodParameter(log) ? { method: METHOD_PROTOCOL_V1_0 } : {}),
     updateKeys: options.updateKeys ?? [],
     nextKeyHashes: [],
     deactivated: true,

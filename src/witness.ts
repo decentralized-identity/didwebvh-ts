@@ -1,6 +1,5 @@
 import type {
   DataIntegrityProof,
-  DIDLogEntry,
   Verifier,
   WitnessEntry,
   WitnessParameterResolution,
@@ -12,22 +11,6 @@ import { canonicalizeStrict } from './utils/canonicalize.js';
 import { createHash } from './utils/crypto.js';
 import { multibaseDecode } from './utils/multiformats.js';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
-
-export function resolveWitnessParameter(parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined {
-  if ('witness' in parameters) {
-    return parameters.witness ?? {};
-  }
-
-  if ((parameters as { witnesses?: { id: string }[]; witnessThreshold?: string | number }).witnesses) {
-    const legacyParameters = parameters as { witnesses: { id: string }[]; witnessThreshold?: string | number };
-    return {
-      witnesses: legacyParameters.witnesses,
-      threshold: legacyParameters.witnessThreshold || legacyParameters.witnesses.length,
-    };
-  }
-
-  return undefined;
-}
 
 export function normalizeWitnessThreshold(threshold: string | number | undefined | null): number {
   return parseInt((threshold ?? 0).toString(), 10);
