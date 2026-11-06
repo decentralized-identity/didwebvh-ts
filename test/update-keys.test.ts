@@ -40,33 +40,56 @@ describe('updateKeys input normalization', () => {
     expect((await resolveDIDFromLog(result.log)).didResolutionMetadata.error).toBeUndefined();
   });
 
-  for (const operation of [updateDID, deactivateDID]) {
-    test.each(forms)(`${operation.name} normalizes %s before checking pre-rotation hashes`, async (form) => {
-      const key = await generateTestVerificationMethod();
-      const nextKey = await generateTestVerificationMethod();
-      const { log } = await createDID({
-        address: 'example.com',
-        verifier: defaultVerifier,
-        signer: createTestSigner(key),
-        didDocument: createTestDIDDocument(key),
-        updateKeys: [key.publicKeyMultibase!],
-        nextKeyHashes: [await deriveNextKeyHash(nextKey.publicKeyMultibase!)],
-      });
-      const originalLog = JSON.stringify(log);
-      const updateKeys = [encodeKey(nextKey.publicKeyMultibase!, form)];
-      const originalKeys = [...updateKeys];
-      Object.freeze(updateKeys);
-      const result = await operation(
-        Object.freeze({ log, verifier: defaultVerifier, signer: createTestSigner(nextKey), updateKeys })
-      );
-
-      expect(result.log[1].parameters.updateKeys).toEqual([nextKey.publicKeyMultibase]);
-      expect(result.meta.updateKeys).toEqual([nextKey.publicKeyMultibase]);
-      expect(updateKeys).toEqual(originalKeys);
-      expect(JSON.stringify(log)).toBe(originalLog);
-      expect((await resolveDIDFromLog(result.log)).didResolutionMetadata.error).toBeUndefined();
+  test.each(forms)('updateDID normalizes %s before checking pre-rotation hashes', async (form) => {
+    const key = await generateTestVerificationMethod();
+    const nextKey = await generateTestVerificationMethod();
+    const { log } = await createDID({
+      address: 'example.com',
+      verifier: defaultVerifier,
+      signer: createTestSigner(key),
+      didDocument: createTestDIDDocument(key),
+      updateKeys: [key.publicKeyMultibase!],
+      nextKeyHashes: [await deriveNextKeyHash(nextKey.publicKeyMultibase!)],
     });
-  }
+    const originalLog = JSON.stringify(log);
+    const updateKeys = [encodeKey(nextKey.publicKeyMultibase!, form)];
+    const originalKeys = [...updateKeys];
+    Object.freeze(updateKeys);
+    const result = await updateDID(
+      Object.freeze({ log, verifier: defaultVerifier, signer: createTestSigner(nextKey), updateKeys })
+    );
+
+    expect(result.log[1].parameters.updateKeys).toEqual([nextKey.publicKeyMultibase]);
+    expect(result.meta.updateKeys).toEqual([nextKey.publicKeyMultibase]);
+    expect(updateKeys).toEqual(originalKeys);
+    expect(JSON.stringify(log)).toBe(originalLog);
+    expect((await resolveDIDFromLog(result.log)).didResolutionMetadata.error).toBeUndefined();
+  });
+
+  test.each(forms)('deactivateDID normalizes %s in supplied updateKeys', async (form) => {
+    const key = await generateTestVerificationMethod();
+    const { log } = await createDID({
+      address: 'example.com',
+      verifier: defaultVerifier,
+      signer: createTestSigner(key),
+      didDocument: createTestDIDDocument(key),
+      updateKeys: [key.publicKeyMultibase!],
+    });
+    const originalLog = JSON.stringify(log);
+    const signer = createTestSigner(key);
+    const updateKeys = [
+      form === 'verificationMethod' ? signer.getVerificationMethodId() : encodeKey(key.publicKeyMultibase!, form),
+    ];
+    const originalKeys = [...updateKeys];
+    Object.freeze(updateKeys);
+    const result = await deactivateDID(Object.freeze({ log, verifier: defaultVerifier, signer, updateKeys }));
+
+    expect(result.log[1].parameters.updateKeys).toEqual([key.publicKeyMultibase]);
+    expect(result.meta.updateKeys).toEqual([key.publicKeyMultibase]);
+    expect(updateKeys).toEqual(originalKeys);
+    expect(JSON.stringify(log)).toBe(originalLog);
+    expect((await resolveDIDFromLog(result.log)).didResolutionMetadata.error).toBeUndefined();
+  });
 
   test('normalizes mixed forms without changing order', async () => {
     const keys = await Promise.all(forms.map(() => generateTestVerificationMethod()));

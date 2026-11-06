@@ -38,7 +38,7 @@
     }
   },
   "files": {
-    "includes": ["src/**", "test/**", "examples/**", "scripts/**", "!!**/node_modules"]
+    "includes": ["src/**", "test/**", "examples/**", "scripts/**", "!!**/node_modules", "!src/routes"]
   },
   "overrides": [
     {

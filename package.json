@@ -38,7 +38,8 @@
     "check": "tsc --noEmit",
     "prepublishOnly": "npm run build",
     "example:signer": "tsx examples/signer.ts",
-    "example:resolver": "tsx examples/elysia-resolver.ts"
+    "example:resolver": "tsx examples/elysia-resolver.ts",
+    "example:generate": "tsx scripts/generate-examples.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

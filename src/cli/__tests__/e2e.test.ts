@@ -270,6 +270,48 @@ describe('Controller CLI End-to-End Tests', () => {
     expect(updatedEntry.parameters.nextKeyHashes).toContain(nextKeyHash2);
   });
 
+  test('Deactivate DID with pre-rotation using update --disable-prerotation then deactivate', async () => {
+    const logFile = join(TEST_DIR, 'did-deactivate-prerotation.jsonl');
+    const nextKey = await generateTestVerificationMethod();
+    const nextKeyMultibase = nextKey.publicKeyMultibase;
+    if (!nextKeyMultibase) {
+      throw new Error('Generated next key is missing publicKeyMultibase');
+    }
+    const createProc = runCli([
+      'create',
+      '--address',
+      'example.com',
+      '--output',
+      logFile,
+      '--next-key',
+      `did:key:${nextKeyMultibase}`,
+    ]);
+    expect(createProc.exitCode, createProc.stderr).toBe(0);
+
+    // Only the pre-committed key is available, so the CLI must select it by its hash.
+    const env = { DID_VERIFICATION_METHODS: encodeVerificationMethods([nextKey as CliSigningKey]) };
+    const refusedProc = runCli(['deactivate', '--log', logFile, '--output', logFile], env);
+    expect(refusedProc.exitCode).toBe(1);
+    expect(refusedProc.stderr).toContain('run update --disable-prerotation first');
+
+    const updateProc = runCli(['update', '--log', logFile, '--output', logFile, '--disable-prerotation'], env);
+    expect(updateProc.exitCode, updateProc.stderr).toBe(0);
+    const deactivateProc = runCli(['deactivate', '--log', logFile, '--output', logFile], env);
+    expect(deactivateProc.exitCode, deactivateProc.stderr).toBe(0);
+
+    const log = await readLogFromDisk(logFile);
+    expect(log).toHaveLength(3);
+    expect(log[1].parameters.updateKeys).toEqual([nextKeyMultibase]);
+    expect(log[1].parameters.nextKeyHashes).toEqual([]);
+    expect(log[2].parameters.updateKeys).toEqual([]);
+    expect(log[2].parameters.deactivated).toBe(true);
+
+    const { didDocumentMetadata: meta } = await resolveDIDFromLog(log, { verifier });
+    expect(meta.deactivated).toBe(true);
+    expect(meta.prerotation).toBe(false);
+    expect(meta.updateKeys).toEqual([]);
+  });
+
   test('Update DID with alsoKnownAs', async () => {
     const akLogFile = join(TEST_DIR, 'did-aka.jsonl');
 

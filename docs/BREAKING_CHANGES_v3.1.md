@@ -1,22 +1,23 @@
-# Breaking Changes in 3.0.0
+# Breaking Changes in 3.1.0
 
-This document summarizes breaking changes in the 3.0.0 release. For detailed upgrade steps, see [UPGRADE_2.x_to_3.0.md](./UPGRADE_2.x_to_3.0.md).
+This document summarizes breaking changes in the 3.1.0 release. For detailed upgrade steps, see [UPGRADE_2.x_to_3.x.md](./UPGRADE_2.x_to_3.x.md); deactivation upgrade steps are in [§10](#10-deactivation).
 
 ## Summary
 
 | Change | Category | Impact | Migration |
 | -------- | ---------- | -------- | ----------- |
-| DID Document Authoring (`didDocument`) | API / Behavior | `createDID` / `updateDID` | [UPGRADE_2.x_to_3.0.md §2](./UPGRADE_2.x_to_3.0.md#2-did-document-authoring-and-removal-of-verificationmethods) |
-| Resolution result shape | API | All resolution calls | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
-| Proof/signing API narrowed | API / Security | Proof creation and witness signing | [UPGRADE_2.x_to_3.0.md §3](./UPGRADE_2.x_to_3.0.md#3-public-proof-and-signing-apis) |
-| did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.0.md §3.2](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports) |
-| Internal helper types removed from exports | API | Type imports | [UPGRADE_2.x_to_3.0.md §3.3](./UPGRADE_2.x_to_3.0.md#33-internal-helper-types) |
-| Witness signer contract | Behavior | Witness signing | [UPGRADE_2.x_to_3.0.md §4](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract) |
-| Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.0.md §5](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape) |
-| Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.0.md §1](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape) |
-| `did-resolver` v6 integration and DID URL validation | Integration / Behavior | Resolver registration and invalid DID URL handling | [UPGRADE_2.x_to_3.0.md §6](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration) |
-| Strict did:webvh v1.0 identifier validation | Behavior | DID creation, resolution, and URL derivation | [UPGRADE_2.x_to_3.0.md §7](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation) |
-| Canonical DIDs and A-label domains | Behavior | `createDID` / `updateDID` output | [UPGRADE_2.x_to_3.0.md §8](./UPGRADE_2.x_to_3.0.md#8-canonical-dids-and-internationalised-domains) |
+| DID Document Authoring (`didDocument`) | API / Behavior | `createDID` / `updateDID` | [UPGRADE_2.x_to_3.x.md §2](./UPGRADE_2.x_to_3.x.md#2-did-document-authoring-and-removal-of-verificationmethods) |
+| Resolution result shape | API | All resolution calls | [UPGRADE_2.x_to_3.x.md §1](./UPGRADE_2.x_to_3.x.md#1-resolution-result-shape) |
+| Proof/signing API narrowed | API / Security | Proof creation and witness signing | [UPGRADE_2.x_to_3.x.md §3](./UPGRADE_2.x_to_3.x.md#3-public-proof-and-signing-apis) |
+| did:key parser root exports removed | API | did:key parsing helpers | [UPGRADE_2.x_to_3.x.md §3.2](./UPGRADE_2.x_to_3.x.md#32-did-key-parse-helper-root-exports) |
+| Internal helper types removed from exports | API | Type imports | [UPGRADE_2.x_to_3.x.md §3.3](./UPGRADE_2.x_to_3.x.md#33-internal-helper-types) |
+| Witness signer contract | Behavior | Witness signing | [UPGRADE_2.x_to_3.x.md §4](./UPGRADE_2.x_to_3.x.md#4-witness-signer-contract) |
+| Witness metadata shape | Behavior | Metadata access | [UPGRADE_2.x_to_3.x.md §5](./UPGRADE_2.x_to_3.x.md#5-witness-metadata-shape) |
+| Historical resolution errors | Behavior | Historical resolution results | [UPGRADE_2.x_to_3.x.md §1](./UPGRADE_2.x_to_3.x.md#1-resolution-result-shape) |
+| `did-resolver` v6 integration and DID URL validation | Integration / Behavior | Resolver registration and invalid DID URL handling | [UPGRADE_2.x_to_3.x.md §6](./UPGRADE_2.x_to_3.x.md#6-did-resolver-v6-integration) |
+| Strict did:webvh v1.0 identifier validation | Behavior | DID creation, resolution, and URL derivation | [UPGRADE_2.x_to_3.x.md §7](./UPGRADE_2.x_to_3.x.md#7-strict-didwebvh-identifier-validation) |
+| Canonical DIDs and A-label domains | Behavior | `createDID` / `updateDID` output | [UPGRADE_2.x_to_3.x.md §8](./UPGRADE_2.x_to_3.x.md#8-canonical-dids-and-internationalised-domains) |
+| Deactivation empties `updateKeys` and refuses under pre-rotation | Behavior / API | `deactivateDID` and CLI `deactivate` | [§10](#10-deactivation) |
 
 ---
 
@@ -30,7 +31,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Added**: Standard W3C `{ didDocument, didDocumentMetadata, didResolutionMetadata }` shape
 - **Changed**: Local control is application-owned and is no longer reported in resolution metadata
 - **Reason**: Aligns with W3C DID Resolution spec for ecosystem compatibility
-- **Upgrade**: Update destructuring and field references → [Full guide](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape)
+- **Upgrade**: Update destructuring and field references → [Full guide](./UPGRADE_2.x_to_3.x.md#1-resolution-result-shape)
 
 #### 2. Public Proof and Signing API
 
@@ -38,7 +39,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Witness signing**: Use `signWitnessProofEntry`, which validates the candidate log, historical witness proofs, and signer membership before signing
 - **Signer utilities**: `prepareDataForSigning`, `DataIntegrityProofTemplate`, and the multibase helpers support custom `Signer` implementations. A custom signer only signs and identifies its verification method; proof construction, signature verification, and DID-log/witness validation remain library responsibilities. Multibase supports base64url without padding and base58btc.
 - **Reason**: Couple signing to DID:webvh operation validation
-- **Upgrade**: Use DID operation methods for controller-authored log entries and `signWitnessProofEntry` for witnessing agents signing proofs → [Full guide](./UPGRADE_2.x_to_3.0.md#3-public-proof-and-signing-apis)
+- **Upgrade**: Use DID operation methods for controller-authored log entries and `signWitnessProofEntry` for witnessing agents signing proofs → [Full guide](./UPGRADE_2.x_to_3.x.md#3-public-proof-and-signing-apis)
 
 #### 2.1 did:key Parse Helper Root Exports Removed
 
@@ -48,13 +49,13 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **CLI**: Use `--next-key` to derive a hash from a future update key, or `--next-key-hash` for an already-derived hash
 - **Scope**: Package root imports from `didwebvh-ts`
 - **Reason**: Public API surface tightening
-- **Upgrade**: Replace root imports with app-level did:key parsing or validation logic → [Full guide](./UPGRADE_2.x_to_3.0.md#32-did-key-parse-helper-root-exports)
+- **Upgrade**: Replace root imports with app-level did:key parsing or validation logic → [Full guide](./UPGRADE_2.x_to_3.x.md#32-did-key-parse-helper-root-exports)
 
 #### 2.2 Internal Helper Types Removed from Exports
 
 - **Removed**: `JsonPrimitive`, `JsonValue`, `JsonObject` and `ParsedDidKeyVerificationMethod` are no longer exported from `didwebvh-ts` or `didwebvh-ts/types`
 - **Reason**: They describe internal canonicalization and did:key parsing details, not the public API
-- **Upgrade**: Define equivalent types in your application → [Full guide](./UPGRADE_2.x_to_3.0.md#33-internal-helper-types)
+- **Upgrade**: Define equivalent types in your application → [Full guide](./UPGRADE_2.x_to_3.x.md#33-internal-helper-types)
 
 ---
 
@@ -66,7 +67,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Placeholder behavior**: For example, with `address: 'example.com'`, `{DID}#key-1` is first treated as `did:webvh:{SCID}:example.com#key-1`. The runtime then calculates the SCID and replaces `{SCID}` so the published document contains the final DID, such as `did:webvh:<SCID>:example.com#key-1`. Neither placeholder remains in the created DID Document or log.
 - **Removed**: Legacy partial creation fields (`verificationMethods`, `authentication`, `assertionMethod`, `keyAgreement`, `capabilityInvocation`, `capabilityDelegation`, `services`, `alsoKnownAs`) and the proprietary `purpose` field on `VerificationMethod`.
 - **Reason**: Full W3C DID Core alignment, controller sovereignty over fragment IDs (`#key-1`), multi-relationship support, and removal of opinionated synthesis heuristics.
-- **Upgrade**: Provide complete `didDocument` structure to `createDID` → [Full guide](./UPGRADE_2.x_to_3.0.md#2-did-document-authoring-and-removal-of-verificationmethods)
+- **Upgrade**: Provide complete `didDocument` structure to `createDID` → [Full guide](./UPGRADE_2.x_to_3.x.md#2-did-document-authoring-and-removal-of-verificationmethods)
 
 #### 4. Witness Signer Contract
 
@@ -74,7 +75,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Validation**: The method checks candidate log continuity, historical witness proofs, and signer membership before signing
 - **Network behavior**: Witness proofs are never fetched by this method; supply `witnessProofs` explicitly
 - **Reason**: Keep proof structure and authorization checks within the DID:webvh operation API
-- **Upgrade**: Implement `Signer` and call `signWitnessProofEntry` → [Full guide](./UPGRADE_2.x_to_3.0.md#4-witness-signer-contract)
+- **Upgrade**: Implement `Signer` and call `signWitnessProofEntry` → [Full guide](./UPGRADE_2.x_to_3.x.md#4-witness-signer-contract)
 
 #### 5. Witness Metadata Shape
 
@@ -83,13 +84,13 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Changed**: `ResolutionMeta.watchers` is `[]` when a log has no watchers; it was `null` in 2.8.0
 - **Changed**: `updateDID` with `witness` omitted keeps the active witness configuration by leaving `witness` out of the new entry's parameters, as did:webvh v1.0 requires. In 2.x, omitting `witness` wrote `witness: {}` and turned witnessing off for later entries. Pass `witness: {}` or `null` to turn witnessing off explicitly.
 - **Reason**: Consistent shape; removes null handling burden
-- **Upgrade**: Remove null checks; update field name references; pass `witness: {}` where an update relied on omission to stop witnessing → [Full guide](./UPGRADE_2.x_to_3.0.md#5-witness-metadata-shape)
+- **Upgrade**: Remove null checks; update field name references; pass `witness: {}` where an update relied on omission to stop witnessing → [Full guide](./UPGRADE_2.x_to_3.x.md#5-witness-metadata-shape)
 
 #### 6. Historical Resolution Errors
 
 - **Changed**: Resolving an earlier version with `versionId`, `versionNumber`, or `versionTime` can return a non-null `didDocument` alongside `didResolutionMetadata.error = "invalidDid"` when a later log entry is invalid. The error reports the invalid later entry, not a failure of the selected document.
 - **Witnesses**: The selected version's witness requirements must still be met before its document is returned. Proofs for an invalid log entry do not count.
-- **Upgrade**: Check `didResolutionMetadata.error` even when `didDocument` is non-null; handle or report the invalid later history separately from the selected document → [Full guide](./UPGRADE_2.x_to_3.0.md#1-resolution-result-shape)
+- **Upgrade**: Check `didResolutionMetadata.error` even when `didDocument` is non-null; handle or report the invalid later history separately from the selected document → [Full guide](./UPGRADE_2.x_to_3.x.md#1-resolution-result-shape)
 
 #### 7. `did-resolver` v6 Integration and DID URL Validation
 
@@ -99,7 +100,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Changed**: `getResolver()` attaches a did:webvh `DIDParser` through the v6 parser hook. Identifiers that fail did:webvh v1.0 constraints (§8) are rejected as `invalidDid` before the DID log is fetched.
 - **Compatibility**: Applications that continue to use a v5 `Resolver` will not get the v6 pre-dispatch `DIDParser` hook or its strict DID URL parsing, and matrix-style selectors (`;versionId=`) are ignored rather than rejected. When the did:webvh resolver is invoked, didwebvh-ts still validates the bare DID internally, including DID Core syntax and did:webvh-specific constraints; this is not equivalent to v6 parsing the complete DID URL before dispatch. Use v6.
 - **Reason**: v6 removes `ParsedDID.params` and owns generic DID URL parsing, so didwebvh-ts no longer duplicates it.
-- **Upgrade**: Upgrade applications' direct `did-resolver` dependency to v6 and handle DID URL syntax errors reported as `invalidDid` → [Full guide](./UPGRADE_2.x_to_3.0.md#6-did-resolver-v6-integration)
+- **Upgrade**: Upgrade applications' direct `did-resolver` dependency to v6 and handle DID URL syntax errors reported as `invalidDid` → [Full guide](./UPGRADE_2.x_to_3.x.md#6-did-resolver-v6-integration)
 
 #### 8. Strict did:webvh v1.0 Identifier Validation
 
@@ -107,7 +108,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Changed**: The SCID must be a 46-character base58btc string. A malformed SCID is rejected before the log is validated, so errors such as `SCID multihash algorithm must be SHA-256` are now reported as `must include a valid SCID`.
 - **Changed**: The host must be a fully qualified domain name. Single-label hosts such as `localhost` (with or without a port) are rejected; use a name such as `localhost.example.com` for local testing, or resolve in-memory logs with `resolveDIDFromLog`.
 - **Reason**: Align identifier handling with the did:webvh v1.0 specification and reject invalid identifiers before network access.
-- **Upgrade**: Replace single-label hosts with fully qualified domain names and update any assertions on SCID error messages → [Full guide](./UPGRADE_2.x_to_3.0.md#7-strict-didwebvh-identifier-validation)
+- **Upgrade**: Replace single-label hosts with fully qualified domain names and update any assertions on SCID error messages → [Full guide](./UPGRADE_2.x_to_3.x.md#7-strict-didwebvh-identifier-validation)
 
 #### 9. Canonical DIDs and A-label Domains
 
@@ -118,7 +119,16 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 - **Added**: `migrateDID` moves a portable percent-encoded U-label DID to its A-label DID through a signed update, keeping its SCID and history. It requires a U-label `address` with the same host, port, and path, and rejects A-label input and other moves. Non-portable DIDs need a new A-label DID with a new SCID.
 - **Changed**: DIDs containing raw (unencoded) Unicode, addresses with unpaired surrogates, and domain labels mixing Unicode with `{SCID}` are rejected. `updateDID` rejects `{SCID}` placeholders once the SCID exists. A percent-encoded `%7BSCID%7D` is literal text, not a placeholder.
 - **Reason**: did:webvh v1.0 requires a single canonical DID per location and DID Core `idchar`-only identifiers.
-- **Upgrade**: Compare DIDs against `createDID`'s output rather than the input address, and use A-label domains on runtimes without IDNA support → [Full guide](./UPGRADE_2.x_to_3.0.md#8-canonical-dids-and-internationalised-domains)
+- **Upgrade**: Compare DIDs against `createDID`'s output rather than the input address, and use A-label domains on runtimes without IDNA support → [Full guide](./UPGRADE_2.x_to_3.x.md#8-canonical-dids-and-internationalised-domains)
+
+#### 10. Deactivation
+
+- **Changed**: `deactivateDID` writes `updateKeys: []` to the deactivation entry unless `updateKeys` is supplied. Previously it kept the current `updateKeys`, so a deactivated DID still listed live keys.
+- **Changed**: `deactivateDID` refuses while pre-rotation is active. Previously it accepted the pre-committed keys as `updateKeys` and deactivated in one entry, leaving those keys in `updateKeys`.
+- **Added**: `DeactivateDIDOptions.updateKeys` and the `DeactivateDIDResult` type. `deactivateDID` previously accepted `updateKeys` only through an intersection type on its signature and returned an unnamed type.
+- **Added**: CLI `update --disable-prerotation`. While pre-rotation is active, CLI `update` signs with the `.env` key whose hash is in `nextKeyHashes`, and CLI `deactivate` refuses. Previously CLI `deactivate` failed for any DID with pre-rotation active.
+- **Reason**: did:webvh v1.0 says a deactivating controller should set `updateKeys` to `[]`, and that a DID using pre-rotation needs two entries to reach that state: one to stop pre-rotation, one to deactivate.
+- **Upgrade**: To deactivate a DID with pre-rotation active, call `updateDID` with the pre-committed keys as `updateKeys` and `nextKeyHashes: []`, then call `deactivateDID`. With the CLI, run `update --disable-prerotation`, then `deactivate`. For a witnessed DID, have the update witnessed and publish it before deactivating. Pass `updateKeys` to `deactivateDID` only if the deactivated DID must keep listing keys.
 
 ---
 
@@ -126,7 +136,7 @@ This document summarizes breaking changes in the 3.0.0 release. For detailed upg
 
 ### Spec Alignment (v1.0)
 
-The 3.0.0 release fully implements the [did:webvh v1.0 specification](https://identity.foundation/didwebvh/v1.0/). Breaking changes align TypeScript library behavior with normative spec requirements:
+The 3.1.0 release fully implements the [did:webvh v1.0 specification](https://identity.foundation/didwebvh/v1.0/). Breaking changes align TypeScript library behavior with normative spec requirements:
 
 - W3C DID Resolution result shape
 - Witness parameter normalization
@@ -153,13 +163,13 @@ Breaking changes also improve clarity:
 ## Release Timeline
 
 - **2.8.0**: Last release with old behavior
-- **3.0.0**: New behavior (breaking release)
+- **3.1.0**: New behavior (breaking release)
 
 ---
 
 ## Support
 
-- **Full Migration Guide**: [UPGRADE_2.x_to_3.0.md](./UPGRADE_2.x_to_3.0.md)
+- **Full Migration Guide**: [UPGRADE_2.x_to_3.x.md](./UPGRADE_2.x_to_3.x.md)
 - **Specification**: [did:webvh v1.0](https://identity.foundation/didwebvh/v1.0/)
 - **Issues**: [GitHub Issues](https://github.com/decentralized-identity/didwebvh-ts/issues)
 - **API Reference**: [README](../README.md#api-reference)
