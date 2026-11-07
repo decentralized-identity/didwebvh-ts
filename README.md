@@ -6,7 +6,7 @@
 
 ## Summary
 
-The `didwebvh-ts` implementation of the [`did:webvh`]('https://identity.foundation/didwebvh/') specification aims to be compatible with the `did:webvh` v1.0 specification.
+The `didwebvh-ts` implementation of the [`did:webvh`]('https://identity.foundation/didwebvh/') specification aims to be compatible with the `did:webvh` v1.0 specification. It processes `did:webvh:1.0` logs only: a log whose genesis declares `did:webvh:0.5` is rejected, and the DID must be re-issued as `did:webvh:1.0` (see [Breaking Changes](./docs/BREAKING_CHANGES_v3.1.md#11-didwebvh05-removed)).
 
 ## Upgrading from 2.x to 3.0.0
 
@@ -367,7 +367,7 @@ Absence cases (missing DID log or missing DID URL resource) use `didResolutionMe
 
 When resolving a requested earlier version (with `versionId`, `versionNumber`, or `versionTime`), the resolver may return a valid earlier document while still reporting `didResolutionMetadata.error = "invalidDid"` if a later log entry fails verification. The selected version's witness requirements must still be satisfied; otherwise no document is returned. Only proofs for validated log entries can count when a later entry is invalid. Deactivation is terminal: any entry after a deactivation entry makes the log invalid. A historical selector can still return its valid earlier document, with the invalid tail identified in `didResolutionMetadata`.
 
-Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, `portable`, `witness`, `watchers`, `previousLogEntryHash`, `latestVersionId`) is returned on `didDocumentMetadata` alongside the standard `versionId`/`created`/`updated`/`deactivated` fields.
+Method-specific metadata (`scid`, `updateKeys`, `nextKeyHashes`, `prerotation`, `portable`, `witness`, `watchers`, `previousLogEntryHash`, `latestVersionId`) is returned on `didDocumentMetadata` alongside the standard `versionId`/`created`/`updated`/`deactivated` fields. As did:webvh v1.0 requires, `ttl` and `witness.threshold` are strings containing integers; parse them before comparing. Log entries and the `meta` returned by `createDID`, `updateDID`, `deactivateDID` and `migrateDID` keep `threshold` as a number.
 
 > **Breaking change (v3.0.0):** resolution returns the standard `DIDResolutionResult` instead of the previous `{ did, doc, meta, controlled }` shape, and the implementation-specific `verificationMethod` resolution selector has been removed. See [Migration Guide](./docs/UPGRADE_2.x_to_3.x.md#1-resolution-result-shape) for upgrade steps.
 
@@ -426,7 +426,7 @@ The CLI equivalent is `pnpm cli -- migrate --log ./did.jsonl --address bücher.e
   If `alsoKnownAsWeb: true` is supplied, the result also includes `webDoc`, the parallel `did:web` DID document to publish as `did.json`.
 
 - `updateDID(options: UpdateDIDOptions): Promise<UpdateDIDResult>`
-  Updates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
+  Updates an existing DID.
   Accepts an optional replacement `didDocument: DIDDocument`. If omitted, the authenticated previous document state is retained.
   Parameters that are omitted keep their previous values. In particular, omitting `witness` keeps the active witness configuration; pass `witness: {}` (or `null`) to turn witnessing off.
   Returns `webDoc` when the updated DID document carries a `did:web:` alias in `alsoKnownAs`.
@@ -435,7 +435,7 @@ The CLI equivalent is `pnpm cli -- migrate --log ./did.jsonl --address bücher.e
 - `migrateDID(options: MigrateDIDOptions): Promise<UpdateDIDResult>`
   Migrates a portable percent-encoded U-label DID to its A-label form in a signed update, keeping the SCID and log history. Takes the same options as `updateDID` plus a required U-label `address` (raw Unicode or percent-encoded) with the same host, port, and path as the existing DID; A-label addresses and changes of location are rejected. Returns the usual update result with the new A-label `did` and the old DID in `doc.alsoKnownAs`. Self-referential service IDs are updated; when a derived `did:web` alias exists, it is replaced with the A-label alias in both documents. Portability must have been enabled at genesis and still be active; non-portable DIDs need a new DID with a new SCID. Publish the appended log at the A-label HTTPS location before relying on the new DID.
 - `deactivateDID(options: DeactivateDIDOptions): Promise<DeactivateDIDResult>`
-  Deactivates an existing DID. Accepts logs originally created with v0.5 or v1.0, but always appends a v1.0 entry.
+  Deactivates an existing DID.
   The deactivation entry sets `updateKeys` to `[]` unless `updateKeys` is supplied, so the deactivated DID lists no keys that could authorize a later entry.
   `deactivateDID` refuses while pre-rotation is active. The spec needs two entries to reach `updateKeys: []` in that case, because an entry under active pre-rotation must carry the pre-committed keys. Call `updateDID` with the pre-committed keys as `updateKeys` and `nextKeyHashes: []` to stop pre-rotation, then call `deactivateDID`. For a witnessed DID, have the update witnessed and publish it before deactivating.
 

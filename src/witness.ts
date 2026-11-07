@@ -1,6 +1,5 @@
 import type {
   DataIntegrityProof,
-  DIDLogEntry,
   Verifier,
   WitnessEntry,
   WitnessParameterResolution,
@@ -13,26 +12,6 @@ import { createHash } from './utils/crypto.js';
 import { multibaseDecode } from './utils/multiformats.js';
 import { parseDidKeyDid, parseDidKeyVerificationMethod } from './utils/verification-methods.js';
 
-export function resolveWitnessParameter(parameters: DIDLogEntry['parameters']): WitnessParameterResolution | undefined {
-  if ('witness' in parameters) {
-    return parameters.witness ?? {};
-  }
-
-  if ((parameters as { witnesses?: { id: string }[]; witnessThreshold?: string | number }).witnesses) {
-    const legacyParameters = parameters as { witnesses: { id: string }[]; witnessThreshold?: string | number };
-    return {
-      witnesses: legacyParameters.witnesses,
-      threshold: legacyParameters.witnessThreshold || legacyParameters.witnesses.length,
-    };
-  }
-
-  return undefined;
-}
-
-export function normalizeWitnessThreshold(threshold: string | number | undefined | null): number {
-  return parseInt((threshold ?? 0).toString(), 10);
-}
-
 export function hasActiveWitnessRequirement(
   witness?: WitnessParameterResolution | null
 ): witness is WitnessParameterResolution {
@@ -40,8 +19,7 @@ export function hasActiveWitnessRequirement(
     return false;
   }
 
-  const threshold = normalizeWitnessThreshold(witness.threshold);
-  return threshold > 0;
+  return (witness.threshold ?? 0) > 0;
 }
 
 export function validateWitnessParameter(witness: WitnessParameterResolution): void {
@@ -49,9 +27,12 @@ export function validateWitnessParameter(witness: WitnessParameterResolution): v
     throw new Error('Witness list cannot be empty');
   }
 
-  const normalizedThreshold = normalizeWitnessThreshold(witness.threshold);
-
-  if (!witness.threshold || normalizedThreshold < 1 || normalizedThreshold > witness.witnesses.length) {
+  const { threshold } = witness as { threshold: unknown };
+  // did:webvh v1.0 requires a JSON integer; strings and fractions are rejected rather than coerced.
+  if (threshold !== undefined && !Number.isInteger(threshold)) {
+    throw new Error(`Witness threshold must be an integer: ${JSON.stringify(threshold)}`);
+  }
+  if (threshold === undefined || (threshold as number) < 1 || (threshold as number) > witness.witnesses.length) {
     throw new Error('Witness threshold must be between 1 and the number of witnesses');
   }
 

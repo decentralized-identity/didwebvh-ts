@@ -1,4 +1,5 @@
-import type { DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces.js';
+import { METHOD_PARAMETER_KEYS, METHOD_PROTOCOL_V1_0 } from './constants.js';
+import type { DIDLog, DIDLogEntry, Verifier, WitnessParameterResolution } from './interfaces.js';
 import { concatBuffers } from './utils/buffer.js';
 import { canonicalizeStrict } from './utils/canonicalize.js';
 import { createHash, createSCID, deriveNextKeyHash } from './utils/crypto.js';
@@ -11,6 +12,37 @@ import {
 } from './utils/multiformats.js';
 import { parseDidKeyVerificationMethod } from './utils/verification-methods.js';
 import { validateWitnessParameter } from './witness.js';
+
+/**
+ * Requires a log whose genesis declares `did:webvh:1.0`, the only method version this library processes.
+ */
+export const assertSupportedGenesis = (log: DIDLog): void => {
+  const method = log[0]?.parameters?.method;
+  if (method === METHOD_PROTOCOL_V1_0) {
+    return;
+  }
+  if (method === 'did:webvh:0.5') {
+    throw new Error('did:webvh:0.5 is not supported; re-issue this DID as did:webvh:1.0');
+  }
+  throw new Error(`'${method}' is not a supported method version.`);
+};
+
+const DEFINED_PARAMETERS: ReadonlySet<string> = new Set(Object.values(METHOD_PARAMETER_KEYS));
+
+/**
+ * Requires a log entry's `parameters` to be an object holding only parameters did:webvh:1.0 defines.
+ */
+export const assertDefinedParameters = (parameters: unknown, version: string): void => {
+  if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)) {
+    throw new Error(`version '${version}' parameters must be a JSON object`);
+  }
+  const undefinedKey = Object.keys(parameters).find((key) => !DEFINED_PARAMETERS.has(key));
+  if (undefinedKey !== undefined) {
+    throw new Error(
+      `version '${version}' has unsupported parameter '${undefinedKey}'; it is not defined by did:webvh:1.0`
+    );
+  }
+};
 
 const isKeyAuthorized = (verificationMethod: string, updateKeys: string[]): boolean => {
   const parsedVerificationMethod = parseDidKeyVerificationMethod(verificationMethod);

@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a TypeScript library implementing the `did:webvh` specification for Decentralized Identifiers (DIDs). It supports two spec versions ([v1.0] and [v0.5]) and provides create, resolve, update, and deactivate operations, plus a CLI tool and example resolver servers.
+This is a TypeScript library implementing the `did:webvh` specification for Decentralized Identifiers (DIDs). It supports the [v1.0] spec only, rejecting logs that declare `did:webvh:0.5`, and provides create, resolve, update, and deactivate operations, plus a CLI tool and example resolver servers.
 
 [v1.0]: https://identity.foundation/didwebvh/v1.0/
-[v0.5]: https://identity.foundation/didwebvh/v0.5/
 
 ## Commands
 

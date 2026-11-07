@@ -1,3 +1,4 @@
+import { assertDefinedParameters, assertSupportedGenesis } from '../assertions.js';
 import type {
   DIDLog,
   DIDLogEntry,
@@ -6,12 +7,7 @@ import type {
   WitnessRequirement,
 } from '../interfaces.js';
 import { deepClone, parseAndValidateVersionId } from '../utils.js';
-import {
-  hasActiveWitnessRequirement,
-  normalizeWitnessThreshold,
-  resolveWitnessParameter,
-  validateWitnessParameter,
-} from '../witness.js';
+import { hasActiveWitnessRequirement, validateWitnessParameter } from '../witness.js';
 
 export interface RequiredWitnessCheck {
   targetVersionId: string;
@@ -33,7 +29,7 @@ export interface WitnessCheckResult extends RequiredWitnessCheck {
 
 /**
  * Maps a required-witness check to the public `WitnessRequirement` shape,
- * normalizing the threshold and defensively cloning the witness list.
+ * defensively cloning the witness list.
  *
  * Shared by every call site that surfaces a `RequiredWitnessCheck` (or a
  * `WitnessCheckResult`, which extends it) as a public `WitnessRequirement`.
@@ -41,7 +37,7 @@ export interface WitnessCheckResult extends RequiredWitnessCheck {
 export const toWitnessRequirement = (check: RequiredWitnessCheck): WitnessRequirement => ({
   versionId: check.targetVersionId,
   versionNumber: check.targetVersionNumber,
-  threshold: normalizeWitnessThreshold(check.witness.threshold),
+  threshold: check.witness.threshold ?? 0,
   witnesses: deepClone(check.witness.witnesses ?? []),
 });
 
@@ -53,16 +49,13 @@ export const toWitnessRequirement = (check: RequiredWitnessCheck): WitnessRequir
  * omitted witness configuration inherits the previous state; explicit witness
  * configuration replaces it; explicit `witness: {}` clears witnessing.
  *
- * Deprecated `witness: null` and legacy v0.5 `witnesses`/`witnessThreshold`
- * fields are tolerated by normalizing them into the same internal witness
- * shape before this transition is applied. There is no separate v0.5 witness
- * transition logic.
+ * Deprecated `witness: null` is tolerated as `{}`.
  */
 export const transitionWitnessState = (
   previousWitness: WitnessParameterResolution | undefined,
   parameters: DIDLogEntry['parameters']
 ): WitnessParameterResolution => {
-  return deepClone(resolveWitnessParameter(parameters) ?? previousWitness ?? {});
+  return deepClone('witness' in parameters ? (parameters.witness ?? {}) : (previousWitness ?? {}));
 };
 
 /**
@@ -87,13 +80,11 @@ export const getRequiredWitnessForEntry = (
   parameters: DIDLogEntry['parameters'],
   currentWitness: WitnessParameterResolution | undefined
 ): WitnessParameterResolution | undefined => {
-  const explicitWitness = resolveWitnessParameter(parameters);
-
   if (hasActiveWitnessRequirement(previousWitness)) {
     return deepClone(previousWitness);
   }
 
-  if (explicitWitness !== undefined && hasActiveWitnessRequirement(currentWitness)) {
+  if ('witness' in parameters && hasActiveWitnessRequirement(currentWitness)) {
     return deepClone(currentWitness);
   }
 
@@ -112,11 +103,13 @@ export const getRequiredWitnessForEntry = (
  * walk and shares the witness transition helper above.
  */
 export const computeWitnessRequirementChecks = (log: DIDLog): RequiredWitnessCheck[] => {
+  assertSupportedGenesis(log);
   const checks: RequiredWitnessCheck[] = [];
   let previousWitness: WitnessParameterResolution | undefined;
 
   log.forEach((entry, index) => {
-    const { versionNumber } = parseAndValidateVersionId(entry.versionId, index + 1);
+    const { version, versionNumber } = parseAndValidateVersionId(entry.versionId, index + 1);
+    assertDefinedParameters(entry.parameters, version);
     const currentWitness = transitionWitnessState(previousWitness, entry.parameters);
 
     if (currentWitness.witnesses?.length) {

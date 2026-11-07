@@ -19,6 +19,9 @@ The 3.0.0 release aligns `didwebvh-ts` with the DIF `did:webvh` v1.0 specificati
 6. **did-resolver v6 integration** — upgrade direct `did-resolver` usage and account for DID URL syntax errors rejected before dispatch
 7. **Strict did:webvh identifier validation** — SCID format and fully qualified domain names are enforced, and invalid identifiers are rejected before log retrieval
 8. **Canonical DIDs and internationalised domains** — every address form yields one canonical DID, and Unicode domains become A-labels
+9. **did:webvh:0.5 removed (3.1.0)** — v0.5 logs are rejected; re-issue v0.5 DIDs as did:webvh:1.0
+10. **Witness-list replacements** — a replacement entry is approved by the previous witness list; 2.7.3 and 2.7.4 replacement logs are rejected
+11. **Witness threshold (3.1.0)** — must be a JSON integer, and is a string in resolution metadata
 
 ---
 
@@ -447,6 +450,8 @@ console.log(result.didDocumentMetadata.witness); // {} | { witnesses, threshold 
    const threshold = result.didDocumentMetadata.witness.threshold;
    ```
 
+   From 3.1.0, `didDocumentMetadata.witness.threshold` is a string, so parse it before comparing: `Number(result.didDocumentMetadata.witness.threshold)`. See [§11](#11-witness-threshold).
+
 3. **Handle empty witness**:
 
    ```typescript
@@ -606,6 +611,66 @@ Existing DIDs are not rewritten:
 
 ---
 
+## 9. did:webvh:0.5 Removed
+
+### What Changed
+
+In 3.1.0, any log whose genesis entry declares `did:webvh:0.5` is rejected as `invalidDid` with:
+
+```text
+did:webvh:0.5 is not supported; re-issue this DID as did:webvh:1.0
+```
+
+Resolution, `getWitnessRequirements`, `verifyWitnessProofs`, `updateDID`, `deactivateDID`, `migrateDID` and `signWitnessProofEntry` all reject such a log, including a v0.5 log that an earlier `updateDID` or `deactivateDID` extended with a `did:webvh:1.0` entry. A later entry may re-declare `method` only as `did:webvh:1.0`. A log entry whose `parameters` holds any property did:webvh:1.0 does not define is rejected, as the specification requires. The defined parameters are `method`, `scid`, `updateKeys`, `nextKeyHashes`, `portable`, `witness`, `watchers`, `deactivated` and `ttl`; earlier releases ignored any others, and read top-level `witnesses` and `witnessThreshold` as a witness configuration. Declare witnesses in the `witness` parameter.
+
+Multi-entry v0.5 logs written by any 2.x release already failed to resolve with a hash-chain error, because 2.x v0.5 writers hashed update entries over the `{SCID}` placeholder instead of the predecessor `versionId`.
+
+### Migration Steps
+
+A v0.5 identifier cannot be kept: its SCID is derived from a genesis entry that declares `did:webvh:0.5`. Re-issue the DID with `createDID`:
+
+1. Take the latest DID document from the last line of `did.jsonl`, or from your own records. A deactivated DID has nothing to re-issue.
+2. Replace the old DID with `{DID}` wherever it appears as the whole value or before `#`, `?` or `/`: the document `id` and `controller`, verification method ids and controllers, verification relationship references, and service ids. Use the old DID's host and path as the `address`.
+3. Fix what 2.x writers left in documents: remove `purpose` from verification methods, give every verification method a `controller` (`createDID` rejects one without), remove empty relationship arrays such as `authentication: []`, remove the implicit `#files` and `#whois` services if the document came from a resolver, and remove the old DID from `alsoKnownAs`.
+4. Check the old SCID appears nowhere else in the document, for example inside a service endpoint URL.
+5. Call `createDID`, preferably with fresh `updateKeys`, and publish the new log.
+6. Re-issue credentials bound to the old DID, and update anything that references it, such as DIDComm connections, trust registries and issuer metadata.
+7. Remove or keep the old `did.jsonl`. This library will not resolve it either way, but other implementations may.
+
+---
+
+## 10. Witness-List Replacements
+
+### What Changed
+
+An entry that replaces the witness list must be approved by the witness list in force before it, as did:webvh v1.0 requires. 2.7.3 and 2.7.4 judged a replacement entry against the new list instead, so a log those releases wrote with a witness replacement cannot satisfy the rule. Every release since 2.8.0 rejects these logs; the 2.8.0 release notes did not mention it.
+
+### Migration Steps
+
+The replacement entry's witness proofs cannot be changed after publication, so such a log cannot be repaired. Re-issue the DID with `createDID`, following the steps in [§9](#9-didwebvh05-removed).
+
+---
+
+## 11. Witness Threshold
+
+### What Changed
+
+In 3.1.0, a witness `threshold` must be a JSON integer between 1 and the number of witnesses, in log entries and in the `witness` option of `createDID` and `updateDID`. Strings and fractions such as `"2"`, `"2abc"` or `2.7` are rejected with `Witness threshold must be an integer`; earlier releases parsed all three as 2.
+
+`didDocumentMetadata.witness.threshold` is a string containing the integer, as did:webvh v1.0 requires for DID metadata, in the same way as `ttl`. Log entries, the `meta` returned by `createDID`, `updateDID`, `deactivateDID` and `migrateDID`, and `WitnessRequirement.threshold` keep numbers. `WitnessParameterResolution.threshold` is now typed `number`.
+
+### Migration Steps
+
+1. Parse the metadata threshold before comparing it:
+
+   ```typescript
+   const threshold = Number(result.didDocumentMetadata.witness?.threshold ?? 0);
+   ```
+
+2. Pass `threshold` to writers as a number, not a string.
+
+---
+
 ## Quick Checklist
 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
@@ -621,6 +686,9 @@ Existing DIDs are not rewritten:
 - [ ] Replace single-label hosts (e.g. `localhost`) with fully qualified domain names
 - [ ] Compare new DIDs against `createDID`'s canonical output; use A-label domains on runtimes without IDNA support
 - [ ] Optionally migrate portable percent-encoded U-label DIDs to A-label DIDs with `migrateDID`
+- [ ] Re-issue any did:webvh:0.5 DID as did:webvh:1.0 with `createDID`
+- [ ] Re-issue any DID whose log has a witness-list replacement written by 2.7.3 or 2.7.4
+- [ ] Parse `didDocumentMetadata.witness.threshold` as a string, and pass only integer `threshold` values to writers
 
 ---
 

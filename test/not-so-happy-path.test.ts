@@ -6,7 +6,7 @@ import type { CreateDIDOptions, CreateDIDResult, DIDLog } from '../src/interface
 import { createDID, deactivateDID, resolveDIDFromLog, updateDID } from '../src/method.js';
 import { createMultihash, encodeBase58Btc, MultihashAlgorithm } from '../src/utils/multiformats.js';
 import {
-  appendV05LogEntry,
+  appendRawLogEntry,
   createFutureDIDLog,
   createTestDIDDocument,
   createTestSigner,
@@ -444,7 +444,6 @@ describe('Not So Happy Path Tests', () => {
       },
       lastEntry: deactivated.log[deactivated.log.length - 1],
       lastMeta: deactivatedResolution.meta,
-      log: deactivated.log,
       versionNumber: deactivated.log.length + 1,
       createdDate: new Date(Date.parse(deactivatedResolution.meta.updated) + 1000).toISOString(),
     });
@@ -492,8 +491,7 @@ describe('Not So Happy Path Tests', () => {
     expect(r.didResolutionMetadata.message).toMatch(/no entries to process/);
   });
 
-  test('Protocol version rejection in v1.0', async () => {
-    // Build a valid log but with the v0.5 protocol marker
+  test('Rejects a did:webvh:0.5 genesis with the re-issue message', async () => {
     const { log } = await createDID({
       address: 'example.com',
       signer: createTestSigner(authKey),
@@ -505,12 +503,10 @@ describe('Not So Happy Path Tests', () => {
     const tamperedLog: DIDLog = JSON.parse(JSON.stringify(log));
     tamperedLog[0].parameters.method = 'did:webvh:0.5';
 
-    // Note: v0.5 is now accepted as a valid initial method. This tampered log has
-    // v0.5 method marker but v1.0 log structure, which will fail during hash validation.
     const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
     expect(r.didDocument).toBeNull();
     expect(r.didResolutionMetadata.error).toBe('invalidDid');
-    expect(r.didResolutionMetadata.message).toContain('not derived from logEntryHash');
+    expect(r.didResolutionMetadata.message).toBe('did:webvh:0.5 is not supported; re-issue this DID as did:webvh:1.0');
   });
 
   test('rejects versionId with missing dash', async () => {
@@ -602,7 +598,7 @@ describe('Not So Happy Path Tests', () => {
     const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
     expect(r.didDocument).toBeNull();
     expect(r.didResolutionMetadata.error).toBe('invalidDid');
-    expect(r.didResolutionMetadata.message).toContain('has unsupported or downgraded method');
+    expect(r.didResolutionMetadata.message).toContain("has unsupported method 'did:webvh:99.0'");
   });
 
   test('Rejects downgrade of method version in later entry', async () => {
@@ -621,12 +617,12 @@ describe('Not So Happy Path Tests', () => {
     const r = await resolveDIDFromLog(tamperedLog, { verifier: testImplementation });
     expect(r.didDocument).toBeNull();
     expect(r.didResolutionMetadata.error).toBe('invalidDid');
-    expect(r.didResolutionMetadata.message).toContain('has unsupported or downgraded method');
+    expect(r.didResolutionMetadata.message).toContain("has unsupported method 'did:webvh:0.5'");
   });
 
   test('Accepts same method version re-declaration in later entry', async () => {
-    // Use v0.5 log builder because updateDID never re-adds method to a log. Identical hash chain algorithm
-    const logWithRedeclare = await appendV05LogEntry({
+    // updateDID never re-declares the method, so append the entry directly.
+    const logWithRedeclare = await appendRawLogEntry({
       log: initialDID.log,
       signer: createTestSigner(authKey),
       method: 'did:webvh:1.0',

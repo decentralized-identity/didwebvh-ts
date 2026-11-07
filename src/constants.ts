@@ -5,13 +5,12 @@ export const DID_KEY_PREFIX = 'did:key:';
 // Version constants
 export const METHOD = 'webvh';
 export const BASE_CONTEXT = ['https://www.w3.org/ns/did/v1', 'https://w3id.org/security/multikey/v1'];
-export const METHOD_PROTOCOL_V0_5 = `did:${METHOD}:0.5`;
 export const METHOD_PROTOCOL_V1_0 = `did:${METHOD}:1.0`;
 
 // TTL default
 export const DEFAULT_TTL_SECONDS = '3600';
 
-// Method parameter keys
+// The parameters did:webvh:1.0 defines; a log entry may contain no others.
 export const METHOD_PARAMETER_KEYS = {
   scid: 'scid',
   method: 'method',
@@ -21,6 +20,7 @@ export const METHOD_PARAMETER_KEYS = {
   witness: 'witness',
   watchers: 'watchers',
   ttl: 'ttl',
+  deactivated: 'deactivated',
 } as const;
 
 // Service fragments for implicit services
