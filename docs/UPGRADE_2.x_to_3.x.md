@@ -674,7 +674,7 @@ In 3.1.0, a witness `threshold` must be a JSON integer between 1 and the number 
 ## Quick Checklist
 
 - [ ] Update `resolveDID` result destructuring (didDocument, didDocumentMetadata, didResolutionMetadata)
-- [ ] Add `purpose: 'authentication'` to verification methods
+- [ ] Author a complete `didDocument` with explicit verification relationships
 - [ ] Replace witness proof creation with `signWitnessProofEntry`
 - [ ] Replace root imports of `parseDidKeyDid` and `parseDidKeyVerificationMethod`
 - [ ] Define `JsonValue`/`JsonObject`/`JsonPrimitive` or `ParsedDidKeyVerificationMethod` locally if you imported them

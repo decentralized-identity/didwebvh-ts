@@ -417,6 +417,19 @@ The CLI equivalent is `pnpm cli -- migrate --log ./did.jsonl --address bücher.e
 - `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions): Promise<DIDResolutionResult>`
   Resolves directly from an in-memory DID log, returning the same standard shape.
 
+- `parseDidWebvh(did: string): DidWebvh`
+  Validates a did:webvh identifier without network access and returns its SCID,
+  encoded domain component, decoded host, optional port, and decoded path segments.
+  DID URLs (with a path, query, or fragment) and `{SCID}` templates are rejected.
+
+- `didWebvhToHttps(did: string): string`
+  Validates a did:webvh identifier and converts its location to HTTPS, returning
+  the A-label host, port, and any path segments already present in the DID. It
+  does not append resource paths such as `/.well-known` or `/did.jsonl`.
+  For example, the DID
+  `did:webvh:QmfGEUAcMpzo25kF2Rhn8L5FAXysfGnkzjwdKoNPi615XQ:example.com:users:alice`
+  converts to `https://example.com/users/alice`.
+
 - `createDID(options: CreateDIDOptions): Promise<CreateDIDResult>`
   Creates a new DID. Always produces a v1.0 log.
   Requires a complete W3C `didDocument: DIDDocument` containing `{DID}` or `{SCID}` placeholders.
