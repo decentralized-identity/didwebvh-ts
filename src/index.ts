@@ -15,6 +15,8 @@ export {
   updateDID,
   verifyWitnessProofs,
 } from './method.js';
+export type { DidWebvh } from './parser.js';
+export { didWebvhToHttps, parseDidWebvh } from './parser.js';
 export type { GetResolverConfig } from './resolver.js';
 export { getResolver } from './resolver.js';
 export type { WebvhDocumentMetadata, WebvhResolutionMetadata } from './resolver-result.js';

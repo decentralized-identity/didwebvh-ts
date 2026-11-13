@@ -559,17 +559,81 @@ function getBaseUrlFromParsedDid(parsedDid: ParsedDidWebvhIdentifier): string {
   return `https://${normalizedHost}${path ? `/${path}` : ''}`;
 }
 
+function getDidFileBaseUrl(parsedDid: ParsedDidWebvhIdentifier): string {
+  const baseUrl = getBaseUrlFromParsedDid(parsedDid);
+  return parsedDid.paths?.length ? baseUrl : `${baseUrl}/.well-known`;
+}
+
 export const getBaseUrl = (id: string) => {
   return getBaseUrlFromParsedDid(parseDidWebvhIdentifier(id, 'did:webvh identifier'));
 };
 
 export const buildDidLogUrl = (id: string) => {
   const parsedDid = parseDidWebvhIdentifier(id, 'did:webvh identifier');
-  const baseUrl = getBaseUrlFromParsedDid(parsedDid);
-
-  if (parsedDid.paths?.length) {
-    return `${baseUrl}/did.jsonl`;
-  }
-
-  return `${baseUrl}/.well-known/did.jsonl`;
+  return `${getDidFileBaseUrl(parsedDid)}/did.jsonl`;
 };
+
+export const buildWitnessUrl = (id: string) => {
+  const parsedDid = parseDidWebvhIdentifier(id, 'did:webvh identifier');
+  return `${getDidFileBaseUrl(parsedDid)}/did-witness.json`;
+};
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/** A validated did:webvh identifier, decomposed into its method-specific parts. */
+export interface DidWebvh {
+  /** The DID exactly as supplied (no DID URL path, query or fragment). */
+  readonly did: string;
+  /** The self-certifying identifier (46-character base58btc). */
+  readonly scid: string;
+  /** The domain component exactly as encoded in the DID, including any `%3A` port. */
+  readonly domainComponent: string;
+  /**
+   * The host after percent-decoding. Identifiers created before A-label output may
+   * hold a U-label here; the A-label form is in the derived HTTPS URLs.
+   */
+  readonly host: string;
+  readonly port?: number;
+  /** Path segments after percent-decoding, in order; empty when the DID has no path. */
+  readonly pathSegments: readonly string[];
+}
+
+/**
+ * Parses and validates a did:webvh identifier against DID Core syntax and the
+ * did:webvh v1.0 method-specific rules (SCID shape, FQDN, port, path segments).
+ * Validation is runtime-independent and performs no network access. DID URLs
+ * (with a path, query or fragment) and `{SCID}` templates are rejected.
+ *
+ * @throws Error if `did` is not a valid did:webvh identifier.
+ */
+export function parseDidWebvh(did: string): DidWebvh {
+  if (typeof did !== 'string') {
+    throw new Error('did:webvh identifier must be a string');
+  }
+  const parsed = parseDidWebvhIdentifier(did, 'did:webvh identifier');
+  return Object.freeze({
+    did: parsed.did,
+    scid: parsed.scid,
+    domainComponent: parsed.didDomainComponent,
+    host: parsed.canonicalHost,
+    ...(parsed.canonicalPort !== undefined && { port: parsed.canonicalPort }),
+    pathSegments: Object.freeze((parsed.paths ?? []).map((segment) => decodeURIComponent(segment))),
+  });
+}
+
+/**
+ * Validates a did:webvh identifier and converts its location to HTTPS. The
+ * host is mapped to its A-label form, the port is restored, and path segments
+ * are re-encoded with uppercase hex. No resource-specific path is appended.
+ *
+ * @throws Error if `did` is invalid, or if it holds a U-label host and the
+ * runtime's `URL` cannot apply IDNA (e.g. bare React Native).
+ */
+export function didWebvhToHttps(did: string): string {
+  if (typeof did !== 'string') {
+    throw new Error('did:webvh identifier must be a string');
+  }
+  return getBaseUrlFromParsedDid(parseDidWebvhIdentifier(did, 'did:webvh identifier'));
+}
