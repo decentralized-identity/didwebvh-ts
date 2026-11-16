@@ -592,8 +592,29 @@ export interface DidWebvh {
    */
   readonly host: string;
   readonly port?: number;
-  /** Path segments after percent-decoding, in order; empty when the DID has no path. */
+  /** Method-specific location segments after percent-decoding; empty when none are present. */
   readonly pathSegments: readonly string[];
+}
+
+/** A validated did:webvh DID URL and its method-specific DID components. */
+export interface DidWebvhUrl extends DidWebvh {
+  /** Encoded DID URL path, including the leading slash, if present. */
+  readonly path?: string;
+  /** Encoded DID URL query, without the leading question mark, if present. */
+  readonly query?: string;
+  /** Encoded DID URL fragment, without the leading hash, if present. */
+  readonly fragment?: string;
+}
+
+function toPublicDidWebvh(parsed: ParsedDidWebvhIdentifier): DidWebvh {
+  return {
+    did: parsed.did,
+    scid: parsed.scid,
+    domainComponent: parsed.didDomainComponent,
+    host: parsed.canonicalHost,
+    ...(parsed.canonicalPort !== undefined && { port: parsed.canonicalPort }),
+    pathSegments: Object.freeze((parsed.paths ?? []).map((segment) => decodeURIComponent(segment))),
+  };
 }
 
 /**
@@ -608,14 +629,30 @@ export function parseDidWebvh(did: string): DidWebvh {
   if (typeof did !== 'string') {
     throw new Error('did:webvh identifier must be a string');
   }
-  const parsed = parseDidWebvhIdentifier(did, 'did:webvh identifier');
+  return Object.freeze(toPublicDidWebvh(parseDidWebvhIdentifier(did, 'did:webvh identifier')));
+}
+
+/**
+ * Parses and validates a did:webvh DID URL, including a bare DID. The optional
+ * DID URL path, query and fragment remain encoded and are separate from the
+ * method-specific location segments in `pathSegments`. No network access is performed.
+ *
+ * @throws Error if `didUrl` is not a valid did:webvh DID URL.
+ */
+export function parseDidWebvhUrl(didUrl: string): DidWebvhUrl {
+  if (typeof didUrl !== 'string') {
+    throw new Error('did:webvh DID URL must be a string');
+  }
+  const parsedUrl = parseDidUrl(didUrl);
+  if (!parsedUrl) {
+    throw new Error('did:webvh DID URL must be valid');
+  }
+  const did = narrowDidWebvh(parsedUrl, 'did:webvh DID URL');
   return Object.freeze({
-    did: parsed.did,
-    scid: parsed.scid,
-    domainComponent: parsed.didDomainComponent,
-    host: parsed.canonicalHost,
-    ...(parsed.canonicalPort !== undefined && { port: parsed.canonicalPort }),
-    pathSegments: Object.freeze((parsed.paths ?? []).map((segment) => decodeURIComponent(segment))),
+    ...toPublicDidWebvh(did),
+    ...(parsedUrl.path !== undefined && { path: parsedUrl.path }),
+    ...(parsedUrl.query !== undefined && { query: parsedUrl.query }),
+    ...(parsedUrl.fragment !== undefined && { fragment: parsedUrl.fragment }),
   });
 }
 

@@ -41,6 +41,7 @@ describe('DID-to-HTTPS URL derivation', () => {
     ['%41b%2dc', 'Ab-c'],
     ['a%7eb', 'a~b'],
     ['a%21b%2Ac%3Ad', 'a%21b%2Ac%3Ad'],
+    ['a%2ab%21', 'a%2Ab%21'],
     ['a%20b', 'a%20b'],
   ])('re-encodes path segment %s with uppercase hex', (segment, encoded) => {
     const did = `did:webvh:${MOCK_SCID}:example.com:${segment}`;

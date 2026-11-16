@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { didWebvhToHttps, parseDidWebvh } from '../src/index.js';
+import { didWebvhToHttps, parseDidWebvh, parseDidWebvhUrl } from '../src/index.js';
 import { fetchWitnessProofs } from '../src/utils.js';
 
 const SCID = 'QmfGEUAcMpzo25kF2Rhn8L5FAXysfGnkzjwdKoNPi615XQ';
@@ -40,6 +40,53 @@ describe('parseDidWebvh', () => {
     ['a non-string', 42 as unknown as string],
   ])('rejects %s', (_case, did) => {
     expect(() => parseDidWebvh(did)).toThrow();
+  });
+});
+
+describe('parseDidWebvhUrl', () => {
+  test('decomposes a DID URL without confusing its path with DID location segments', () => {
+    const did = `did:webvh:${SCID}:example.com%3A8443:dids:caf%C3%A9`;
+    const parsed = parseDidWebvhUrl(`${did}/resources/a%2Fb?versionId=1%2F2#key%2D1`);
+    expect(parsed).toEqual({
+      ...parseDidWebvh(did),
+      path: '/resources/a%2Fb',
+      query: 'versionId=1%2F2',
+      fragment: 'key%2D1',
+    });
+    expect(Object.isFrozen(parsed)).toBe(true);
+    expect(Object.isFrozen(parsed.pathSegments)).toBe(true);
+  });
+
+  test('accepts a bare DID without URL components', () => {
+    const did = `did:webvh:${SCID}:example.com`;
+    expect(parseDidWebvhUrl(did)).toEqual(parseDidWebvh(did));
+  });
+
+  test.each([
+    ['/resources/hash', { path: '/resources/hash' }],
+    ['#key-1', { fragment: 'key-1' }],
+  ])('extracts the DID from %s', (suffix, component) => {
+    const did = `did:webvh:${SCID}:example.com`;
+    expect(parseDidWebvhUrl(`${did}${suffix}`)).toEqual({ ...parseDidWebvh(did), ...component });
+  });
+
+  test('preserves empty query and fragment components', () => {
+    const did = `did:webvh:${SCID}:example.com`;
+    expect(parseDidWebvhUrl(`${did}?#`)).toEqual({ ...parseDidWebvh(did), query: '', fragment: '' });
+  });
+
+  test.each([
+    ['another method', 'did:web:example.com/path'],
+    ['a malformed SCID', 'did:webvh:abc:example.com#key-1'],
+    ['an invalid host', `did:webvh:${SCID}:localhost/resources`],
+    ['invalid URL encoding', `did:webvh:${SCID}:example.com/resource%ZZ`],
+    ['a {SCID} template', 'did:webvh:{SCID}:example.com#key-1'],
+  ])('rejects %s', (_case, didUrl) => {
+    expect(() => parseDidWebvhUrl(didUrl)).toThrow();
+  });
+
+  test('rejects a non-string input', () => {
+    expect(() => Reflect.apply(parseDidWebvhUrl, undefined, [42])).toThrow('did:webvh DID URL must be a string');
   });
 });
 

@@ -422,6 +422,13 @@ The CLI equivalent is `pnpm cli -- migrate --log ./did.jsonl --address bücher.e
   encoded domain component, decoded host, optional port, and decoded path segments.
   DID URLs (with a path, query, or fragment) and `{SCID}` templates are rejected.
 
+- `parseDidWebvhUrl(didUrl: string): DidWebvhUrl`
+  Validates a did:webvh DID URL or bare DID without network access and returns the
+  same DID fields as `parseDidWebvh`, plus optional encoded `path`, `query`, and
+  `fragment` fields. `path` includes its leading `/`; `query` and `fragment` omit
+  `?` and `#`. These URL components are separate from the DID's decoded
+  method-specific `pathSegments`. Empty query and fragment values remain empty strings.
+
 - `didWebvhToHttps(did: string): string`
   Validates a did:webvh identifier and converts its location to HTTPS, returning
   the A-label host, port, and any path segments already present in the DID. It
