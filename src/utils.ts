@@ -1,5 +1,5 @@
 import type { DIDLog, FetchLike, WitnessProofFileEntry } from './interfaces.js';
-import { buildDidLogUrl } from './parser.js';
+import { buildDidLogUrl, buildWitnessUrl } from './parser.js';
 
 // Version parsing/validation utilities
 
@@ -59,7 +59,7 @@ export async function fetchLogFromIdentifier(identifier: string, fetchFn: FetchL
 }
 
 export async function fetchWitnessProofs(did: string, fetchFn: FetchLike = fetch): Promise<WitnessProofFileEntry[]> {
-  const url = buildDidLogUrl(did).replace('did.jsonl', 'did-witness.json');
+  const url = buildWitnessUrl(did);
 
   const response = await fetchFn(url);
   if (!response.ok) {

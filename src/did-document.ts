@@ -7,7 +7,7 @@ import {
   SERVICE_TYPE_RELATIVE_REF,
   ServiceFragment,
 } from './constants.js';
-import { getBaseUrl } from './parser.js';
+import { didWebvhToHttps } from './parser.js';
 import { deepClone, replaceValueInObject } from './utils.js';
 
 type ServiceIdStyle = 'absolute' | 'fragment';
@@ -69,7 +69,7 @@ export function addDefaultDidWebvhServices(
   options: { idStyle?: ServiceIdStyle } = {}
 ): DIDDocument {
   const services = Array.isArray(doc.service) ? [...doc.service] : [];
-  const baseUrl = getBaseUrl(did);
+  const baseUrl = didWebvhToHttps(did);
   const baseUrlWithTrailingSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const idStyle = options.idStyle ?? 'absolute';
   const createServiceId = (fragment: ServiceFragment) =>
