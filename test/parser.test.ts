@@ -2,7 +2,7 @@ import { type ParsedDID, parse as parseDidUrl } from 'did-resolver';
 import { describe, expect, test } from 'vitest';
 import {
   buildDidLogUrl,
-  getBaseUrl,
+  didWebvhToHttps,
   narrowDidWebvh,
   normalizeDidAddress,
   parseCanonicalAddress,
@@ -25,13 +25,13 @@ describe('DID-to-HTTPS URL derivation', () => {
   ])('keeps HTTPS when localhost appears in %s', (address, location, logDirectory) => {
     const did = `did:webvh:${MOCK_SCID}:${address}`;
 
-    expect(getBaseUrl(did)).toBe(`https://${location}`);
+    expect(didWebvhToHttps(did)).toBe(`https://${location}`);
     expect(buildDidLogUrl(did)).toBe(`https://${location}${logDirectory}/did.jsonl`);
   });
 
   test('builds URLs for path-qualified identifiers', () => {
     const did = `did:webvh:${MOCK_SCID}:example.com%3A8080:custom:path`;
-    expect(getBaseUrl(did)).toBe('https://example.com:8080/custom/path');
+    expect(didWebvhToHttps(did)).toBe('https://example.com:8080/custom/path');
     expect(buildDidLogUrl(did)).toBe('https://example.com:8080/custom/path/did.jsonl');
   });
 
@@ -44,40 +44,40 @@ describe('DID-to-HTTPS URL derivation', () => {
     ['a%20b', 'a%20b'],
   ])('re-encodes path segment %s with uppercase hex', (segment, encoded) => {
     const did = `did:webvh:${MOCK_SCID}:example.com:${segment}`;
-    expect(getBaseUrl(did)).toBe(`https://example.com/${encoded}`);
+    expect(didWebvhToHttps(did)).toBe(`https://example.com/${encoded}`);
     expect(buildDidLogUrl(did)).toBe(`https://example.com/${encoded}/did.jsonl`);
   });
 
   test('uses .well-known did.jsonl when the DID has no path', () => {
     const did = `did:webvh:${MOCK_SCID}:example.com`;
-    expect(getBaseUrl(did)).toBe('https://example.com');
+    expect(didWebvhToHttps(did)).toBe('https://example.com');
     expect(buildDidLogUrl(did)).toBe('https://example.com/.well-known/did.jsonl');
   });
 
   test('rejects query, fragment, and traversal contamination', () => {
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com#frag`)).toThrow(
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com#frag`)).toThrow(
       'did:webvh identifier must not include query or fragment components'
     );
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com?query=1`)).toThrow(
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com?query=1`)).toThrow(
       'did:webvh identifier must not include query or fragment components'
     );
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:..:secret`)).toThrow(
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com:..:secret`)).toThrow(
       'did:webvh identifier must not contain dot-segments'
     );
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:%2E%2E:secret`)).toThrow(
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com:%2E%2E:secret`)).toThrow(
       'did:webvh identifier must not contain dot-segments'
     );
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:a%2Fb`)).toThrow(
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com:a%2Fb`)).toThrow(
       'did:webvh identifier must not contain decoded slash within a single path segment'
     );
   });
 
   test('rejects empty path segments', () => {
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com::path`)).toThrow(
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com::path`)).toThrow(
       'did:webvh identifier must not contain empty path segments'
     );
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:path:`)).toThrow();
-    expect(() => getBaseUrl(`did:webvh:${MOCK_SCID}:example.com:`)).toThrow();
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com:path:`)).toThrow();
+    expect(() => didWebvhToHttps(`did:webvh:${MOCK_SCID}:example.com:`)).toThrow();
   });
 });
 

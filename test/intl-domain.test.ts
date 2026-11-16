@@ -1,24 +1,24 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { deactivateDID, resolveDID } from '../src/method.js';
-import { buildDidLogUrl, getBaseUrl, parseCanonicalAddress, parseDidWebvhIdentifier } from '../src/parser.js';
+import { buildDidLogUrl, didWebvhToHttps, parseCanonicalAddress, parseDidWebvhIdentifier } from '../src/parser.js';
 import { createAndResolve, createUncanonicalisedDID, expectRoundTrip, MOCK_SCID } from './utils.js';
 
 describe('Internationalized domain handling', () => {
   test('handles Unicode domain labels', () => {
     const did = `did:webvh:${MOCK_SCID}:${encodeURIComponent('bücher.example')}`;
-    expect(getBaseUrl(did)).toBe('https://xn--bcher-kva.example');
+    expect(didWebvhToHttps(did)).toBe('https://xn--bcher-kva.example');
     expect(buildDidLogUrl(did)).toBe('https://xn--bcher-kva.example/.well-known/did.jsonl');
   });
 
   test('decodes encoded port numbers', () => {
     const did = `did:webvh:${MOCK_SCID}:${encodeURIComponent('例子.测试')}%3A8080`;
-    expect(getBaseUrl(did)).toBe('https://xn--fsqu00a.xn--0zwm56d:8080');
+    expect(didWebvhToHttps(did)).toBe('https://xn--fsqu00a.xn--0zwm56d:8080');
     expect(buildDidLogUrl(did)).toBe('https://xn--fsqu00a.xn--0zwm56d:8080/.well-known/did.jsonl');
   });
 
   test('arabic domain example', () => {
     const did = `did:webvh:${MOCK_SCID}:${encodeURIComponent('مثال.إختبار')}`;
-    expect(getBaseUrl(did)).toBe('https://xn--mgbh0fb.xn--kgbechtv');
+    expect(didWebvhToHttps(did)).toBe('https://xn--mgbh0fb.xn--kgbechtv');
   });
 
   test('rejects raw (unencoded) Unicode in a DID', () => {

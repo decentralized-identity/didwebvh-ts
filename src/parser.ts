@@ -564,10 +564,6 @@ function getDidFileBaseUrl(parsedDid: ParsedDidWebvhIdentifier): string {
   return parsedDid.paths?.length ? baseUrl : `${baseUrl}/.well-known`;
 }
 
-export const getBaseUrl = (id: string) => {
-  return getBaseUrlFromParsedDid(parseDidWebvhIdentifier(id, 'did:webvh identifier'));
-};
-
 export const buildDidLogUrl = (id: string) => {
   const parsedDid = parseDidWebvhIdentifier(id, 'did:webvh identifier');
   return `${getDidFileBaseUrl(parsedDid)}/did.jsonl`;
@@ -603,8 +599,8 @@ export interface DidWebvh {
 /**
  * Parses and validates a did:webvh identifier against DID Core syntax and the
  * did:webvh v1.0 method-specific rules (SCID shape, FQDN, port, path segments).
- * Validation is runtime-independent and performs no network access. DID URLs
- * (with a path, query or fragment) and `{SCID}` templates are rejected.
+ * Validation is runtime-independent and performs no network access. The function
+ * rejects DID URLs (with a path, query or fragment) and `{SCID}` templates.
  *
  * @throws Error if `did` is not a valid did:webvh identifier.
  */
@@ -624,9 +620,9 @@ export function parseDidWebvh(did: string): DidWebvh {
 }
 
 /**
- * Validates a did:webvh identifier and converts its location to HTTPS. The
- * host is mapped to its A-label form, the port is restored, and path segments
- * are re-encoded with uppercase hex. No resource-specific path is appended.
+ * Validates a did:webvh identifier and converts its location to HTTPS. The function
+ * maps the host to its A-label form, restores the port, and re-encodes path segments
+ * with uppercase hex. It does not append a resource-specific path.
  *
  * @throws Error if `did` is invalid, or if it holds a U-label host and the
  * runtime's `URL` cannot apply IDNA (e.g. bare React Native).

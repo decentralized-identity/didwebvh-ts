@@ -34,6 +34,7 @@ describe('parseDidWebvh', () => {
     ['an out-of-range port', `did:webvh:${SCID}:example.com%3A70000`],
     ['a dot-segment', `did:webvh:${SCID}:example.com:..`],
     ['a fragment', `did:webvh:${SCID}:example.com#key-1`],
+    ['a query', `did:webvh:${SCID}:example.com?versionId=1`],
     ['a DID URL path', `did:webvh:${SCID}:example.com/whois`],
     ['a {SCID} template', 'did:webvh:{SCID}:example.com'],
     ['a non-string', 42 as unknown as string],
@@ -56,6 +57,10 @@ describe('didWebvhToHttps', () => {
 
   test('converts a DID without adding a resource path', () => {
     expect(didWebvhToHttps(`did:webvh:${SCID}:example.com`)).toBe('https://example.com');
+  });
+
+  test('normalizes mixed-case ASCII hosts', () => {
+    expect(didWebvhToHttps(`did:webvh:${SCID}:Example.COM`)).toBe('https://example.com');
   });
 
   test('preserves DID path segments and restores the port without appending a resource path', () => {
