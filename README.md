@@ -417,6 +417,9 @@ The CLI equivalent is `pnpm cli -- migrate --log ./did.jsonl --address bücher.e
 - `resolveDIDFromLog(log: DIDLog, options?: ResolutionOptions): Promise<DIDResolutionResult>`
   Resolves directly from an in-memory DID log, returning the same standard shape.
 
+- `fetchLogFromIdentifier(identifier: string, fetchFn?: FetchLike): Promise<DIDLog>`
+  Fetches the DID's published `did.jsonl` file and parses one entry per line, without verifying it. HTTP errors and an empty file are thrown. Pass the log to `resolveDIDFromLog` to verify it.
+
 - `parseDidWebvh(did: string): DidWebvh`
   Validates a did:webvh identifier without network access and returns its SCID,
   encoded domain component, decoded host, optional port, and decoded path segments.
