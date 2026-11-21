@@ -42,14 +42,14 @@
     "example:generate": "tsx scripts/generate-examples.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.2",
     "@types/node": "^24.19.2",
-    "@vitest/coverage-v8": "^5.0.4",
+    "@vitest/coverage-v8": "^5.0.5",
     "esbuild": "^0.28.2",
     "glob": "^13.0.6",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   },
   "dependencies": {
     "@noble/curves": "^2.4.0",
