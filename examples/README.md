@@ -1,7 +1,6 @@
 # DID Web VH Resolver Examples
 
 This directory contains example implementations of DID Web VH resolvers using different frameworks:
-
 1. **Elysia Resolver** - A resolver built with the Elysia framework
 2. **Express Resolver** - A resolver built with Express (Node.js)
 
@@ -71,7 +70,6 @@ curl "http://localhost:3010/resolve/did:web:example.com?verificationMethod=key-1
 ### Elysia Resolver
 
 The Elysia resolver uses an `ElysiaVerifier` class that:
-
 1. Extends the `AbstractCrypto` class
 2. Implements the `Verifier` interface for verification
 3. Uses Ed25519 for cryptographic operations via `@noble/curves`
@@ -80,7 +78,6 @@ The Elysia resolver uses an `ElysiaVerifier` class that:
 ### Express Resolver
 
 The Express resolver uses an `HSMSigner` class that:
-
 1. Implements both `Signer` and `Verifier` interfaces directly
 2. Simulates an HSM (Hardware Security Module) for secure Ed25519 key operations
 3. Provides a production-ready example of Ed25519 verification
@@ -88,7 +85,6 @@ The Express resolver uses an `HSMSigner` class that:
 ## Code Structure
 
 Both examples follow a similar structure:
-
 1. **Ed25519 Verifier Implementation**: Proper cryptographic verification using the Ed25519 algorithm
 2. **DID Resolution**: Endpoints for resolving DIDs using the `didwebvh-ts` library
 3. **File Handling**: Logic for retrieving resources associated with DIDs
@@ -97,7 +93,6 @@ Both examples follow a similar structure:
 ## Security Considerations
 
 These examples demonstrate proper Ed25519 cryptographic verification but should be reviewed for your specific security requirements before use in production:
-
 1. Key management should be handled securely (HSM, key vaults, etc.)
 2. Input validation should be robust
 3. Error handling should not leak sensitive information
@@ -105,4 +100,4 @@ These examples demonstrate proper Ed25519 cryptographic verification but should 
 
 ## License
 
-See the project's main license file for details. 
+See the project's main license file for details.
